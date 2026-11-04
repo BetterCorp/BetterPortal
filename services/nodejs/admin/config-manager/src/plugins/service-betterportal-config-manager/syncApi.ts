@@ -281,22 +281,27 @@ export function getCachedManifestForService(
       ? normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0])
       : cache.get(key);
   };
-  const direct = read(serviceInstanceId);
-  if (direct) return direct;
-
+  const keys = [serviceInstanceId];
   const activation = config.sharedServiceActivations.find((candidate) => candidate.id === serviceInstanceId);
   if (activation) {
     const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === activation.sharedServiceId);
-    return read(activation.sharedServiceId)
-      ?? (shared?.serviceId ? read(shared.serviceId) : undefined);
+    keys.push(activation.sharedServiceId);
+    if (shared?.serviceId) keys.push(shared.serviceId);
+  } else {
+    for (const tenant of config.tenants) {
+      const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId);
+      if (service?.serviceId) keys.push(service.serviceId);
+    }
+    const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId);
+    if (platform?.serviceId) keys.push(platform.serviceId);
   }
-
-  for (const tenant of config.tenants) {
-    const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId);
-    if (service?.serviceId) return read(service.serviceId);
+  const storedKey = keys.find(key => config.manifestCache?.some(entry => entry.serviceId === key));
+  if (storedKey) return read(storedKey);
+  for (const key of keys) {
+    const manifest = read(key);
+    if (manifest) return manifest;
   }
-  const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId);
-  return platform?.serviceId ? read(platform.serviceId) : undefined;
+  return undefined;
 }
 
 function cacheManifest(serviceId: string, manifest: CachedManifest): void {
@@ -603,16 +608,20 @@ export function registerSyncEndpoint(
   store: PlatformConfigStore,
   options: SyncEndpointOptions = {}
 ): void {
-  const projections = new Map<string, Promise<string>>();
-  store.onChange(() => projections.clear());
+  const inFlight = new Map<string, Promise<string>>();
+  store.onChange(() => { inFlight.clear(); });
   const projection = (serviceId: string, scope: "platform" | "tenant", tenantId?: string) => {
     const key = JSON.stringify([scope, tenantId, serviceId]);
-    let pending = projections.get(key);
+    let pending = inFlight.get(key);
     if (!pending) {
       pending = store.getScopedConfig(serviceId, scope, tenantId)
         .then((config) => JSON.stringify(injectResolvedServicePaths(config)));
-      projections.set(key, pending);
-      void pending.catch(() => { if (projections.get(key) === pending) projections.delete(key); });
+      inFlight.set(key, pending);
+      void pending.then(() => {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+      }, () => {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+      });
     }
     return pending;
   };
@@ -689,14 +698,17 @@ export function registerSyncEndpoint(
       });
     };
 
-    const unsubscribe = store.onChange(() => {
-      sendScopedConfig().catch((error) => {
+    const sendOrClose = () => {
+      void sendScopedConfig().catch(async (error) => {
         obs?.logger.warn("BP SYNC: failed sending config service={serviceId}: {msg}", {
           serviceId,
           msg: error instanceof Error ? error.message : String(error)
         });
+        closed = true;
+        await stream.close().catch(() => {});
       });
-    });
+    };
+    const unsubscribe = store.onChange(sendOrClose);
 
     // Named events work with both h3 stream implementations used by service-base.
     // Sync clients ignore heartbeat events while idle HTTP connections stay active.
@@ -731,12 +743,7 @@ export function registerSyncEndpoint(
     });
 
     const response = stream.send();
-    sendScopedConfig().catch((error) => {
-      obs?.logger.warn("BP SYNC: failed sending initial config service={serviceId}: {msg}", {
-        serviceId,
-        msg: error instanceof Error ? error.message : String(error)
-      });
-    });
+    sendOrClose();
 
     return response;
   });
@@ -885,6 +892,43 @@ function operationIndex(manifest: CachedManifest): Map<string, { view: CachedMan
   return new Map(Object.values(manifest.viewIndex).flatMap((view) =>
     view.operations.map((operation) => [operation.operationId, { view, operation }] as const)
   ));
+}
+
+function ensureApiRouteMounts(app: BetterPortalApp, serviceId: string, manifest: CachedManifest): boolean {
+  let changed = false;
+  for (const view of Object.values(manifest.viewIndex)) {
+    for (const operation of view.operations.filter(candidate => !isPageOperation(candidate))) {
+      if (app.routes.some(route => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;
+      app.routes.push({
+        id: uuidv7(), kind: "api", path: apiRoutePath(manifest.serviceId, view.path), serviceId,
+        viewId: view.viewId, targetPath: view.path, title: operation.title,
+        enabled: false, enablement: "auto", operations: [operation.operationId]
+      });
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+export function reconcileCachedServiceRoutes(config: BetterPortalConfig, serviceIds: Iterable<string>): boolean {
+  const manifests = new Map<string, CachedManifest>();
+  for (const serviceId of serviceIds) {
+    const manifest = getCachedManifestForService(config, serviceId, new Map());
+    if (manifest) manifests.set(serviceId, manifest);
+  }
+  let changed = false;
+  for (const app of config.apps) {
+    if (config.previewEnvironmentDeployments.some(deployment => deployment.appId === app.id)) continue;
+    const available = getAvailableServiceInstanceIdsForApp(config, app);
+    let affected = false;
+    for (const [serviceId, manifest] of manifests) {
+      if (!available.has(serviceId)) continue;
+      affected = true;
+      if (ensureApiRouteMounts(app, serviceId, manifest)) changed = true;
+    }
+    if (affected && reconcileDependencyRoutes(config, app)) changed = true;
+  }
+  return changed;
 }
 
 export interface OperationDependencyIssue {
@@ -1221,23 +1265,7 @@ function applyServiceMetadata(
       }
     }
     for (const serviceId of routeNormalizationIds) {
-      for (const view of Object.values(manifest.viewIndex)) {
-        for (const operation of view.operations.filter((candidate) => !isPageOperation(candidate))) {
-          if (app.routes.some((route) => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;
-          app.routes.push({
-            id: uuidv7(),
-            kind: "api",
-            path: apiRoutePath(manifest.serviceId, view.path),
-            serviceId,
-            viewId: view.viewId,
-            targetPath: view.path,
-            title: operation.title,
-            enabled: false,
-            enablement: "auto",
-            operations: [operation.operationId]
-          });
-        }
-      }
+      ensureApiRouteMounts(app, serviceId, manifest);
     }
     reconcileDependencyRoutes(config, app);
   }

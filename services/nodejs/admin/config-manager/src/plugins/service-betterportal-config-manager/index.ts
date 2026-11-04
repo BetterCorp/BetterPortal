@@ -242,6 +242,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     await this.warmAuthCache(obs, config);
   }
 
+  private async subscribeConfigChanges(obs: Observable): Promise<void> {
+    await this.selfClient.onPlatformConfigChanged(obs, eventObs => this.refreshConfigCaches(eventObs));
+    await this.refreshConfigCaches(obs);
+  }
+
   /**
    * Build a complete verifier cache from persisted JWKS at startup or refresh.
    *
@@ -282,7 +287,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       this.authConfigCache.clear();
       for (const [key, entry] of next) this.authConfigCache.set(key, entry);
       if (warmed > 0) obs?.log.debug("Warmed auth verifier cache for {count} app(s)", { count: warmed });
-    } catch {
+    } catch (error) {
+      if (snapshot) throw error;
       // Non-fatal - getJwtVerifier falls back to lazy refresh on demand.
     }
   }
@@ -415,11 +421,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       cpId: this.cpState.cpId
     });
 
-    await this.selfClient.onPlatformConfigChanged(_obs, async (eventObs) => {
-      // Independent transactions may commit out of sequence. Never discard an
-      // invalidation merely because a higher sequence was delivered first.
-      await this.refreshConfigCaches(eventObs);
-    });
+    await this.subscribeConfigChanges(_obs);
     await this.selfClient.onWebhookDeliveryAvailable(_obs, async () => {
       await this.webhookRuntime?.drain();
     });
@@ -768,11 +770,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     };
   }
 
-  private async loadEditorPage(event: BetterPortalEvent, chooseFirst = false) {
+  private async loadEditorPage(event: BetterPortalEvent, chooseFirst = false, includeManifests = false) {
     if (this.postgresStorage) {
       const appId = new URL(event.req.url, RELATIVE_URL_PARSE_BASE).searchParams.get("appId") ?? undefined;
       const span = eventObservability(event)?.startSpan("bp.app.read");
-      try { return await readAppPage(this.postgresStorage.database, appId, chooseFirst); }
+      try { return await readAppPage(this.postgresStorage.database, appId, chooseFirst, includeManifests); }
       finally { span?.end(); }
     }
     const config = visibleAdminConfig(await this.loadRequestConfig(event));
@@ -780,7 +782,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateRoutesContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.loadEditorPage(event);
+    const config = await this.loadEditorPage(event, false, true);
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const openApiServiceId = url.searchParams.get("apiServiceId") ?? undefined;

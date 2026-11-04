@@ -36,9 +36,11 @@ function manifestLoaderScript(
   };
 
   const viewRenderable = (view) => {
-    if (typeof view?.renderable === "boolean") return view.renderable;
+    if (view?.method !== "GET" || view.renderable === false || view.raw === true) return false;
     const renderers = view?.html?.renderers;
-    return !!renderers && typeof renderers === "object" && Object.keys(renderers).length > 0;
+    return !!renderers && typeof renderers === "object" && Object.values(renderers).some((renderer) =>
+      Array.isArray(renderer?.renderModes) && renderer.renderModes.includes("page")
+    );
   };
 
   const manifestViews = (manifest) => {
@@ -72,7 +74,7 @@ function manifestLoaderScript(
 
     for (const svc of byServiceId.values()) {
       for (const routeView of svc.views) {
-        if (routeView.renderable === false && !(svc.id === selectedService && routeView.operationId === selectedOperation)) continue;
+        if (routeView.method !== "GET" || routeView.renderable === false) continue;
         const option = new Option((routeView.title || routeView.operationId) + " · " + routeView.method + " · " + routeView.operationId, routeView.operationId);
         option.dataset.serviceId = svc.id;
         option.dataset.viewId = routeView.viewId;
@@ -86,7 +88,8 @@ function manifestLoaderScript(
     const selectedExists = Array.from(view.options).some((option) =>
       option.value === selectedOperation && option.dataset.serviceId === selectedService
     );
-    if (selectedService && selectedOperation && !selectedExists) {
+    const selectedKnown = byServiceId.get(selectedService)?.views.some((candidate) => candidate.operationId === selectedOperation);
+    if (selectedService && selectedOperation && !selectedExists && !selectedKnown) {
       const selectedServiceMeta = byServiceId.get(selectedService);
       const selectedView = selectedOperation;
       const reason = !selectedServiceMeta
@@ -418,7 +421,7 @@ function routeFormFields(
               selected
             >{selectedView} — {!selectedServiceMeta ? "service unavailable" : selectedServiceMeta.manifestLoaded ? "unavailable in current manifest" : "service manifest not loaded"}</option>
           ) : ""}
-          {viewOptions.filter((view) => view.renderable !== false || (view.serviceId === selectedService && view.operationId === selectedOperation)).map((view) => (
+          {viewOptions.filter((view) => view.method === "GET" && view.renderable !== false).map((view) => (
             <option
               value={view.operationId}
               data-service-id={view.serviceId}
@@ -431,7 +434,7 @@ function routeFormFields(
             </option>
           ))}
         </select>
-        <div class="form-text">Select the method-specific operation to mount. Its view id is derived automatically.</div>
+        <div class="form-text">Select a GET operation with a page renderer. Other operations are managed under Service/API Routes.</div>
       </div>
       <div class="mb-3">
         <label class="form-label">Mount path</label>

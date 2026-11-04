@@ -8,9 +8,10 @@ import { AppDataConflictError, appSettings } from "./storage/appData.js";
 
 export type AppDatabase = PostgresStorage["database"];
 /** Editor data, not a complete platform configuration and never passed to saveConfig. */
-export type AppEditorData = Pick<BetterPortalConfig, "apps" | "tenants" | "platformServices" | "sharedServiceCatalog" | "sharedServiceActivations" | "previewEnvironmentDeployments">;
+export type AppEditorData = Pick<BetterPortalConfig, "apps" | "tenants" | "platformServices" | "sharedServiceCatalog" | "sharedServiceActivations" | "previewEnvironmentDeployments">
+  & Partial<Pick<BetterPortalConfig, "manifestCache">>;
 
-export async function readAppEditor(client: PoolClient, db: AppDatabase, appId: string): Promise<AppEditorData> {
+export async function readAppEditor(client: PoolClient, db: AppDatabase, appId: string, includeManifests = false): Promise<AppEditorData> {
   const rows = await db.appData.read(client, db.entities, appId);
   const app = rows.entities[0]?.value;
   const empty: AppEditorData = { apps: [], tenants: [], platformServices: [], sharedServiceCatalog: [], sharedServiceActivations: [], previewEnvironmentDeployments: [] };
@@ -33,14 +34,28 @@ export async function readAppEditor(client: PoolClient, db: AppDatabase, appId: 
   const tenant = values("tenants")[0];
   if (!tenant) throw new Error("App tenant is missing");
   tenant.services = values("tenantServices").map(({ tenantId: _tenantId, ...service }) => service);
-  return { apps: [BetterPortalAppSchema.parse(app)], tenants: [BetterPortalTenantSchema.parse(tenant)],
+  const data: AppEditorData = { apps: [BetterPortalAppSchema.parse(app)], tenants: [BetterPortalTenantSchema.parse(tenant)],
     platformServices: values("platformServices"), sharedServiceCatalog: values("sharedServiceCatalog"),
     sharedServiceActivations: values("sharedServiceActivations"), previewEnvironmentDeployments: values("previewEnvironmentDeployments") };
+  if (includeManifests) {
+    const serviceIds = getAvailableServiceInstanceIdsForApp(data, data.apps[0]);
+    const keys = new Set(serviceIds);
+    for (const serviceId of serviceIds) {
+      const pluginId = getServicePluginId(data, serviceId);
+      if (pluginId) keys.add(pluginId);
+      const activation = data.sharedServiceActivations.find(candidate => candidate.id === serviceId);
+      if (activation) keys.add(activation.sharedServiceId);
+    }
+    const manifests = await client.query(`select value from ${db.entities} where scope_id=$1 and kind='manifestCache'
+      and entity_id=any($2::text[]) order by ordinal`, [db.scope, [...keys]]);
+    data.manifestCache = manifests.rows.map(row => row.value);
+  }
+  return data;
 }
 
 /** A short transaction over one app's relational collections. No platform snapshots. */
 export async function editAppRows<T>(db: AppDatabase, appId: string, obs: BetterPortalObservability | undefined,
-  change: (data: AppEditorData) => Promise<T>): Promise<T> {
+  change: (data: AppEditorData) => Promise<T>, includeManifests = false): Promise<T> {
   const span = obs?.startSpan("bp.app.edit");
   const waiting = span?.startSpan("bp.app.pool_wait");
   let client: PoolClient;
@@ -54,7 +69,7 @@ export async function editAppRows<T>(db: AppDatabase, appId: string, obs: Better
     finally { lock?.end(); }
     const reading = span?.startSpan("bp.app.read");
     let data: AppEditorData;
-    try { data = await readAppEditor(client, db, appId); } finally { reading?.end(); }
+    try { data = await readAppEditor(client, db, appId, includeManifests); } finally { reading?.end(); }
     const before = data.apps[0] && structuredClone(data.apps[0]);
     const availableAtRead = before ? getAvailableServiceInstanceIdsForApp(data, before) : new Set<string>();
     const result = await change(data);
@@ -169,7 +184,7 @@ export async function readRequestConfig(db: AppDatabase, headers: HeaderMap, obs
   finally { client.release(); span?.end(); }
 }
 
-export async function readAppPage(db: AppDatabase, appId?: string, chooseFirst = false) {
+export async function readAppPage(db: AppDatabase, appId?: string, chooseFirst = false, includeManifests = false) {
   const client = await db.pool.connect();
   try {
     await client.query("begin isolation level repeatable read read only");
@@ -179,7 +194,7 @@ export async function readAppPage(db: AppDatabase, appId?: string, chooseFirst =
          select 1 from ${db.entities} preview where preview.scope_id=app.scope_id and preview.kind='previewEnvironmentDeployments'
            and preview.value->>'appId'=app.entity_id) order by ordinal`, [db.scope]);
     const selected = result.rows.find(app => app.id === appId)?.id ?? (!appId && chooseFirst ? result.rows[0]?.id : undefined);
-    const data = await readAppEditor(client, db, selected ?? "");
+    const data = await readAppEditor(client, db, selected ?? "", includeManifests);
     await client.query("commit");
     return { ...data, appChoices: result.rows };
   } catch (error) { await client.query("rollback").catch(() => undefined); throw error; }

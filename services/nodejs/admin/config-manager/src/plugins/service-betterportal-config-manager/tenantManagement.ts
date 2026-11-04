@@ -10,7 +10,8 @@ import {
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, AuthRoleAuthority, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
 import { readTenantPage, type DirectoryData } from "./appQueries.js";
 import { getConfigManagerRouteContext } from "./routeContext.js";
-import { getCachedManifestForService } from "./syncApi.js";
+import { getCachedManifestForService, reconcileCachedServiceRoutes } from "./syncApi.js";
+import { getAvailableServiceInstanceIdsForApp } from "./storage/core.js";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { resolveRoleAuthority, supportedRoleAuthorities } from "./roleAuthority.js";
 import { isPreviewApp, isPreviewTenant, visibleAdminConfig } from "./previewEnvironments.js";
@@ -293,6 +294,7 @@ async function createApp(body: Record<string, unknown>): Promise<void> {
     ensureAuthRouteMounts(config, app);
   }
   config.apps.push(app);
+  reconcileCachedServiceRoutes(config, getAvailableServiceInstanceIdsForApp(config, app));
   await routeContext.storage.saveConfig(config);
 }
 
