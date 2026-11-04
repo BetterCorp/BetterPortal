@@ -17,6 +17,23 @@ function serviceFixture() {
 }
 const obs = { log: { info() {}, warn() {} } };
 
+test("shared catalog service IDs pass client sanity checks and permit sync readiness", async t => {
+  const service = serviceFixture();
+  t.after(() => service.dispose());
+  const id = "org.betterportal.auth.default";
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    if (init.method === "POST") return Response.json({ managementOrigins: [], tenants: [], apps: [],
+      serviceIdentity: { id }, m2m: { localServiceIds: [id], services: [{ id, hostname: "https://service.example" }], bindings: [], grants: [] } });
+    return new Response(new ReadableStream({ start(controller) {
+      init.signal?.addEventListener("abort", () => controller.error(new DOMException("Disposed", "AbortError")), { once: true });
+    } }));
+  });
+  assert.equal(await service.connectToControlPlane(obs), true);
+  assert.equal(service.scopedConfig.serviceIdentity.id, id);
+  assert.deepEqual(service.scopedConfig.m2m.localServiceIds, [id]);
+  assert.equal(service.renderHealth().status, 200);
+});
+
 test("control-plane credentials require HTTPS or exact HTTP loopback and reject unsafe URLs before fetch", async t => {
   const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("unexpected request"); });
   for (const url of ["http://config.test", "http://localhost.attacker.test", "http://127.0.0.1.attacker.test", "ftp://localhost", "https://user:pass@config.test", "https://config.test?key=secret", "https://config.test#fragment", "//config.test", "bad-url"]) {
