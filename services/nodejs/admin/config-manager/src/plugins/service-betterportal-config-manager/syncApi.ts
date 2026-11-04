@@ -29,7 +29,7 @@ import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
-import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
+import { isPageOperation, apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { applyServicePublicKey, ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService, PreviewEnvironmentError } from "./previewEnvironments.js";
 import { credentialDiagnostics } from "./credentialDiagnostics.js";
@@ -117,9 +117,7 @@ export interface CachedManifestOperation {
   demoScenarios: ViewDemoScenario[];
 }
 
-export function isPageOperation(operation: Pick<CachedManifestOperation, "method" | "renderModes">): boolean {
-  return operation.method === "GET" && operation.renderModes.includes("page");
-}
+export { isPageOperation } from "./routeMounts.js";
 
 export interface CachedManifest {
   serviceId: string;
@@ -894,8 +892,7 @@ function operationIndex(manifest: CachedManifest): Map<string, { view: CachedMan
   ));
 }
 
-function ensureApiRouteMounts(app: BetterPortalApp, serviceId: string, manifest: CachedManifest): boolean {
-  let changed = false;
+function ensureApiRouteMounts(app: BetterPortalApp, serviceId: string, manifest: CachedManifest): void {
   for (const view of Object.values(manifest.viewIndex)) {
     for (const operation of view.operations.filter(candidate => !isPageOperation(candidate))) {
       if (app.routes.some(route => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;
@@ -904,10 +901,109 @@ function ensureApiRouteMounts(app: BetterPortalApp, serviceId: string, manifest:
         viewId: view.viewId, targetPath: view.path, title: operation.title,
         enabled: false, enablement: "auto", operations: [operation.operationId]
       });
-      changed = true;
     }
   }
-  return changed;
+}
+
+function reconcileServiceRouteMounts(
+  app: BetterPortalApp, syncedServiceIds: ReadonlySet<string>, manifest: CachedManifest, normalizePaths = true
+): boolean {
+  const before = structuredClone(app.routes);
+  const manifestOperations = operationIndex(manifest);
+  for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
+    const view = (route.kind === "api"
+      ? route.operations.map(id => manifestOperations.get(id)?.view).find(Boolean)
+      : undefined) ?? manifest.viewIndex[route.viewId];
+    if (!view) continue;
+    if (route.kind === "api") route.viewId = view.viewId;
+    const resolvedOperations = route.operations.map((operationId) => {
+      const legacyMethod = legacyOperationMethod(operationId);
+      if (!legacyMethod) return operationId;
+      return view.operations.find((operation) => operation.method === legacyMethod)?.operationId ?? operationId;
+    });
+    if (!sameOperations(route.operations, resolvedOperations)) {
+      route.operations = resolvedOperations;
+    }
+  }
+  const staleApiRouteIds = new Set(app.routes
+    .filter((route) => syncedServiceIds.has(route.serviceId)
+      && route.kind === "api"
+      && !route.operations.some((operationId) => manifestOperations.get(operationId)?.view.viewId === route.viewId))
+    .map((route) => route.id));
+  if (staleApiRouteIds.size > 0) {
+    app.routes = app.routes.filter((route) => !staleApiRouteIds.has(route.id));
+  }
+  const routeNormalizationIds = normalizePaths ? syncedServiceIds : new Set<string>();
+  for (const route of app.routes.filter((candidate) => routeNormalizationIds.has(candidate.serviceId))) {
+    const view = manifest.viewIndex[route.viewId];
+    if (!view) {
+      if (route.enabled !== false) {
+        route.enabled = false;
+      }
+      continue;
+    }
+
+    const validOperations = route.operations.filter((operationId) =>
+      manifestOperations.get(operationId)?.view.viewId === route.viewId
+    );
+    if (validOperations.length === 0) {
+      if (route.enabled !== false) {
+        route.enabled = false;
+      }
+      continue;
+    }
+    if (!sameOperations(route.operations, validOperations)) {
+      route.operations = validOperations;
+    }
+    const selectedOperations = validOperations.map((operationId) => manifestOperations.get(operationId)!.operation);
+    const pageOperation = selectedOperations.find(isPageOperation);
+    const operation = pageOperation ?? selectedOperations[0];
+    if (route.operations.length > 1) {
+      route.operations = [operation.operationId];
+    }
+    const wasApi = route.kind === "api";
+    const selectedServicePath = !wasApi && pageOperation && route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
+      ? route.servicePathVariant
+      : view.path;
+    if (route.targetPath !== selectedServicePath) {
+      route.targetPath = selectedServicePath;
+    }
+    const routeIsApi = !pageOperation;
+    if (routeIsApi) {
+      const nextPath = apiRoutePath(manifest.serviceId, selectedServicePath);
+      if (route.kind !== "api") {
+        route.kind = "api";
+      }
+      if (route.path !== nextPath) {
+        route.path = nextPath;
+      }
+      if (route.query !== undefined) {
+        delete route.query;
+      }
+      if (route.servicePathVariant !== undefined) {
+        delete route.servicePathVariant;
+      }
+      if (route.fixedParams !== undefined) {
+        delete route.fixedParams;
+      }
+      if (route.title !== operation.title) {
+        route.title = operation.title;
+      }
+    } else {
+      if (wasApi) {
+        route.kind = "page";
+        route.enabled = false;
+        route.path = pageRoutePath(manifest.serviceId, selectedServicePath);
+      }
+    }
+    if (!route.title) {
+      route.title = operation.title;
+    }
+  }
+  for (const serviceId of routeNormalizationIds) {
+    ensureApiRouteMounts(app, serviceId, manifest);
+  }
+  return !isDeepStrictEqual(before, app.routes);
 }
 
 export function reconcileCachedServiceRoutes(config: BetterPortalConfig, serviceIds: Iterable<string>): boolean {
@@ -924,7 +1020,7 @@ export function reconcileCachedServiceRoutes(config: BetterPortalConfig, service
     for (const [serviceId, manifest] of manifests) {
       if (!available.has(serviceId)) continue;
       affected = true;
-      if (ensureApiRouteMounts(app, serviceId, manifest)) changed = true;
+      if (reconcileServiceRouteMounts(app, new Set([serviceId]), manifest)) changed = true;
     }
     if (affected && reconcileDependencyRoutes(config, app)) changed = true;
   }
@@ -1170,103 +1266,11 @@ function applyServiceMetadata(
     }
     const appServiceIds = getAvailableServiceInstanceIdsForApp(config, app);
     const syncedServiceIds = new Set([...routeServiceIds].filter((id) => appServiceIds.has(id)));
-    const manifestOperations = operationIndex(manifest);
-    for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
-      const view = manifest.viewIndex[route.viewId];
-      if (!view) continue;
-      const resolvedOperations = route.operations.map((operationId) => {
-        const legacyMethod = legacyOperationMethod(operationId);
-        if (!legacyMethod) return operationId;
-        return view.operations.find((operation) => operation.method === legacyMethod)?.operationId ?? operationId;
-      });
-      if (!sameOperations(route.operations, resolvedOperations)) {
-        route.operations = resolvedOperations;
-      }
-    }
-    const staleApiRouteIds = new Set(app.routes
-      .filter((route) => syncedServiceIds.has(route.serviceId)
-        && route.kind === "api"
-        && !route.operations.some((operationId) => manifestOperations.get(operationId)?.view.viewId === route.viewId))
-      .map((route) => route.id));
-    if (staleApiRouteIds.size > 0) {
-      app.routes = app.routes.filter((route) => !staleApiRouteIds.has(route.id));
-    }
     if (manifest.authProvider && app.auth && routeServiceIds.has(app.auth.serviceId)) {
       applyAuthProviderMetadata(app.auth, manifest.authProvider);
     }
-    // Preview reconciliation owns paths, settings and operation consolidation. Generic
-    // normalization would erase aliases and request settings before that callback runs.
-    const routeNormalizationIds = config.previewEnvironmentDeployments?.some(deployment => deployment.appId === app.id)
-      ? new Set<string>() : syncedServiceIds;
-    for (const route of app.routes.filter((candidate) => routeNormalizationIds.has(candidate.serviceId))) {
-      const view = manifest.viewIndex[route.viewId];
-      if (!view) {
-        if (route.enabled !== false) {
-          route.enabled = false;
-        }
-        continue;
-      }
-
-      const validOperations = route.operations.filter((operationId) =>
-        manifestOperations.get(operationId)?.view.viewId === route.viewId
-      );
-      if (validOperations.length === 0) {
-        if (route.enabled !== false) {
-          route.enabled = false;
-        }
-        continue;
-      }
-      if (!sameOperations(route.operations, validOperations)) {
-        route.operations = validOperations;
-      }
-      const selectedOperations = validOperations.map((operationId) => manifestOperations.get(operationId)!.operation);
-      const pageOperation = selectedOperations.find(isPageOperation);
-      const operation = pageOperation ?? selectedOperations[0];
-      if (route.operations.length > 1) {
-        route.operations = [operation.operationId];
-      }
-      const wasApi = route.kind === "api";
-      const selectedServicePath = !wasApi && pageOperation && route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
-        ? route.servicePathVariant
-        : view.path;
-      if (route.targetPath !== selectedServicePath) {
-        route.targetPath = selectedServicePath;
-      }
-      const routeIsApi = !pageOperation;
-      if (routeIsApi) {
-        const nextPath = apiRoutePath(manifest.serviceId, selectedServicePath);
-        if (route.kind !== "api") {
-          route.kind = "api";
-        }
-        if (route.path !== nextPath) {
-          route.path = nextPath;
-        }
-        if (route.query !== undefined) {
-          delete route.query;
-        }
-        if (route.servicePathVariant !== undefined) {
-          delete route.servicePathVariant;
-        }
-        if (route.fixedParams !== undefined) {
-          delete route.fixedParams;
-        }
-        if (route.title !== operation.title) {
-          route.title = operation.title;
-        }
-      } else {
-        if (wasApi) {
-          route.kind = "page";
-          route.enabled = false;
-          route.path = pageRoutePath(manifest.serviceId, selectedServicePath);
-        }
-      }
-      if (!route.title) {
-        route.title = operation.title;
-      }
-    }
-    for (const serviceId of routeNormalizationIds) {
-      ensureApiRouteMounts(app, serviceId, manifest);
-    }
+    reconcileServiceRouteMounts(app, syncedServiceIds, manifest,
+      !config.previewEnvironmentDeployments?.some(deployment => deployment.appId === app.id));
     reconcileDependencyRoutes(config, app);
   }
   onManifestUpdated?.(config, [...routeServiceIds], manifest);

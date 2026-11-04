@@ -1,3 +1,7 @@
+export function isPageOperation(operation: { method: string; renderModes: readonly string[]; raw?: boolean }): boolean {
+  return operation.raw !== true && operation.method === "GET" && operation.renderModes.includes("page");
+}
+
 export function serviceRouteSlug(serviceId: string): string {
   const base = serviceId.replace(/^service\./, "");
   const slug = base

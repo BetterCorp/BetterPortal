@@ -117,6 +117,65 @@ test("management activation refreshes a previously disabled app binding from the
   assert.equal(cache.size, 0);
 });
 
+test("reactivation refreshes existing API mounts and removes obsolete operations while retaining explicit enablement", async t => {
+  const { storage, call, cache, tenantId, appId, sharedId } = fixture(t);
+  const activate = () => call("/.well-known/bp/admin/shared-services/:sharedServiceId/activations", { sharedServiceId: sharedId }, { tenantId, appId });
+  assert.equal((await activate()).status, 200);
+  const activation = storage.current.sharedServiceActivations[0];
+  activation.enabled = false;
+  const app = storage.current.apps.find(app => app.id === appId)!;
+  const pair = app.routes.find(route => route.operations.includes("frame.kiosks.pair.post"))!;
+  pair.enablement = "disabled";
+  pair.enabled = false;
+  pair.query = "obsolete=true";
+  const pairId = pair.id;
+  const manifest = storage.current.manifestCache[0];
+  const view = manifest.viewIndex["frame.kiosks.pair"];
+  delete manifest.viewIndex["frame.kiosks.pair"];
+  delete manifest.viewIndex["frame.stats"];
+  manifest.viewIndex["frame.kiosks.pair.v2"] = {
+    ...view, viewId: "frame.kiosks.pair.v2", path: "/kiosks/pair-v2",
+    operations: view.operations.map(operation => ({ ...operation, title: "Pair kiosk v2" }))
+  };
+  assert.equal((await activate()).status, 200);
+  const updated = storage.current.apps.find(app => app.id === appId)!;
+  const route = updated.routes.find(route => route.id === pairId)!;
+  assert.equal(route.viewId, "frame.kiosks.pair.v2");
+  assert.equal(route.targetPath, "/kiosks/pair-v2");
+  assert.equal(route.path, "/_bp/service/cloud.betterportal.frame/kiosks/pair-v2");
+  assert.equal(route.title, "Pair kiosk v2");
+  assert.equal(route.query, undefined);
+  assert.equal(route.enabled, false);
+  assert.equal(route.enablement, "disabled");
+  assert.equal(updated.routes.some(route => route.operations.includes("frame.stats.read")), false);
+  assert.equal(cache.size, 0);
+});
+
+test("persisted raw GET operations with page renderers stay in API routes and cannot be added as visual routes", async t => {
+  const { storage, call, tenantId, appId, sharedId } = fixture(t);
+  storage.current.manifestCache[0].viewIndex["frame.download"] = {
+    viewId: "frame.download", title: "Download", description: "Download file", path: "/download", pathVariants: [], fragments: [],
+    operations: [{ operationId: "frame.download.read", method: "GET", title: "Download", description: "Download file",
+      raw: true, renderable: true, renderModes: ["page"], renderers: ["bootstrap5"], authRequired: true,
+      dependencies: [], permissions: [], robots: [], apiContracts: [], demoScenarios: [] }]
+  };
+  assert.equal((await call("/.well-known/bp/admin/shared-services/:sharedServiceId/activations", { sharedServiceId: sharedId }, { tenantId, appId })).status, 200);
+  const activationId = storage.current.sharedServiceActivations[0].id;
+  const raw = storage.current.apps.find(app => app.id === appId)!.routes.find(route => route.operations.includes("frame.download.read"))!;
+  assert.equal(raw.kind, "api");
+  const plugin = Object.create(Plugin.prototype) as any;
+  Object.assign(plugin, { storage, cpState: { issuer: "https://config.example" }, loadRequestConfig: () => storage.loadConfig() });
+  const event = { req: new Request(`https://config.example/routes?appId=${appId}`) } as any;
+  await plugin.populateRoutesContext(event);
+  assert.equal(event.__bpResponseModel.availableServices[0].views.find((operation: { operationId: string }) => operation.operationId === "frame.download.read").renderable, false);
+  assert.equal(event.__bpResponseModel.routes.find((route: { id: string }) => route.id === raw.id).kind, "api");
+  const response = await call("/.well-known/bp/admin/apps/:appId/routes", { appId }, {
+    serviceId: activationId, viewId: "frame.download", operationId: "frame.download.read", path: "/download"
+  });
+  assert.equal(response.status, 400);
+  assert.match(await response.text(), /Service\/API routes are created by service manifest sync/);
+});
+
 test("platform activation and later app creation immediately project existing manifest APIs", async t => {
   const { storage, call, cache, tenantId, appId, siblingAppId, otherAppId, platformId } = fixture(t);
   const response = await call("/.well-known/bp/admin/tenants/:tenantId/activate/:platformServiceId", { tenantId, platformServiceId: platformId });

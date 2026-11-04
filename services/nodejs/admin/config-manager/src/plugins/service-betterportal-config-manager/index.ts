@@ -1,3 +1,4 @@
+import { isPageOperation } from "./routeMounts.js";
 import {
   type BSBServiceConstructor,
   createBroadcastEvent,
@@ -807,7 +808,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
                 pathVariants: view.pathVariants,
                 paramsSchema: view.paramsSchema,
                 method: operation.method,
-                renderable: operation.method === "GET" && operation.renderModes.includes("page"),
+                renderable: isPageOperation(operation),
                 dependencies: operation.dependencies
               }))
             )
@@ -852,7 +853,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const routeModel = (selectedApp?.routes ?? []).map((r) => {
       const view = getCachedManifestForService(config, r.serviceId, cache)?.viewIndex[r.viewId];
       const operations = view?.operations.filter((operation) => r.operations.includes(operation.operationId)) ?? [];
-      const renderable = operations.some((operation) => operation.method === "GET" && operation.renderModes.includes("page")) || (!view && r.kind !== "api");
+      const renderable = operations.some((operation) => isPageOperation(operation)) || (!view && r.kind !== "api");
       return {
         id: r.id,
         kind: isApiRoute(r, renderable) ? "api" : "page",
@@ -914,7 +915,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         .filter((r) => {
           const view = getManifestCache().get(r.serviceId)?.viewIndex[r.viewId];
           const renderable = view?.operations.some((operation) =>
-            r.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
+            r.operations.includes(operation.operationId) && isPageOperation(operation)
           );
           return r.enabled && !isApiRoute(r, renderable);
         })

@@ -1,3 +1,4 @@
+import { isPageOperation } from "./routeMounts.js";
 import { eventObservability } from "@betterportal/framework";
 import { editAppRows, readApp, readRequestConfig, type AppDatabase, type AppEditorData } from "./appQueries.js";
 import { isMenuRouteExcluded } from "./routeMounts.js";
@@ -454,7 +455,7 @@ function parseRouteCreateBody(body: Record<string, unknown>, config: AppEditorDa
   if (!manifestView) return { error: "Selected view is not available in the synced service manifest." };
   const manifestOperation = manifestView?.operations.find((operation) => operation.operationId === operationId.value);
   if (manifestView && !manifestOperation) return { error: "Selected operation is not available for this view." };
-  const renderable = manifestOperation?.method === "GET" && manifestOperation.renderModes.includes("page");
+  const renderable = manifestOperation ? isPageOperation(manifestOperation) : false;
   const servicePathVariant = trimmedString(body, "servicePathVariant") ?? manifestView?.path ?? `/${viewId.value!}`;
   if (manifestView && ![manifestView.path, ...manifestView.pathVariants].includes(servicePathVariant)) {
     return { error: "Selected service path is not available for this view." };
@@ -2295,7 +2296,7 @@ export function registerAdminApiRoutes(
         const servicePathError = validateCanonicalRoutePath(requestedServicePath, "Service path");
         if (servicePathError) return validationError(event, servicePathError);
         const submittedFixed = fixedParamsFromBody(body);
-        const pageRenderable = manifestOperation.method === "GET" && manifestOperation.renderModes.includes("page");
+        const pageRenderable = isPageOperation(manifestOperation);
         const mappedAppPath = !pageRenderable
           ? apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath)
           : route.path;
@@ -2327,7 +2328,7 @@ export function registerAdminApiRoutes(
       if (body.query !== undefined) {
         const query = trimmedString(body, "query");
         const renderable = manifestView?.operations.some((operation) =>
-          route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
+          route.operations.includes(operation.operationId) && isPageOperation(operation)
         );
         if (isApiRoute(route, renderable)) delete route.query;
         else if (query) route.query = query.replace(/^\?+/, "");
@@ -2337,7 +2338,7 @@ export function registerAdminApiRoutes(
         const title = trimmedString(body, "title");
         if (!title) return validationError(event, "Display title is required.");
         const renderable = manifestView?.operations.some((operation) =>
-          route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
+          route.operations.includes(operation.operationId) && isPageOperation(operation)
         );
         if (!isApiRoute(route, renderable)) route.title = title;
       }
