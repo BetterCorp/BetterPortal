@@ -160,9 +160,12 @@ def run_installation(urls, labels):
                 del state["installation"]
                 stored = post(url, {"action": "bootstrap", "operation": "encrypt", "key": key, "state": state})["stored"]
                 wrong = {**fixture()["snapshot"], "serviceIdentity": {"id": SOURCE}}
-                steps = invoke(url, control, [{}, issue(control), {"kind": "snapshot", "snapshot": wrong}, {"kind": "restart"}, {}], key=key, stored=stored)
+                steps = invoke(url, control, [{}, issue(control), {"kind": "wait", "updates": 2},
+                    {"kind": "snapshot", "snapshot": wrong}, {"kind": "restart"}, {}], key=key, stored=stored)
+                settled = steps.pop(2)
+                assert settled["status"] == 200 and settled["ready"], brief(steps)
                 assert [row["status"] for row in steps] == [200, 200, 400, 200, 200] and all(row["ready"] for row in steps), brief(steps)
-                assert steps[1]["snapshot"] == steps[2]["snapshot"] and steps[1]["bootstrap"]["identity"] == first["bootstrap"]["identity"]
+                assert settled["snapshot"] == steps[2]["snapshot"] and steps[1]["bootstrap"]["identity"] == first["bootstrap"]["identity"]
         check(label, "legacy-credentials-bind-on-reconfiguration", legacy_reconfigure)
         for name, options in [("unmanaged", {"managed": False}), ("bad-state", {"stored": "{"}),
             ("remote-http", {"cpUrl": "http://remote.test"}), ("abbreviated-loopback", {"cpUrl": "http://127.1"}),
