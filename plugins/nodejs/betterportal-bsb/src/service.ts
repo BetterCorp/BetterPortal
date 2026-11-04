@@ -40,6 +40,7 @@ import {
   verifySetupToken,
   verifyServiceConfigTicket,
   ElevationRequirementSchema,
+  ScopedServiceConfigSchema,
   type ElevationRequirement,
   type JwtClaims,
   type BpTokenIssuer,
@@ -1160,9 +1161,9 @@ export abstract class BPService<
 
     let lastAppliedConfig: string | undefined;
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
-      const serialized = JSON.stringify(rawConfig);
+      const nextConfig = ScopedServiceConfigSchema.parse(rawConfig) as unknown as ScopedServiceConfig;
+      const serialized = JSON.stringify(nextConfig);
       if (serialized === lastAppliedConfig) return;
-      const nextConfig = rawConfig as ScopedServiceConfig;
       this.applyPreviewConfig(nextConfig);
       this.scopedConfig = nextConfig;
       this.seoProbeCache.clear();
@@ -1170,7 +1171,7 @@ export abstract class BPService<
       // Persist for restart resilience - the service owns its cache; CM's
       // bp-config.yaml is never shared.
       try {
-        this.scopedConfigCache.write(rawConfig);
+        this.scopedConfigCache.write(nextConfig);
         lastAppliedConfig = serialized;
       } catch (err) {
         obs.log.warn("Failed to persist scoped config cache: {msg}", { msg: (err as Error).message });
@@ -1361,7 +1362,7 @@ export abstract class BPService<
         let eventType = "";
         let dataLines: string[] = [];
 
-        const dispatchEvent = (): void => {
+        const dispatchEvent = async (): Promise<void> => {
           const data = dataLines.join("\n");
           if (eventType === "config" && dataLines.length > 0) {
             obs.log.info("BP SYNC CLIENT: SSE config event received service={serviceId} bytes={bytes} lines={lines}", {
@@ -1376,6 +1377,8 @@ export abstract class BPService<
               obs.log.warn("Control plane config parse failed: {msg}", {
                 msg: error instanceof Error ? error.message : String(error)
               });
+              await reader.cancel().catch(() => {});
+              throw error;
             }
           } else if (dataLines.length > 0) {
             obs.log.warn("BP SYNC CLIENT: ignored SSE event service={serviceId} event={event} bytes={bytes}", {
@@ -1404,7 +1407,7 @@ export abstract class BPService<
               const value = normalizedLine.slice(5);
               dataLines.push(value.startsWith(" ") ? value.slice(1) : value);
             } else if (normalizedLine === "") {
-              dispatchEvent();
+              await dispatchEvent();
             }
           }
         }
