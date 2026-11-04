@@ -1,6 +1,6 @@
 {
   "name": "betterportal",
-  "version": "11.0.3",
+  "version": "11.0.4",
   "description": "BetterPortal v10 workspace",
   "private": true,
   "scripts": {
@@ -39,6 +39,8 @@
     "typescript-eslint": "^8.69.0"
   },
   "overrides": {
+    "glob": "^14.0.3",
+    "minimatch": "^11.0.4",
     "@istanbuljs/load-nyc-config": {
       "js-yaml": "^4.3.2"
     }

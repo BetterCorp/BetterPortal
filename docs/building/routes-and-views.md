@@ -258,6 +258,8 @@ For OAuth, use BPRoute to a service view that has an enabled public page mount. 
 
 Config-manager owns Service/API route mounts as a synchronized projection of each active service manifest. Newly published API-only operations are added to every applicable app disabled by default; operations declared as dependencies of a mounted operation use automatic enablement. Administrators may pin a mount on or off, but cannot create, edit, or delete it manually. Sync updates its path, operation identity, and derived method, removes API operations that disappear, and moves an operation into Visual Routes disabled if it gains a page renderer.
 
+Activating a service or creating an app also projects API mounts from manifests already accepted by Config Manager, without requiring another service sync or a restart. Route editing resolves the accepted manifest for the service instance or its shared-service/plugin alias; loading a public manifest in the browser does not replace that accepted definition.
+
 Visual routes remain administrator-owned. If a page view disappears from a service manifest, config-manager disables its app route and preserves its app path, title, menu references, and auth redirect references for repair instead of deleting it.
 
 Routes can declare API contracts for explicit service-to-service binding. Machine callers are opt-in at the route boundary; omitting `auth.callers` means user-only.

@@ -1,3 +1,4 @@
+import { isPageOperation } from "./routeMounts.js";
 import type {
   BetterPortalH3App,
   BetterPortalEvent,
@@ -98,7 +99,7 @@ function getRoutes(appDef: any): Route[] {
       ? getManifestCache().get(route.serviceId)?.viewIndex[route.viewId]
       : undefined;
     const renderable = view?.operations.some((operation) =>
-      route.operations?.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
+      route.operations?.includes(operation.operationId) && isPageOperation(operation)
     );
     return !isMenuRouteExcluded(route, getManifestCache()) && !isApiRoute(route, renderable);
   });
@@ -138,7 +139,7 @@ function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: s
   const entry = cache.get(serviceId);
   if (!entry) return [];
   return Object.values(entry.viewIndex)
-    .filter((v) => v.operations.some((operation) => operation.menu !== false && operation.method === "GET" && operation.renderModes.includes("page")))
+    .filter((v) => v.operations.some((operation) => operation.menu !== false && isPageOperation(operation)))
     .map((v) => ({
       viewId: v.viewId,
       title: v.viewId,

@@ -99,6 +99,76 @@ test("route creation uses one transaction without duplicates and reads the reque
   assert.equal(storage.current.tenants[0].title, "Concurrent");
 });
 
+for (const alias of ["instance", "plugin", "shared"] as const) {
+  test(`visual routes use the persisted ${alias} manifest even when the hot cache is missing or stale`, async t => {
+    const { storage, call, serviceId, tenantId, appId } = fixture();
+    const pluginId = "cloud.betterportal.frame";
+    storage.current.tenants[0].services[0].serviceId = pluginId;
+    let manifestKey = alias === "plugin" ? pluginId : serviceId;
+    if (alias === "shared") {
+      const sharedId = uuidv7();
+      manifestKey = sharedId;
+      storage.current.tenants[0].services = [];
+      storage.current.sharedServiceCatalog.push({ id: sharedId, serviceId: pluginId, title: "BetterFrame",
+        baseUrl: "https://frame.example", apiKeyHash: "test-only", enabled: true, tags: [] });
+      storage.current.sharedServiceActivations.push({ id: serviceId, sharedServiceId: sharedId, tenantId, appId,
+        enabled: true, activatedAt: new Date().toISOString() });
+    }
+    storage.current.manifestCache.push({ serviceId: manifestKey, manifestVersion: "2", fetchedAt: new Date().toISOString(), viewIndex: {
+      "frame.kiosks": { viewId: "frame.kiosks", title: "Kiosks", path: "/kiosks", pathVariants: [], operations: [{
+        operationId: "frame.kiosks.read", method: "GET", title: "Kiosks", description: "List kiosks", authRequired: true, renderable: true, renderModes: ["page"],
+        dependencies: [{ operationId: "frame.kiosks.pair.post", method: "POST" }]
+      }] },
+      "frame.kiosks.pair": { viewId: "frame.kiosks.pair", title: "Pair kiosk", path: "/kiosks/pair", pathVariants: [], operations: [{
+        operationId: "frame.kiosks.pair.post", method: "POST", title: "Pair kiosk", description: "Pair kiosk", authRequired: true, renderable: true, renderModes: ["page"], dependencies: []
+      }] }
+    } } as never);
+    const cache = getManifestCache() as Map<string, CachedManifest>;
+    const original = cache.get(serviceId);
+    t.after(() => { if (original) cache.set(serviceId, original); else cache.delete(serviceId); });
+
+    for (const stale of [false, true]) {
+      if (stale) cache.set(serviceId, { serviceId, manifestVersion: "1", fetchedAt: 0,
+        viewIndex: { "frame.kiosks": { operations: [{ operationId: "frame.kiosks.read", method: "GET", renderModes: [] }] } }
+      } as unknown as CachedManifest);
+      else cache.delete(serviceId);
+      const path = stale ? "/frame/kiosks-alias" : "/frame/kiosks";
+      const response = await call("post", { serviceId, viewId: "frame.kiosks", operationId: "frame.kiosks.read",
+        path, servicePathVariant: "/kiosks", title: "Kiosks", query: "status=online" });
+      assert.equal(response.status, 201, await response.text());
+      const mounted = storage.current.apps[0].routes.find(route => route.path === path);
+      assert.equal(mounted?.kind, "page");
+      assert.equal(mounted?.targetPath, "/kiosks");
+      assert.equal(mounted?.query, "status=online");
+    }
+    const dependency = storage.current.apps[0].routes.filter(route => route.operations.includes("frame.kiosks.pair.post"));
+    assert.equal(dependency.length, 1);
+    assert.equal(dependency[0].kind, "api");
+    assert.equal(dependency[0].enabled, true);
+
+    const update = await call("put", { serviceId, viewId: "frame.kiosks", operationId: "frame.kiosks.read", servicePathVariant: "/kiosks" });
+    assert.equal(update.status, 200, await update.text());
+    assert.equal(storage.current.apps[0].routes[0].kind, "page");
+    assert.equal(storage.current.apps[0].routes[0].targetPath, "/kiosks");
+
+    const api = await call("post", { serviceId, viewId: "frame.kiosks.pair", operationId: "frame.kiosks.pair.post",
+      path: "/frame/pair", title: "Pair kiosk" });
+    assert.equal(api.status, 400);
+    assert.equal((await api.json()).error, "Service/API routes are created by service manifest sync.");
+  });
+}
+
+test("a missing service manifest reports missing sync rather than classifying a page as API-only", async t => {
+  const { call, serviceId } = fixture();
+  const cache = getManifestCache() as Map<string, CachedManifest>;
+  const original = cache.get(serviceId);
+  cache.delete(serviceId);
+  t.after(() => { if (original) cache.set(serviceId, original); });
+  const response = await call("post", { serviceId, viewId: "frame.kiosks", operationId: "frame.kiosks.read", path: "/frame/kiosks", title: "Kiosks" });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /Service manifest is not synced yet/);
+});
+
 test("unrelated storage errors are not retried", async () => {
   const { storage, call } = fixture();
   storage.conflict = () => { throw new Error("database unavailable"); };

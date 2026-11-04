@@ -1,3 +1,4 @@
+import { isPageOperation } from "./routeMounts.js";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -692,7 +693,7 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
   const apiMounts = new Map<string, BetterPortalRouteMount>();
   for (const view of Object.values(manifest.viewIndex)) {
     const pageOperations = view.operations.filter((operation) =>
-      operation.method === "GET" && operation.renderable && operation.renderModes.includes("page")
+      operation.renderable && isPageOperation(operation)
     );
     const pageIds = new Set(pageOperations.map((operation) => operation.operationId));
     const apiOperations = view.operations.filter((operation) => !pageIds.has(operation.operationId));
