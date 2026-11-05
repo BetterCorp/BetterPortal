@@ -3,12 +3,24 @@
     "id": "scoped-shared-service-identifiers",
     "contract": "ScopedServiceConfigSchema",
     "input": {
-      "managementOrigins": [], "tenants": [], "apps": [],
-      "serviceIdentity": { "id": "org.betterportal.auth.default" },
+      "managementOrigins": [],
+      "tenants": [],
+      "apps": [],
+      "serviceIdentity": {
+        "id": "org.betterportal.auth.default"
+      },
       "m2m": {
-        "localServiceIds": ["org.betterportal.auth.default"],
-        "services": [{ "id": "shared-auth-primary", "hostname": "https://auth.example" }],
-        "bindings": [], "grants": []
+        "localServiceIds": [
+          "org.betterportal.auth.default"
+        ],
+        "services": [
+          {
+            "id": "shared-auth-primary",
+            "hostname": "https://auth.example"
+          }
+        ],
+        "bindings": [],
+        "grants": []
       }
     },
     "valid": true
@@ -17,8 +29,12 @@
     "id": "scoped-empty-service-identifier",
     "contract": "ScopedServiceConfigSchema",
     "input": {
-      "managementOrigins": [], "tenants": [], "apps": [],
-      "serviceIdentity": { "id": "" }
+      "managementOrigins": [],
+      "tenants": [],
+      "apps": [],
+      "serviceIdentity": {
+        "id": ""
+      }
     },
     "valid": false
   },
