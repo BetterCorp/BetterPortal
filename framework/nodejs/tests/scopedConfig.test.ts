@@ -6,6 +6,22 @@ const tenantId = "01900000-0000-7000-8000-000000000001";
 const appId = "01900000-0000-7000-8000-000000000002";
 const serviceId = "01900000-0000-7000-8000-000000000003";
 
+test("scoped service identities support shared catalog IDs and UUID instances while rejecting empty identifiers", () => {
+  const fixture = (id: unknown) => ({
+    managementOrigins: [], tenants: [], apps: [], serviceIdentity: { id },
+    m2m: { localServiceIds: [id], services: [{ id, hostname: "https://service.example" }], bindings: [], grants: [] }
+  });
+  for (const id of [serviceId, "org.betterportal.auth.default", "shared-auth-primary"]) {
+    const parsed = ScopedServiceConfigSchema.parse(fixture(id));
+    assert.equal(parsed.serviceIdentity?.id, id);
+    assert.deepEqual(parsed.m2m?.localServiceIds, [id]);
+    assert.equal(parsed.m2m?.services[0].id, id);
+  }
+  for (const id of ["", null, 42]) {
+    assert.equal(ScopedServiceConfigSchema.safeParse(fixture(id)).success, false);
+  }
+});
+
 test("scoped wire projection preserves defaults, redacts registration credentials and keeps scope indexes distinct", () => {
   const input = {
     managementOrigins: [],

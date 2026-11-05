@@ -23,6 +23,8 @@ function project(schema: av.BaseSchema, omit: string[], extra: Record<string, av
 
 const text = av.string().minLength(1);
 export const ScopedTenantServiceSchema = project(TenantServiceRegistrationSchema, ["apiKeyHash"], {
+  // Shared catalog projections use the catalog ID when no plugin ID is declared.
+  serviceId: av.optional(text),
   source: av.optional(av.enum_(["tenant", "platform", "shared"])),
   sharedServiceId: av.optional(text), baseUrl: av.optional(av.string().format("url")),
   logoUrl: av.optional(text), category: av.optional(text), tags: av.optional(av.array(text))
@@ -37,10 +39,10 @@ export const ScopedAppSchema = project(BetterPortalAppSchema, ["layoutId", "stat
   appFragments: av.optional(av.record(av.array(BetterPortalFragmentAssignmentSchema)))
 });
 export const ScopedServiceConfigSchema = av.object({
-  serviceIdentity: av.optional(av.object({ id: UuidV7Schema, publicKeyPem: av.optional(text), keyId: av.optional(text) })),
+  serviceIdentity: av.optional(av.object({ id: text, publicKeyPem: av.optional(text), keyId: av.optional(text) })),
   m2m: av.optional(av.object({
-    localServiceIds: av.array(UuidV7Schema),
-    services: av.array(av.object({ id: UuidV7Schema, serviceId: av.optional(text), hostname: av.string().format("url"),
+    localServiceIds: av.array(text),
+    services: av.array(av.object({ id: text, serviceId: av.optional(text), hostname: av.string().format("url"),
       publicKeyPem: av.optional(text), keyId: av.optional(text) })),
     bindings: av.array(M2MBindingSchema), grants: av.array(M2MGrantSchema)
   })),

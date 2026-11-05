@@ -702,6 +702,7 @@ export abstract class BPService<
 
     const mountedServiceId = serviceType === "auth" ? app.auth?.serviceId : app.shell?.serviceId;
     if (!mountedServiceId) return false;
+    const identityId = scoped.serviceIdentity?.id;
 
     return tenant.services.some((service) =>
       service.enabled !== false
@@ -709,6 +710,7 @@ export abstract class BPService<
       && (
         service.serviceId === this.manifest.pluginId
         || service.sharedServiceId === this.manifest.pluginId
+        || (identityId !== undefined && (service.id === identityId || service.sharedServiceId === identityId))
       )
     );
   }

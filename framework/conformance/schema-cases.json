@@ -1,5 +1,103 @@
 [
   {
+    "id": "scoped-shared-service-identifiers",
+    "contract": "ScopedServiceConfigSchema",
+    "input": {
+      "managementOrigins": [],
+      "tenants": [
+        {
+          "id": "01900000-0000-7000-8000-000000000001",
+          "slug": "shared",
+          "title": "Shared",
+          "services": [
+            {
+              "id": "01900000-0000-7000-8000-000000000002",
+              "hostname": "https://auth.example",
+              "serviceId": "shared-auth-primary",
+              "sharedServiceId": "shared-auth-primary",
+              "source": "shared",
+              "createdAt": "2026-11-05T00:00:00.000Z"
+            }
+          ]
+        }
+      ],
+      "apps": [],
+      "serviceIdentity": {
+        "id": "org.betterportal.auth.default"
+      },
+      "m2m": {
+        "localServiceIds": [
+          "org.betterportal.auth.default"
+        ],
+        "services": [
+          {
+            "id": "shared-auth-primary",
+            "hostname": "https://auth.example"
+          }
+        ],
+        "bindings": [],
+        "grants": []
+      }
+    },
+    "valid": true,
+    "output": {
+      "serviceIdentity": {
+        "id": "org.betterportal.auth.default"
+      },
+      "m2m": {
+        "localServiceIds": [
+          "org.betterportal.auth.default"
+        ],
+        "services": [
+          {
+            "id": "shared-auth-primary",
+            "hostname": "https://auth.example"
+          }
+        ],
+        "bindings": [],
+        "grants": []
+      },
+      "managementOrigins": [],
+      "tenants": [
+        {
+          "id": "01900000-0000-7000-8000-000000000001",
+          "slug": "shared",
+          "title": "Shared",
+          "active": true,
+          "branding": {},
+          "activatedPlatformServices": [],
+          "services": [
+            {
+              "id": "01900000-0000-7000-8000-000000000002",
+              "hostname": "https://auth.example",
+              "capabilities": [],
+              "deploymentMode": "self-hosted",
+              "createdAt": "2026-11-05T00:00:00.000Z",
+              "enabled": true,
+              "serviceId": "shared-auth-primary",
+              "source": "shared",
+              "sharedServiceId": "shared-auth-primary"
+            }
+          ]
+        }
+      ],
+      "apps": []
+    }
+  },
+  {
+    "id": "scoped-empty-service-identifier",
+    "contract": "ScopedServiceConfigSchema",
+    "input": {
+      "managementOrigins": [],
+      "tenants": [],
+      "apps": [],
+      "serviceIdentity": {
+        "id": ""
+      }
+    },
+    "valid": false
+  },
+  {
     "id": "install-sensitive-token",
     "contract": "ServiceInstallRequestSchema",
     "action": "encrypt",
