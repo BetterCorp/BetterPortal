@@ -34,6 +34,36 @@ test("shared catalog service IDs pass client sanity checks and permit sync readi
   assert.equal(service.renderHealth().status, 200);
 });
 
+test("authoritative mounts recognize the authenticated catalog alias and reject unrelated or disabled services", () => {
+  const service = serviceFixture();
+  const tenantId = uuidv7(), appId = uuidv7(), activationId = uuidv7();
+  const catalogId = "shared-auth-primary";
+  const config = ScopedServiceConfigSchema.parse({
+    serviceIdentity: { id: catalogId }, managementOrigins: [],
+    tenants: [{ id: tenantId, slug: "tenant", title: "Tenant", services: [{
+      id: activationId, hostname: "https://auth.test", createdAt: new Date().toISOString(),
+      serviceId: catalogId, sharedServiceId: catalogId, source: "shared"
+    }] }],
+    apps: [{ id: appId, tenantId, slug: "app", title: "App", hostnames: ["app.test"],
+      auth: { serviceId: activationId, expectedIssuer: "https://auth.test", expectedAudience: "app", jwksUri: "https://auth.test/jwks" },
+      shell: { serviceId: activationId, service: "shell", renderer: "bootstrap5" }
+    }]
+  });
+  service.scopedConfig = config;
+  for (const kind of ["auth", "shell"]) assert.equal(service.isAuthoritativeService(tenantId, appId, kind), true);
+  config.serviceIdentity!.id = "another-catalog-entry";
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), false);
+  delete config.serviceIdentity;
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), false);
+  config.serviceIdentity = { id: activationId };
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), true);
+  config.tenants[0].services[0].enabled = false;
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), false);
+  config.tenants[0].services[0].enabled = true;
+  config.apps[0].auth!.serviceId = uuidv7();
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), false);
+});
+
 test("control-plane credentials require HTTPS or exact HTTP loopback and reject unsafe URLs before fetch", async t => {
   const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("unexpected request"); });
   for (const url of ["http://config.test", "http://localhost.attacker.test", "http://127.0.0.1.attacker.test", "ftp://localhost", "https://user:pass@config.test", "https://config.test?key=secret", "https://config.test#fragment", "//config.test", "bad-url"]) {
