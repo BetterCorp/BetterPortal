@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { BetterPortalConfigSchema, ScopedServiceConfigSchema, TenantServiceRegistrationSchema, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { BaseStorage } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { getManifestCache, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
@@ -69,6 +69,26 @@ function assertApiMounts(config: BetterPortalConfig, appId: string, serviceId: s
   assert.ok(routes.every(route => route.kind === "api" && route.enabled === false && route.enablement === "auto"));
   return routes;
 }
+
+test("scoped snapshots accept activated shared catalog IDs without a plugin ID", async t => {
+  const { storage, tenantId } = fixture(t);
+  const shared = storage.current.sharedServiceCatalog[0];
+  shared.id = "shared-auth-primary";
+  delete shared.serviceId;
+  const activationId = uuidv7();
+  storage.current.sharedServiceActivations.push({
+    id: activationId, tenantId, sharedServiceId: shared.id, enabled: true,
+    activatedAt: new Date().toISOString()
+  });
+  const scoped = ScopedServiceConfigSchema.parse(await storage.getScopedConfig(activationId, "tenant", tenantId));
+  const projected = scoped.tenants[0].services.find(service => service.id === activationId)!;
+  assert.equal(projected.serviceId, shared.id);
+  assert.equal(projected.sharedServiceId, shared.id);
+  assert.equal(projected.source, "shared");
+  assert.equal(TenantServiceRegistrationSchema.safeParse({ ...projected, serviceId: "org.example.auth" }).success, true);
+  assert.equal(TenantServiceRegistrationSchema.safeParse(projected).success, false,
+    "tenant-owned registrations retain plugin ID validation");
+});
 
 test("activating an already-synced shared service creates API mounts immediately without a cache refresh or restart", async t => {
   const { storage, call, cache, tenantId, appId, siblingAppId, otherAppId, sharedId } = fixture(t);

@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: ff1aa01e7fc05abc494c52d0b4a7ea8c83980e15471eca2aa3b82f917e55a655
+// Generated from AnyVali documents; do not edit. SHA256: 81e3cb86dffc23172ebde94d39d2939343e492f8388b4c6849397a414aeed70f
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -11064,9 +11064,6 @@ public sealed record ScopedTenantService
     [JsonPropertyName("keyId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> KeyId { get; init; }
-    [JsonPropertyName("serviceId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("authProvider")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedTenantServiceAuthProvider> AuthProvider { get; init; }
@@ -11090,6 +11087,9 @@ public sealed record ScopedTenantService
     public Optional<string> LastSyncAt { get; init; }
     [JsonPropertyName("enabled")]
     public required bool Enabled { get; init; }
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedTenantServiceSource> Source { get; init; }
@@ -11150,9 +11150,6 @@ public sealed record ScopedTenantServiceInput
     [JsonPropertyName("keyId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> KeyId { get; init; }
-    [JsonPropertyName("serviceId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("authProvider")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedTenantServiceInputAuthProvider> AuthProvider { get; init; }
@@ -11179,6 +11176,9 @@ public sealed record ScopedTenantServiceInput
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Enabled { get; init; }
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedTenantServiceInputSource> Source { get; init; }

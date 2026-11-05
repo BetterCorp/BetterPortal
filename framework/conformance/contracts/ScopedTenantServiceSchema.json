@@ -32,16 +32,6 @@
           }
         }
       },
-      "serviceId": {
-        "kind": "optional",
-        "inner": {
-          "kind": "optional",
-          "inner": {
-            "kind": "string",
-            "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
-          }
-        }
-      },
       "authProvider": {
         "kind": "optional",
         "inner": {
@@ -193,6 +183,13 @@
       "enabled": {
         "kind": "bool",
         "default": true
+      },
+      "serviceId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
       },
       "source": {
         "kind": "optional",

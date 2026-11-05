@@ -23,6 +23,8 @@ function project(schema: av.BaseSchema, omit: string[], extra: Record<string, av
 
 const text = av.string().minLength(1);
 export const ScopedTenantServiceSchema = project(TenantServiceRegistrationSchema, ["apiKeyHash"], {
+  // Shared catalog projections use the catalog ID when no plugin ID is declared.
+  serviceId: av.optional(text),
   source: av.optional(av.enum_(["tenant", "platform", "shared"])),
   sharedServiceId: av.optional(text), baseUrl: av.optional(av.string().format("url")),
   logoUrl: av.optional(text), category: av.optional(text), tags: av.optional(av.array(text))

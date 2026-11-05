@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: e63d51d576a9c25f4366b080830c5e455f82d7dc3f2c8ba0660f9790172f3424
+# Generated from AnyVali documents; do not edit. SHA256: 5565dd36d587bc9dc7f6927d3a7de036e506b71cce200afc1a80a0bf0f75375c
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -4414,7 +4414,6 @@ ScopedTenantService = TypedDict('ScopedTenantService', {
     'hostname': Required['str'],
     'publicKeyPem': NotRequired['str'],
     'keyId': NotRequired['str'],
-    'serviceId': NotRequired['str'],
     'authProvider': NotRequired['ScopedTenantServiceAuthprovider'],
     'capabilities': Required['list[str]'],
     'title': NotRequired['str'],
@@ -4424,6 +4423,7 @@ ScopedTenantService = TypedDict('ScopedTenantService', {
     'lastSeenAt': NotRequired['str'],
     'lastSyncAt': NotRequired['str'],
     'enabled': Required['bool'],
+    'serviceId': NotRequired['str'],
     'source': NotRequired["Literal['tenant', 'platform', 'shared']"],
     'sharedServiceId': NotRequired['str'],
     'baseUrl': NotRequired['str'],
@@ -4444,7 +4444,6 @@ ScopedTenantServiceInput = TypedDict('ScopedTenantServiceInput', {
     'hostname': Required['str'],
     'publicKeyPem': NotRequired['str'],
     'keyId': NotRequired['str'],
-    'serviceId': NotRequired['str'],
     'authProvider': NotRequired['ScopedTenantServiceInputAuthprovider'],
     'capabilities': NotRequired['list[str]'],
     'title': NotRequired['str'],
@@ -4454,6 +4453,7 @@ ScopedTenantServiceInput = TypedDict('ScopedTenantServiceInput', {
     'lastSeenAt': NotRequired['str'],
     'lastSyncAt': NotRequired['str'],
     'enabled': NotRequired['bool'],
+    'serviceId': NotRequired['str'],
     'source': NotRequired["Literal['tenant', 'platform', 'shared']"],
     'sharedServiceId': NotRequired['str'],
     'baseUrl': NotRequired['str'],

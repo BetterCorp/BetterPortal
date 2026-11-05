@@ -4,7 +4,23 @@
     "contract": "ScopedServiceConfigSchema",
     "input": {
       "managementOrigins": [],
-      "tenants": [],
+      "tenants": [
+        {
+          "id": "01900000-0000-7000-8000-000000000001",
+          "slug": "shared",
+          "title": "Shared",
+          "services": [
+            {
+              "id": "01900000-0000-7000-8000-000000000002",
+              "hostname": "https://auth.example",
+              "serviceId": "shared-auth-primary",
+              "sharedServiceId": "shared-auth-primary",
+              "source": "shared",
+              "createdAt": "2026-11-05T00:00:00.000Z"
+            }
+          ]
+        }
+      ],
       "apps": [],
       "serviceIdentity": {
         "id": "org.betterportal.auth.default"
