@@ -30,12 +30,12 @@ def write(path, value):
 def snapshot(directory):
     return {str(path.relative_to(directory)): path.read_bytes() for path in directory.rglob("*") if path.is_file()}
 
-def run(command, directory, valid=True, env=None):
+def run(command, directory, valid=True, env=None, *, default_registry=True):
     global checks
     settings = env or environment
     command = list(command)
     if str(tool) in command:
-        if "--registry" not in command and ("add" in command or "publish" in command):
+        if default_registry and "--registry" not in command and ("add" in command or "publish" in command):
             command += ["--registry", settings.get("BP_REGISTRY_URL", "https://io.betterportal.org")]
         if "publish" in command and settings.get("BP_REGISTRY_TOKEN"):
             token_file = directory / ".registry-token"
@@ -162,7 +162,7 @@ with tempfile.TemporaryDirectory(prefix="bp-registry-tools-", dir=root / ".tmp-r
                 write(source / "betterportal.json", {"registryRef": "example/service"})
                 write(source / "bp-contract.json", contract)
                 with http.open(url + "/__requests") as response: before = len(json.load(response))
-                entry = json.loads(run([*command, "deps", "add", "example/service@1.0.0"], project, env=env))
+                entry = json.loads(run([*command, "deps", "add", "example/service@1.0.0"], project, env=env, default_registry=False))
                 with http.open(url + "/__requests") as response: assert len(json.load(response)) == before
                 assert entry["version"] == "1.0.0"
                 # An exact version not available locally reaches the real Node registry.

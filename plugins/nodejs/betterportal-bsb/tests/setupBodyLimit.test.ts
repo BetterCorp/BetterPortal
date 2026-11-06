@@ -98,7 +98,7 @@ test("a stalled unverified pairing request does not block another candidate", as
   const blocked = new Promise<void>(resolve => { release = resolve; });
   const fetching = new Promise<void>(resolve => { started = resolve; });
   t.mock.method(globalThis, "fetch", async (url) => {
-    if (String(url).startsWith("https://first-pair.example")) {
+    if (new URL(String(url)).origin === "https://first-pair.example") {
       started();
       await blocked;
     }
