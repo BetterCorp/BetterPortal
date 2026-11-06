@@ -607,19 +607,21 @@ export function render(data: ResponseData): HtmlRenderable {
             <div class="alert alert-secondary small" id="bp-shared-service-preview" role="status" aria-live="polite">Manifest details are loaded from the service before it is added.</div>
             <button type="submit" class="btn btn-primary w-100">Add Shared Service</button>
           </form>
-          <script>
+        </div>
+      </div>
+      <script>
             {js(`
 (() => {
-  const root = document.getElementById("bp-services-page");
-  if (!root || root.dataset.bpServicesReady) return;
-  root.dataset.bpServicesReady = "true";
-  const tenantForm = document.getElementById("bp-tenant-service-form");
-  const sharedForm = document.getElementById("bp-shared-service-form");
-  const hostnameForm = document.getElementById("bp-change-hostname-form");
-  const alerts = document.getElementById("bp-services-alerts");
-  const tenantPreview = document.getElementById("bp-tenant-service-preview");
-  const sharedPreview = document.getElementById("bp-shared-service-preview");
-  const hostnameStatus = document.getElementById("bp-change-hostname-status");
+  const root = document.currentScript?.closest("#bp-services-page") || document.getElementById("bp-services-page");
+  // HTMX copies HTML attributes from the previous page while settling a swap.
+  if (!root || root.__bpServicesReady) return;
+  root.__bpServicesReady = true;
+  const tenantForm = root.querySelector("#bp-tenant-service-form");
+  const sharedForm = root.querySelector("#bp-shared-service-form");
+  const hostnameForm = root.querySelector("#bp-change-hostname-form");
+  const tenantPreview = root.querySelector("#bp-tenant-service-preview");
+  const sharedPreview = root.querySelector("#bp-shared-service-preview");
+  const hostnameStatus = root.querySelector("#bp-change-hostname-status");
   const serviceBaseUrl = ${scriptJson(serviceBaseUrl)}.replace(/\\/+$/, "");
   const adminApiBase = serviceBaseUrl + ${scriptJson(adminApiBase)};
   const selectedServicesPath = ${scriptJson(selectedServicesPath)};
@@ -627,6 +629,7 @@ export function render(data: ResponseData): HtmlRenderable {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[ch]);
   const setAlert = (kind, message) => {
+    const alerts = document.getElementById("bp-services-alerts");
     if (!alerts) return;
     alerts.innerHTML = '<div class="alert alert-' + kind + '">' + escapeHtml(message) + '</div>';
   };
@@ -696,15 +699,12 @@ export function render(data: ResponseData): HtmlRenderable {
   };
   const refreshServices = async () => {
     const url = (serviceBaseUrl || "") + selectedServicesPath;
-    if (window.htmx) {
-      await window.htmx.ajax("GET", url, { target: "#bp-main", swap: "innerHTML" });
-      return;
-    }
     const response = await managementFetch(url, { headers: { Accept: "text/html" }, cache: "no-store" });
     const html = await response.text();
     const main = document.getElementById("bp-main");
     if (!response.ok) throw new Error("Could not refresh the services list. Reload the page to see the latest state.");
-    if (main) main.innerHTML = html;
+    if (main && window.htmx) await window.htmx.swap({ text: html, sourceElement: main, target: main, swap: "innerHTML" });
+    else if (main) main.innerHTML = html;
   };
   const loadManifest = async (baseUrl) => {
     const response = await fetch(baseUrl + "/.well-known/bp/manifest", {
@@ -738,20 +738,19 @@ export function render(data: ResponseData): HtmlRenderable {
     } catch { /* manifest-only fallback */ }
     return { manifest, routes: [] };
   };
-  const finishAction = async (panelId, message) => {
+  const finishAction = async (panel, message) => {
     showToast(message);
-    const panel = panelId ? root.querySelector("#" + panelId) : null;
     const instance = panel && window.bootstrap?.Offcanvas?.getInstance(panel);
-    if (instance && panel.classList.contains("show")) {
+    if (instance && panel.matches(".show, .showing, .hiding")) {
       await new Promise((resolve) => {
         panel.addEventListener("hidden.bs.offcanvas", resolve, { once: true });
         instance.hide();
       });
     } else instance?.hide();
-    try { await refreshServices(); }
+    try { if (root.isConnected) await refreshServices(); }
     catch (error) { setAlert("warning", message + " " + (error instanceof Error ? error.message : String(error))); }
   };
-  const installShared = async (id, baseUrl, status = setAlert, panelId) => {
+  const installShared = async (id, baseUrl, status = setAlert, panel) => {
     status("secondary", "Installing shared service...");
     const install = await postJson(adminApiBase + "/services/begin-install", {
       serviceUrl: baseUrl,
@@ -762,7 +761,7 @@ export function render(data: ResponseData): HtmlRenderable {
       cpUrl: install.cpUrl
     });
     status("success", "Shared service installed. Waiting for sync...");
-    await finishAction(panelId, "Shared service installed successfully.");
+    await finishAction(panel, "Shared service installed successfully.");
   };
   const installTenant = async (registered) => {
     setTenantStatus("secondary", "Installing service...");
@@ -786,7 +785,7 @@ export function render(data: ResponseData): HtmlRenderable {
       throw error;
     }
     setTenantStatus("success", "Service installed. Refreshing services...");
-    await finishAction("bp-add-service-panel", (registered.title || "Service") + " registered successfully.");
+    await finishAction(tenantForm.closest(".offcanvas"), (registered.title || "Service") + " registered successfully.");
   };
   root.querySelectorAll("[data-bp-reconfigure-service]").forEach(async (button) => {
     try {
@@ -860,7 +859,7 @@ export function render(data: ResponseData): HtmlRenderable {
       }
       const message = reconfigure.checked ? "Service set up and URL updated." : "Service URL changed and verified.";
       setHostnameStatus("success", message);
-      await finishAction("bp-change-hostname-panel", message);
+      await finishAction(hostnameForm.closest(".offcanvas"), message);
     } catch (error) {
       setHostnameStatus("danger", error instanceof Error ? error.message : String(error));
     } finally {
@@ -927,7 +926,7 @@ export function render(data: ResponseData): HtmlRenderable {
         manifest
       };
       const created = await postJson(adminApiBase + "/shared-services", createBody);
-      await installShared(created.id || manifest.pluginId, baseUrl, setSharedStatus, "bp-shared-service-panel");
+      await installShared(created.id || manifest.pluginId, baseUrl, setSharedStatus, sharedForm.closest(".offcanvas"));
     } catch (error) {
       setSharedStatus("danger", error instanceof Error ? error.message : String(error));
     } finally {
@@ -936,9 +935,7 @@ export function render(data: ResponseData): HtmlRenderable {
   });
 })();
             `)}
-          </script>
-        </div>
-      </div>
+      </script>
     </div>
   );
 }
