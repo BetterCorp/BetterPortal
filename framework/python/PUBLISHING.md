@@ -24,11 +24,15 @@ not reserve the name. For an already-created project, add the same publisher
 under the project's Publishing settings instead. No PyPI token or password is
 stored in GitHub. See [PyPI's pending publisher instructions](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
 
-A repository admin must create the `pypi` GitHub environment. Under deployment
-branches and tags, choose **Selected branches and tags**, then add a **Tag** rule
-matching `v*`. Do not add a branch rule. The workflow supplies the same environment
-name to PyPI. The build job has no OIDC write permission; only the isolated upload
-job can request the short-lived publishing identity. Uploads include attestations.
+The workflow references the `pypi` GitHub environment. GitHub creates it on first
+use if it does not exist, so manual environment creation is not required to
+publish. An automatically created environment has no deployment protection rules.
+A repository admin can add a further restriction: under deployment branches and
+tags, choose **Selected branches and tags**, then add a **Tag** rule matching `v*`.
+Do not add a branch rule. The workflow itself requires a matching stable release
+tag and successful master CI. It supplies the same environment name to PyPI.
+The build job has no OIDC write permission; only the isolated upload job can
+request the short-lived publishing identity. Uploads include attestations.
 
 ## Release
 
