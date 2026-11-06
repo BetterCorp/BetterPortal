@@ -188,7 +188,9 @@ function normalizeControlPlaneUrl(value: string): string {
   let url: URL;
   try { url = new URL(value); }
   catch { throw new Error("Control-plane URL must be an absolute HTTPS URL (HTTP is allowed only on loopback)"); }
-  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  const authority = value.split("://")[1]?.split(/[/?#]/)[0] ?? "";
+  const host = authority.startsWith("[") ? authority.slice(0, authority.indexOf("]") + 1) : authority.split(":")[0];
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(host.toLowerCase());
   if (url.username || url.password || url.search || url.hash
     || (url.protocol !== "https:" && !(url.protocol === "http:" && loopback))) {
     throw new Error("Control-plane URL must use HTTPS without userinfo, query or fragment (HTTP is allowed only on loopback)");

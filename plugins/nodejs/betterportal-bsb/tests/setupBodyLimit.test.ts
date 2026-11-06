@@ -212,3 +212,25 @@ test("self-hosted control-plane owners do not expose remote installation or host
   }
   assert.equal(fetches, 0);
 });
+
+
+test("first pairing allows HTTP only for exact loopback authorities", async (t) => {
+  const service = Object.assign(Object.create(BPService.prototype), {
+    app: createBetterPortalApp(), inSetupMode: true, resolvedCpUrl: null
+  });
+  service.registerInstallEndpoint({ log: { warn() {} } });
+  let fetches = 0;
+  t.mock.method(globalThis, "fetch", async () => { fetches++; return new Response("", { status: 404 }); });
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "loopback" })).toString("base64url");
+  const install = (cpUrl: string) => service.app.fetch(new Request("https://service.test/.well-known/bp/install", {
+    method: "POST", body: JSON.stringify({ cpUrl, setupToken: `${header}.e30.signature` })
+  }));
+  for (const host of ["2130706433", "0x7f000001", "127.1", "127.0.0.1.evil.test"]) {
+    assert.equal((await install(`http://${host}:3000`)).status, 400);
+  }
+  assert.equal(fetches, 0, "aliases must be rejected before fetching keys");
+  for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
+    assert.equal((await install(`http://${host}:3000`)).status, 400);
+  }
+  assert.equal(fetches, 3, "canonical loopback must reach token verification");
+});
