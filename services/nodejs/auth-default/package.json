@@ -31,7 +31,7 @@
   "type": "module",
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3"
@@ -39,10 +39,10 @@
   "dependencies": {
     "@betterportal/framework": "11.0.6",
     "@betterportal/plugin-bsb": "11.0.6",
-    "@bsb/base": "^9.7.4",
+    "@bsb/base": "^9.7.5",
     "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^14.0.1",
-    "anyvali": "^1.1.6",
+    "anyvali": "^1.1.7",
     "argon2": "^0.45.1",
     "bcrypt": "^6.0.0",
     "jsx-htmx": "4.0.100",
