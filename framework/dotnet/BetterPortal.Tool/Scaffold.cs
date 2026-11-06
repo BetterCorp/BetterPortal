@@ -106,7 +106,7 @@ internal static class Scaffold
                     stateStore: new FileStateStore(Path.Combine(directory, "snapshot.json")));
                 var installation = new ServiceInstallation(service,
                     new BootstrapStateStore(new FileStateStore(Path.Combine(directory, "bootstrap.json")), Required("BP_BOOTSTRAP_MASTER_KEY")),
-                    Required("BP_CP_URL"), Required("BP_PUBLIC_ORIGIN"),
+                    Environment.GetEnvironmentVariable("BP_CP_URL"), Required("BP_PUBLIC_ORIGIN"),
                     settingsStore: new FileStateStore(Path.Combine(directory, "settings.json")));
                 builder.Services.AddBetterPortal(service, installation: installation);
                 var app = builder.Build();
@@ -127,8 +127,9 @@ internal static class Scaffold
                 use dotnet restore --locked-mode for subsequent builds.
                 No Node or BSB installation is needed by this service.
 
-                Configure BP_CP_URL (trusted config manager), BP_PUBLIC_ORIGIN (this service's
-                public origin), and BP_BOOTSTRAP_MASTER_KEY through your host's protected secrets.
+                Configure BP_PUBLIC_ORIGIN (this service's public origin) and BP_BOOTSTRAP_MASTER_KEY
+                through your host's protected secrets. A new service waits for first pairing;
+                optionally set BP_CP_URL to pin the config manager before pairing.
                 Generate a master key once and retain it across restarts:
 
                     dotnet run -- --new-bootstrap-key

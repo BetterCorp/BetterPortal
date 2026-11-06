@@ -661,8 +661,9 @@ own it.
 
 `ServiceInstallation` supplies the setup-token installation endpoint and public
 JWKS, restores protected credentials, activates ticket-protected settings and owns
-manifest synchronization. CP trust and the public service origin come from host
-configuration. The installer requires a fresh managed `Service`.
+manifest synchronization. Configure the public service origin in the host; the
+control plane may be learned on first pairing or pinned in advance. The installer
+requires a fresh managed `Service`.
 
 ```csharp
 using BetterPortal;
@@ -670,7 +671,7 @@ using BetterPortal.AspNetCore;
 using BetterPortal.Generated;
 using Microsoft.AspNetCore.Builder;
 
-static WebApplication InstallableApp(string cpUrl, string publicOrigin, string masterKey, string stateDirectory)
+static WebApplication InstallableApp(string? cpUrl, string publicOrigin, string masterKey, string stateDirectory)
 {
     var service = new Service(new Registry([]), new ManifestDeclarationInput {
         PluginId = "com.example.service", Title = "Example", Description = "Example", Version = "1.0.0"
@@ -684,11 +685,15 @@ static WebApplication InstallableApp(string cpUrl, string publicOrigin, string m
     app.MapBetterPortal(service, installation: installation);
     return app;
 }
-Func<string, string, string, string, WebApplication> factory = InstallableApp;
+Func<string?, string, string, string, WebApplication> factory = InstallableApp;
 ```
 
 Supply your registry and separately protected master key, then run the returned
-app. Pass the same installer to both hosting helpers. Startup without credentials
+app. Pass the same installer to both hosting helpers. Pass `null` for `cpUrl` to
+wait for first pairing, or supply a URL to pin the control plane in advance.
+First successful pairing persists its control-plane trust and credentials; later
+startups restore them from protected state. Failed pairing does not pin a control
+plane. Startup without credentials
 exposes public keys and health 503. POST `{"setupToken":"...","cpUrl":"https://cp.example"}`
 to `/.well-known/bp/install`. Success returns 200 only after manifest submission and
 scoped snapshot persistence. Failed first sync returns 503 with `installed: true`

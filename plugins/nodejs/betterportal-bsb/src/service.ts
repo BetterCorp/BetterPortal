@@ -374,6 +374,7 @@ export abstract class BPService<
   }
   private resolvedApiKey: string | null = null;
   private resolvedCpUrl: string | null = null;
+  private installInProgress = false;
   private inSetupMode: boolean = false;
 
   protected abstract definition(): BPServiceDefinition;
@@ -2528,18 +2529,16 @@ export abstract class BPService<
           "Install request is missing cpUrl"
         );
       }
-      if (!this.resolvedCpUrl) {
-        return coreJsonResponse(
-          { error: "A trusted control-plane URL must be configured before installation" },
-          503,
-          "service.install_control_plane_unconfigured",
-          "A trusted control-plane URL is required for installation"
-        );
+
+      if (this.installInProgress) {
+        return coreJsonResponse({ error: "Pairing is already in progress" }, 409,
+          "service.install_in_progress", "Pairing is already in progress");
       }
+      this.installInProgress = true;
 
       try {
         const normalizedCp = normalizeControlPlaneUrl(cpUrl);
-        if (normalizedCp !== normalizeControlPlaneUrl(this.resolvedCpUrl)) {
+        if (this.resolvedCpUrl && normalizedCp !== normalizeControlPlaneUrl(this.resolvedCpUrl)) {
           return coreJsonResponse(
             { error: "Installation control plane does not match configured trust" },
             403,
@@ -2608,6 +2607,9 @@ export abstract class BPService<
           configEncryptionKey,
           installedAt: new Date().toISOString()
         });
+        // The durable first pair owns trust even if activation below fails.
+        this.resolvedApiKey = redeemBody.apiKey;
+        this.resolvedCpUrl = normalizedCp;
         this.runtimeConfigEncryptionKey = configEncryptionKey;
         if (this.manifest.configSchemas.length > 0) {
           this.configStore = new FileBackedServiceConfigStore({
@@ -2616,8 +2618,6 @@ export abstract class BPService<
             encryptionKey: configEncryptionKey
           });
         }
-        this.resolvedApiKey = redeemBody.apiKey;
-        this.resolvedCpUrl = normalizedCp;
         this.inSetupMode = false;
         this.initializeS2SIdentity(obs);
 
@@ -2650,6 +2650,8 @@ export abstract class BPService<
           "service.install_failed",
           (err as Error).message || "Service installation failed"
         );
+      } finally {
+        this.installInProgress = false;
       }
     });
   }

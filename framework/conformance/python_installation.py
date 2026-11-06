@@ -28,7 +28,7 @@ async def installation_request(body):
             nonlocal service, installation, lifetime, app, bootstrap
             service = Service(build_registry(body), body["declaration"], managed=body.get("managed", True), state_store=snapshots)
             bootstrap = BootstrapStateStore(fault, body["key"])
-            installation = ServiceInstallation(service, bootstrap, body["cpUrl"], body.get("serviceUrl", "https://service.test"),
+            installation = ServiceInstallation(service, bootstrap, None if body.get("unpaired") else body["cpUrl"], body.get("serviceUrl", "https://service.test"),
                 settings_store=settings, cp_jwks_uri=body.get("jwksUri"), auth_provider=body.get("authProvider"),
                 retry_delay=body.get("retryDelay", 0.05), request_timeout=body.get("requestTimeout", 1))
             app = create_app(service, installation=installation, max_body_bytes=body.get("maxBodyBytes", 1024 * 1024))

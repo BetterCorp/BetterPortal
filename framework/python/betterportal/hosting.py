@@ -16,14 +16,14 @@ from .storage import FileStateStore
 
 @dataclass(frozen=True)
 class DeploymentConfig:
-    cp_url: str
+    cp_url: str | None
     public_origin: str
     state_directory: Path
     bootstrap_master_key: str = field(repr=False)
     trusted_proxies: tuple[str, ...] = ()
 
     def __post_init__(self):
-        secure_endpoint(self.cp_url)
+        if self.cp_url: secure_endpoint(self.cp_url)
         secure_endpoint(self.public_origin)
         if urlsplit(self.public_origin).path not in ('', '/'):
             raise ValueError('Public origin must not contain a path')
@@ -42,7 +42,7 @@ class DeploymentConfig:
                 key = source.read(256).strip()
                 if source.read(1): raise ValueError('Bootstrap key file is too large')
         assert key is not None
-        return cls(env['BP_CP_URL'], env['BP_PUBLIC_ORIGIN'], Path(env.get('BP_STATE_DIRECTORY', '.bp-state')),
+        return cls(env.get('BP_CP_URL') or None, env['BP_PUBLIC_ORIGIN'], Path(env.get('BP_STATE_DIRECTORY', '.bp-state')),
                    key, tuple(value.strip() for value in env.get('BP_TRUSTED_PROXIES', '').split(',') if value.strip()))
 
     def create_app(self, registry, declaration, **options):

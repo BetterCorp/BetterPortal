@@ -61,11 +61,11 @@ async function run(body, directory) {
       app: createBetterPortalApp(), manifest: schema.schema.manifest, bootstrapState,
       requireBetterPortalConfigSource: true, configProvider: null,
       scopedConfig: cache.read(), scopedConfigCache: cache, seoProbeCache: new Map(),
-      inSetupMode: !stored.apiKey, resolvedCpUrl: stored.cpUrl ?? body.cpUrl, resolvedApiKey: stored.apiKey,
+      inSetupMode: !stored.apiKey, resolvedCpUrl: stored.cpUrl ?? (body.unpaired ? null : body.cpUrl), resolvedApiKey: stored.apiKey,
       s2sKeyPair: null, s2sIdentityReady: false, manifestSync: { state: "pending" }, sseAbortController: null
     });
     // This is the BSB configuration boundary read by BPService.service/bp getters.
-    Object.defineProperty(runtime, "config", { value: { host: publicUrl.hostname, port: Number(publicUrl.port || 443), betterportal: { bootstrapStatePath: filePath, controlPlaneUrl: body.cpUrl } } });
+    Object.defineProperty(runtime, "config", { value: { host: publicUrl.hostname, port: Number(publicUrl.port || 443), betterportal: { bootstrapStatePath: filePath, controlPlaneUrl: body.unpaired ? undefined : body.cpUrl } } });
     runtime.registerInstallEndpoint(obs);
     runtime.registerHostnameChangeEndpoint(obs);
     runtime.app.get("/.well-known/bp/health", () => runtime.renderHealth(false));
@@ -91,7 +91,7 @@ async function run(body, directory) {
       const value = runtime.bootstrapState.read();
       const hash = name => createHash("sha256").update(value[name] ?? "").digest("hex");
       outcomes.push({ ...result, ready: runtime.renderHealth(false).status === 200, snapshot: runtime.scopedConfig,
-        manifestSync: { ...runtime.manifestSync }, apiKeyHash: hash("apiKey"), configKeyHash: hash("configEncryptionKey"),
+        manifestSync: { ...runtime.manifestSync }, bootstrap: { ...(value.cpUrl ? { cpUrl: value.cpUrl } : {}) }, apiKeyHash: hash("apiKey"), configKeyHash: hash("configEncryptionKey"),
         jwk: runtime.s2sKeyPair ? publicKeyToJwk(runtime.s2sKeyPair.publicKeyPem, runtime.s2sKeyPair.kid) : null,
         stored: await readFile(filePath, "utf8").catch(error => { if (error.code === "ENOENT") return null; throw error; }) });
     }

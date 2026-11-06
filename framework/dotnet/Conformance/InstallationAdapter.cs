@@ -21,7 +21,7 @@ internal static class InstallationAdapter
         {
             service = new Service(RegistryAdapter.Build(body), Contracts.Parse<ManifestDeclarationInput>("ManifestDeclarationSchema", body["declaration"]), managed: body.GetValueOrDefault("managed", true) is true, stateStore: snapshots);
             bootstrap = new BootstrapStateStore(fault, key);
-            installation = new ServiceInstallation(service, bootstrap, (string)body["cpUrl"]!, (string)body.GetValueOrDefault("serviceUrl", "https://service.test")!,
+            installation = new ServiceInstallation(service, bootstrap, body.GetValueOrDefault("unpaired") is true ? null : (string)body["cpUrl"]!, (string)body.GetValueOrDefault("serviceUrl", "https://service.test")!,
                 settingsStore: settings, cpJwksUri: body.GetValueOrDefault("jwksUri") as string,
                 authProvider: body.TryGetValue("authProvider", out var provider) ? Contracts.Parse<AuthProviderRuntimeMetadataInput>("AuthProviderRuntimeMetadataSchema", provider) : null,
                 retryDelay: TimeSpan.FromSeconds(Convert.ToDouble(body.GetValueOrDefault("retryDelay", 0.05))), requestTimeout: TimeSpan.FromSeconds(Convert.ToDouble(body.GetValueOrDefault("requestTimeout", 1))));

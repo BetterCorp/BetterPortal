@@ -3,12 +3,13 @@ using Node = System.Collections.Generic.Dictionary<string, object?>;
 
 namespace BetterPortal;
 
-/// <summary>One owner for pinned installation, protected credentials and synchronization.</summary>
+/// <summary>One owner for first pairing, protected credentials and synchronization.</summary>
 public sealed class ServiceInstallation : IAsyncDisposable
 {
     public Service Service { get; }
     private readonly BootstrapStateStore store;
-    private readonly string cp, address, jwks;
+    private string cp, jwks;
+    private readonly string address;
     private readonly IStateStore? settingsStore;
     private readonly SettingsSchema? settingsSchema;
     private readonly Generated.AuthProviderRuntimeMetadataInput? provider;
@@ -16,7 +17,7 @@ public sealed class ServiceInstallation : IAsyncDisposable
     private readonly string? customUiPath;
     private readonly bool writable;
     private readonly TimeSpan timeout, delay;
-    private readonly JwksClient keys;
+    private JwksClient? keys;
     private readonly HttpClient client;
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly CancellationTokenSource shutdown = new();
@@ -28,16 +29,18 @@ public sealed class ServiceInstallation : IAsyncDisposable
     public Node Jwks() => new() { ["keys"] = new[] { Identity.PublicJwk() } };
     public object Status => new { installed, closed, sync = sync?.Status };
 
-    public ServiceInstallation(Service service, BootstrapStateStore state, string cpUrl, string serviceUrl,
+    public ServiceInstallation(Service service, BootstrapStateStore state, string? cpUrl, string serviceUrl,
         IStateStore? settingsStore = null, string? cpJwksUri = null, Generated.AuthProviderRuntimeMetadataInput? authProvider = null,
         Generated.ServiceConfigManagementMode? configMode = null, string? customUiPath = null, bool writable = true,
         TimeSpan? retryDelay = null, TimeSpan? requestTimeout = null)
     {
         if (!service.Managed || !service.Provisionable) throw new ArgumentException("Installation requires an unprovisioned managed Service");
         Service = service; store = state;
-        TrustedKeys.SecureEndpoint(cpUrl); cp = cpUrl.TrimEnd('/');
+        cp = string.IsNullOrEmpty(cpUrl) ? "" : TrustedKeys.SecureEndpoint(cpUrl).OriginalString.TrimEnd('/');
         address = HttpAddress.Origin(TrustedKeys.SecureEndpoint(serviceUrl).AbsoluteUri);
-        jwks = cpJwksUri ?? cp + "/.well-known/jwks.json"; TrustedKeys.SecureEndpoint(jwks, allowQuery: true);
+        if (cpJwksUri is not null && cp.Length == 0) throw new ArgumentException("A pinned JWKS URI requires a control-plane URL");
+        jwks = cp.Length == 0 ? "" : cpJwksUri ?? cp + "/.well-known/jwks.json";
+        if (jwks.Length != 0) TrustedKeys.SecureEndpoint(jwks, allowQuery: true);
         timeout = requestTimeout ?? TimeSpan.FromSeconds(30); delay = retryDelay ?? TimeSpan.FromSeconds(5);
         if (new[] { timeout, delay }.Any(value => value <= TimeSpan.Zero || value.TotalMilliseconds > uint.MaxValue - 1)) throw new ArgumentException("Invalid installation timing");
         var descriptors = service.Manifest.ConfigSchemas;
@@ -45,7 +48,7 @@ public sealed class ServiceInstallation : IAsyncDisposable
         if (settingsSchema is not null && settingsStore is null) throw new ArgumentException("Installed settings require an explicit state store");
         this.settingsStore = settingsStore; this.configMode = configMode; this.customUiPath = customUiPath; this.writable = writable;
         provider = authProvider is null ? null : Contracts.Parse<Generated.AuthProviderRuntimeMetadataInput>("AuthProviderRuntimeMetadataSchema", authProvider);
-        keys = new JwksClient(cp, jwks);
+        keys = cp.Length == 0 ? null : new JwksClient(cp, jwks);
         client = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false }) { Timeout = Timeout.InfiniteTimeSpan };
     }
     private Node Binding(object? value, bool checkAddress = true)
@@ -98,7 +101,16 @@ public sealed class ServiceInstallation : IAsyncDisposable
             if (closed || started) throw new InvalidOperationException("Installation is closed or already started");
             started = true;
             var value = await store.Read(cancellation: linked.Token);
-            if (value.ContainsKey("apiKey")) Credentials(value, checkAddress: false);
+            if (value.ContainsKey("apiKey"))
+            {
+                if (cp.Length == 0)
+                {
+                    cp = TrustedKeys.SecureEndpoint((string)value["cpUrl"]!).OriginalString.TrimEnd('/');
+                    jwks = (string)value.GetValueOrDefault("cpJwksUri", cp + "/.well-known/jwks.json")!;
+                    keys = new JwksClient(cp, jwks);
+                }
+                Credentials(value, checkAddress: false);
+            }
             identity = await store.Identity(linked.Token);
             if (!value.ContainsKey("apiKey")) return false;
             installed = true;
@@ -183,44 +195,63 @@ public sealed class ServiceInstallation : IAsyncDisposable
         Node request;
         try { request = (Node)Contracts.Parse("ServiceInstallRequestSchema", body)!; }
         catch (ValidationError) { throw new RequestException(400, "Invalid installation request"); }
-        if (((string)request["cpUrl"]!).TrimEnd('/') != cp) throw new RequestException(403, "Installation control plane does not match configured trust");
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, shutdown.Token);
         await gate.WaitAsync(linked.Token);
         try
         {
             if (closed || !started) throw new RequestException(503, "Installation is not available");
-            Node binding;
-            try
+            var candidate = TrustedKeys.SecureEndpoint((string)request["cpUrl"]!).OriginalString.TrimEnd('/');
+            if (cp.Length != 0 && candidate != cp) throw new RequestException(403, "Installation control plane does not match configured trust");
+            var firstPair = cp.Length == 0;
+            if (firstPair)
             {
-                var claims = await Tokens.VerifyAsync((string)request["setupToken"]!, keys.ResolveAsync, cp, null, TokenPurpose.Setup, cancellationToken: linked.Token);
-                binding = Binding(claims.Where(pair => new[] { "instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti" }.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
+                cp = candidate; jwks = cp + "/.well-known/jwks.json";
+                keys = new JwksClient(cp, jwks);
             }
-            catch (Exception error) when (error is TokenException or ArgumentException or ValidationError)
-            { throw new RequestException(401, "A valid setup token for this installation is required"); }
-            var value = await store.Read(cancellation: linked.Token);
-            var tenant = (binding.GetValueOrDefault("scope") as Node)?.GetValueOrDefault("tenantId") as string;
-            if (tenant is not null && value.GetValueOrDefault("tenantLock") is string tenantLock && tenant != tenantLock) throw new RequestException(409, "Setup cannot change the installed tenant");
-            if (value.ContainsKey("apiKey"))
+            try { return await InstallPaired(request, linked.Token); }
+            finally
             {
-                Credentials(value, checkAddress: false);
-                var previous = value.GetValueOrDefault("installation") as Node;
-                if (previous is not null && HttpAddress.Origin((string)previous["serviceUrl"]!) != address)
-                    throw new RequestException(409, "Confirm the configured hostname before reconfiguration");
-                var expected = previous?.GetValueOrDefault("instanceId") ?? (Service.Snapshot()?.GetValueOrDefault("serviceIdentity") as Node)?.GetValueOrDefault("id");
-                if (!Equals(expected, binding["instanceId"])) throw new RequestException(409, "Setup cannot replace the installed service instance");
-                if (previous is not null && Equals(previous["jti"], binding["jti"])) return Response(sync is not null ? Service.Ready : await Activate(value, linked.Token));
+                if (firstPair && !installed)
+                {
+                    if (keys is not null) await keys.DisposeAsync();
+                    keys = null; cp = jwks = "";
+                }
             }
-            Node credentials;
-            try { credentials = await Redeem((string)request["setupToken"]!, linked.Token); }
-            catch (Exception) when (!linked.IsCancellationRequested) { throw new RequestException(502, "Control-plane redemption failed"); }
-            credentials["cpUrl"] = cp; credentials["installation"] = binding;
-            if (tenant is not null) credentials["tenantLock"] = tenant;
-            credentials["configEncryptionKey"] = value.GetValueOrDefault("configEncryptionKey") ?? ConfigCipher.GenerateKey();
-            credentials["installedAt"] = DateTimeOffset.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
-            value = await store.Write(credentials, linked.Token); installed = true;
-            return Response(await Activate(value, linked.Token));
         }
         finally { gate.Release(); }
+    }
+    private async Task<(int Status, Node Body)> InstallPaired(Node request, CancellationToken cancellation)
+    {
+        Node binding;
+        try
+        {
+            var claims = await Tokens.VerifyAsync((string)request["setupToken"]!, keys!.ResolveAsync, cp, null, TokenPurpose.Setup, cancellationToken: cancellation);
+            binding = Binding(claims.Where(pair => new[] { "instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti" }.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
+        }
+        catch (Exception error) when (error is TokenException or ArgumentException or ValidationError)
+        { throw new RequestException(401, "A valid setup token for this installation is required"); }
+        var value = await store.Read(cancellation: cancellation);
+        var tenant = (binding.GetValueOrDefault("scope") as Node)?.GetValueOrDefault("tenantId") as string;
+        if (tenant is not null && value.GetValueOrDefault("tenantLock") is string tenantLock && tenant != tenantLock) throw new RequestException(409, "Setup cannot change the installed tenant");
+        if (value.ContainsKey("apiKey"))
+        {
+            Credentials(value, checkAddress: false);
+            var previous = value.GetValueOrDefault("installation") as Node;
+            if (previous is not null && HttpAddress.Origin((string)previous["serviceUrl"]!) != address)
+                throw new RequestException(409, "Confirm the configured hostname before reconfiguration");
+            var expected = previous?.GetValueOrDefault("instanceId") ?? (Service.Snapshot()?.GetValueOrDefault("serviceIdentity") as Node)?.GetValueOrDefault("id");
+            if (!Equals(expected, binding["instanceId"])) throw new RequestException(409, "Setup cannot replace the installed service instance");
+            if (previous is not null && Equals(previous["jti"], binding["jti"])) return Response(sync is not null ? Service.Ready : await Activate(value, cancellation));
+        }
+        Node credentials;
+        try { credentials = await Redeem((string)request["setupToken"]!, cancellation); }
+        catch (Exception) when (!cancellation.IsCancellationRequested) { throw new RequestException(502, "Control-plane redemption failed"); }
+        credentials["cpUrl"] = cp; credentials["installation"] = binding;
+        if (tenant is not null) credentials["tenantLock"] = tenant;
+        credentials["configEncryptionKey"] = value.GetValueOrDefault("configEncryptionKey") ?? ConfigCipher.GenerateKey();
+        credentials["installedAt"] = DateTimeOffset.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
+        value = await store.Write(credentials, cancellation); installed = true;
+        return Response(await Activate(value, cancellation));
     }
     private (int Status, Node Body) Response(bool ready) => ready
         ? (200, (Node)Contracts.Parse("ServiceInstallResponseSchema", new Node { ["ok"] = true, ["pluginId"] = Service.Manifest.PluginId, ["cpUrl"] = cp, ["manifestVersion"] = Service.Manifest.Version })!)
@@ -233,7 +264,8 @@ public sealed class ServiceInstallation : IAsyncDisposable
         try
         {
             if (sync is not null) await sync.DisposeAsync();
-            await keys.DisposeAsync(); client.Dispose();
+            if (keys is not null) await keys.DisposeAsync();
+            client.Dispose();
         }
         finally { gate.Release(); }
     }

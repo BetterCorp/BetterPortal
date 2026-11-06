@@ -175,7 +175,7 @@ with tempfile.TemporaryDirectory(prefix="bp-scaffold-", dir=root / ".tmp-run") a
                 "shell": {"service": "bootstrap1", "renderer": "bootstrap5", "fragments": []}}]
             control = post(peer, {"action": "sync-peer", "command": "start", "config": config, "setup": True, "jwks": [signer]})
             try:
-                env.update(BP_CP_URL=control["url"], BP_PUBLIC_ORIGIN="https://service.test",
+                env.update(BP_PUBLIC_ORIGIN="https://service.test",
                     BP_BOOTSTRAP_MASTER_KEY="bp_bsk_" + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("="),
                     BP_STATE_DIRECTORY=str(project / ".bp-state"))
                 with server(host, directory, env) as address:

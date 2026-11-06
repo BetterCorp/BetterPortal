@@ -45,6 +45,27 @@ def run_installation(urls, labels):
     def brief(outcomes): return [{"status": row["status"], "body": row.get("body", "")[:250], "ready": row["ready"]} for row in outcomes]
     def cp_state(control): return post(node, {"action": "sync-peer", "id": control["id"], "command": "state"})
     for url, label in zip(urls, labels):
+        def first_pair():
+            with peer() as control, peer() as other:
+                install = issue(control)
+                foreign = issue(other)
+                before = cp_state(other)["calls"]
+                steps = invoke(url, control, [{}, install, {"kind": "restart"}, foreign, {}], unpaired=True)
+                assert [row["status"] for row in steps] == [200 if label == "node" else 503, 200, 200, 403, 200], brief(steps)
+                assert "cpUrl" not in steps[0]["bootstrap"] and all(row["ready"] for row in steps[1:]), brief(steps)
+                assert steps[1]["apiKeyHash"] == steps[2]["apiKeyHash"] == steps[4]["apiKeyHash"]
+                assert cp_state(other)["calls"] == before, "paired service contacted a foreign control plane"
+        check(label, "first-pair-without-configured-control-plane", first_pair)
+        def failed_first_pair():
+            with peer() as control, peer() as other:
+                invalid = issue(other)
+                invalid["body"]["setupToken"] = "invalid"
+                steps = invoke(url, control, [invalid, {}, issue(control), {"kind": "restart"}], unpaired=True)
+                assert steps[0]["status"] in (400, 401), brief(steps)
+                assert steps[1]["status"] == (200 if label == "node" else 503), brief(steps)
+                assert "cpUrl" not in steps[0]["bootstrap"] and "apiKey" not in steps[0]["bootstrap"]
+                assert all(row["status"] == 200 and row["ready"] for row in steps[2:]), brief(steps)
+        check(label, "failed-first-pair-does-not-pin-control-plane", failed_first_pair)
         if label == "node":
             def node_install():
                 with peer() as control:
@@ -99,7 +120,7 @@ def run_installation(urls, labels):
         def failed_persistence():
             with peer() as control:
                 install = issue(control)
-                steps = invoke(url, control, [{}, {**install, "mode": "fail"}, {}])
+                steps = invoke(url, control, [{}, {**install, "mode": "fail"}, {}], unpaired=True)
                 assert [row["status"] for row in steps] == [503, 500, 503], brief(steps)
                 assert steps[0]["stored"] == steps[1]["stored"] == steps[2]["stored"] and "apiKey" not in steps[2]["bootstrap"]
                 assert not cp_state(control)["config"]["manifestCache"]
@@ -109,7 +130,7 @@ def run_installation(urls, labels):
                 with peer() as control:
                     install = issue(control)
                     steps = invoke(url, control, [{}, {"kind": kind, "body": install["body"]},
-                        install if kind == "cancel-after-save" else {"kind": "state"}])
+                        install if kind == "cancel-after-save" else {"kind": "state"}], unpaired=True)
                     if kind == "parallel-install":
                         assert steps[1]["statuses"] == [200, 200] and steps[1]["ready"], brief(steps)
                     else:

@@ -55,7 +55,7 @@ test("installed service refuses a foreign control plane before fetching its JWKS
   assert.equal(fetches, 0, "untrusted control plane must not receive a JWKS request");
 });
 
-test("first installation requires a preconfigured control-plane trust anchor", async (t) => {
+test("unconfigured first installation proceeds to verification without saving failed pairing trust", async (t) => {
   const service = Object.create(BPService.prototype) as BPService & {
     app: ReturnType<typeof createBetterPortalApp>;
     registerInstallEndpoint(observer: unknown): void;
@@ -75,9 +75,41 @@ test("first installation requires a preconfigured control-plane trust anchor", a
     })
   }));
   const response = await install();
-  assert.equal(response.status, 503);
-  assert.equal(fetches, 0, "unconfigured service must not fetch caller-chosen JWKS");
+  assert.equal(response.status, 400);
+  assert.equal(fetches, 1, "first pairing must reach token verification");
+  assert.equal((service as unknown as { resolvedCpUrl: string | null }).resolvedCpUrl, null);
   Object.assign(service, { resolvedCpUrl: "https://foreign.example" });
   assert.equal((await install()).status, 400, "preconfigured control plane may proceed to token verification");
-  assert.equal(fetches, 1);
+  assert.equal(fetches, 2);
+});
+
+test("first pairing cannot race another control plane and a failed attempt releases setup", async (t) => {
+  const service = Object.create(BPService.prototype) as BPService & {
+    app: ReturnType<typeof createBetterPortalApp>;
+    registerInstallEndpoint(observer: unknown): void;
+  };
+  service.app = createBetterPortalApp();
+  Object.assign(service, { inSetupMode: true, resolvedCpUrl: null });
+  service.registerInstallEndpoint({ log: { warn() {} } });
+  let release!: () => void;
+  let started!: () => void;
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  const fetching = new Promise<void>(resolve => { started = resolve; });
+  t.mock.method(globalThis, "fetch", async () => {
+    started();
+    await blocked;
+    return new Response("", { status: 404 });
+  });
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "racing" })).toString("base64url");
+  const install = (cpUrl: string) => service.app.fetch(new Request("https://service.test/.well-known/bp/install", {
+    method: "POST", body: JSON.stringify({ cpUrl, setupToken: `${header}.e30.signature` })
+  }));
+  const first = install("https://first-pair.example");
+  await fetching;
+  try {
+    assert.equal((await install("https://second-pair.example")).status, 409);
+  } finally { release(); }
+  assert.equal((await first).status, 400);
+  assert.equal((await install("https://second-pair.example")).status, 400,
+    "failed pairing must allow another attempt to reach verification");
 });

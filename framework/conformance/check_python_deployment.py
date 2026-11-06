@@ -18,6 +18,8 @@ async def main():
     key = BootstrapCipher.generate_key()
     config = DeploymentConfig.from_env({'BP_CP_URL': 'https://cp.test', 'BP_PUBLIC_ORIGIN': 'https://service.test', 'BP_BOOTSTRAP_MASTER_KEY': key})
     assert key not in repr(config)
+    unpaired = DeploymentConfig.from_env({'BP_PUBLIC_ORIGIN': 'https://service.test', 'BP_BOOTSTRAP_MASTER_KEY': key})
+    assert unpaired.cp_url is None
     observed = []
     async def app(scope, receive, send):
         observed.append(scope)
