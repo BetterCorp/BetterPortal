@@ -921,7 +921,7 @@ exact version or `--path` to disambiguate. No service code executes during disco
 ```sh
 bp-dotnet deps add example/service@1.0.0 --alias peer
 bp-dotnet deps add com.example.service@1.0.0 --alias peer
-bp-dotnet publish --contract bp-contract.json --project .
+bp-dotnet publish --contract bp-contract.json --project . --token-file /path/to/registry-token
 ```
 
 When no local contract matches, installation uses `--registry URL` (default

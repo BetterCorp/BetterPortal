@@ -163,3 +163,31 @@ test("pairing resumes activation from saved credentials without redeeming twice"
   assert.equal(redeems, 1);
   assert.equal(activations, 2);
 });
+
+test("unpaired setup bounds concurrent verification and releases capacity after failure", async (t) => {
+  const service = Object.assign(Object.create(BPService.prototype), {
+    app: createBetterPortalApp(), inSetupMode: true, resolvedCpUrl: null
+  });
+  service.registerInstallEndpoint({ log: { warn() {} } });
+  let release!: () => void;
+  let started!: () => void;
+  let requests = 0;
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  const fetching = new Promise<void>(resolve => { started = resolve; });
+  t.mock.method(globalThis, "fetch", async () => {
+    if (++requests === 4) started();
+    await blocked;
+    return new Response("", { status: 404 });
+  });
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "bounded" })).toString("base64url");
+  const install = (index: number) => service.app.fetch(new Request("https://service.test/.well-known/bp/install", {
+    method: "POST", body: JSON.stringify({ cpUrl: `https://verify-budget-${index}.example`, setupToken: `${header}.e30.signature` })
+  }));
+  const pending = [0, 1, 2, 3].map(install);
+  await fetching;
+  try { assert.equal((await install(4)).status, 429); }
+  finally { release(); }
+  assert.ok((await Promise.all(pending)).every(response => response.status === 400));
+  assert.equal((await install(5)).status, 400);
+  assert.equal(requests, 5);
+});

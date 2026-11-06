@@ -15,11 +15,13 @@ public sealed class ServiceInstallation : IAsyncDisposable
     private readonly Generated.AuthProviderRuntimeMetadataInput? provider;
     private readonly Generated.ServiceConfigManagementMode? configMode;
     private readonly string? customUiPath;
-    private readonly bool writable;
+    private readonly bool writable, configuredTrust;
     private readonly TimeSpan timeout, delay;
     private JwksClient? keys;
     private readonly HttpClient client;
     private readonly SemaphoreSlim gate = new(1, 1);
+    private const int MaxInstallRequests = 4;
+    private readonly SemaphoreSlim installSlots = new(MaxInstallRequests, MaxInstallRequests);
     private readonly CancellationTokenSource shutdown = new();
     private KeyPair? identity;
     private ControlPlaneSync? sync;
@@ -37,6 +39,7 @@ public sealed class ServiceInstallation : IAsyncDisposable
         if (!service.Managed || !service.Provisionable) throw new ArgumentException("Installation requires an unprovisioned managed Service");
         Service = service; store = state;
         cp = string.IsNullOrEmpty(cpUrl) ? "" : TrustedKeys.SecureEndpoint(cpUrl).OriginalString.TrimEnd('/');
+        configuredTrust = cp.Length != 0;
         address = HttpAddress.Origin(TrustedKeys.SecureEndpoint(serviceUrl).AbsoluteUri);
         if (cpJwksUri is not null && cp.Length == 0) throw new ArgumentException("A pinned JWKS URI requires a control-plane URL");
         jwks = cp.Length == 0 ? "" : cpJwksUri ?? cp + "/.well-known/jwks.json";
@@ -51,11 +54,11 @@ public sealed class ServiceInstallation : IAsyncDisposable
         keys = cp.Length == 0 ? null : new JwksClient(cp, jwks);
         client = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false }) { Timeout = Timeout.InfiniteTimeSpan };
     }
-    private Node Binding(object? value, bool checkAddress = true)
+    private Node Binding(object? value, bool checkAddress = true, string? controlPlane = null, string? jwksUri = null)
     {
         var binding = (Node)Contracts.Parse("ServiceInstallationBindingSchema", value)!;
         var origin = HttpAddress.Origin(TrustedKeys.SecureEndpoint((string)binding["serviceUrl"]!).AbsoluteUri);
-        if (((string)binding["cpUrl"]!).TrimEnd('/') != cp || !Equals(binding["cpJwksUri"], jwks)
+        if (((string)binding["cpUrl"]!).TrimEnd('/') != (controlPlane ?? cp) || !Equals(binding["cpJwksUri"], jwksUri ?? jwks)
             || checkAddress && origin != address)
             throw new TokenException("Setup token does not match the configured installation");
         return binding;
@@ -195,43 +198,52 @@ public sealed class ServiceInstallation : IAsyncDisposable
         Node request;
         try { request = (Node)Contracts.Parse("ServiceInstallRequestSchema", body)!; }
         catch (ValidationError) { throw new RequestException(400, "Invalid installation request"); }
+        if (closed || !started) throw new RequestException(503, "Installation is not available");
+        string candidate;
+        try { candidate = TrustedKeys.SecureEndpoint((string)request["cpUrl"]!).OriginalString.TrimEnd('/'); }
+        catch (ArgumentException) { throw new RequestException(400, "Invalid installation control-plane URL"); }
+        var trustedCp = installed || configuredTrust ? cp : "";
+        if (trustedCp.Length != 0 && candidate != trustedCp) throw new RequestException(403, "Installation control plane does not match configured trust");
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, shutdown.Token);
-        await gate.WaitAsync(linked.Token);
+        if (!await installSlots.WaitAsync(0, linked.Token)) throw new RequestException(429, "Too many pairing requests");
+        var candidateJwks = trustedCp.Length == 0 ? candidate + "/.well-known/jwks.json" : jwks;
+        var candidateKeys = trustedCp.Length == 0 ? null : keys;
+        var ownKeys = candidateKeys is null;
         try
         {
-            if (closed || !started) throw new RequestException(503, "Installation is not available");
-            string candidate;
-            try { candidate = TrustedKeys.SecureEndpoint((string)request["cpUrl"]!).OriginalString.TrimEnd('/'); }
-            catch (ArgumentException) { throw new RequestException(400, "Invalid installation control-plane URL"); }
-            if (cp.Length != 0 && candidate != cp) throw new RequestException(403, "Installation control plane does not match configured trust");
-            var firstPair = cp.Length == 0;
-            if (firstPair)
+            candidateKeys ??= new JwksClient(candidate, candidateJwks);
+            Node binding;
+            try
             {
-                cp = candidate; jwks = cp + "/.well-known/jwks.json";
-                keys = new JwksClient(cp, jwks);
+                var claims = await Tokens.VerifyAsync((string)request["setupToken"]!, candidateKeys.ResolveAsync, candidate, null, TokenPurpose.Setup, cancellationToken: linked.Token);
+                binding = Binding(claims.Where(pair => new[] { "instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti" }.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value),
+                    controlPlane: candidate, jwksUri: candidateJwks);
             }
-            try { return await InstallPaired(request, linked.Token); }
-            finally
+            catch (Exception error) when (error is TokenException or ArgumentException or ValidationError)
+            { throw new RequestException(401, "A valid setup token for this installation is required"); }
+            await gate.WaitAsync(linked.Token);
+            try
             {
-                if (firstPair && !installed)
+                if (closed || !started) throw new RequestException(503, "Installation is not available");
+                if (cp.Length != 0 && candidate != cp) throw new RequestException(403, "Installation control plane does not match configured trust");
+                var firstPair = cp.Length == 0;
+                if (firstPair) { cp = candidate; jwks = candidateJwks; keys = candidateKeys; }
+                try { return await InstallPaired(request, binding, linked.Token); }
+                finally
                 {
-                    if (keys is not null) await keys.DisposeAsync();
-                    keys = null; cp = jwks = "";
+                    if (firstPair && !installed) { keys = null; cp = jwks = ""; }
                 }
             }
+            finally { gate.Release(); }
         }
-        finally { gate.Release(); }
-    }
-    private async Task<(int Status, Node Body)> InstallPaired(Node request, CancellationToken cancellation)
-    {
-        Node binding;
-        try
+        finally
         {
-            var claims = await Tokens.VerifyAsync((string)request["setupToken"]!, keys!.ResolveAsync, cp, null, TokenPurpose.Setup, cancellationToken: cancellation);
-            binding = Binding(claims.Where(pair => new[] { "instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti" }.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
+            try { if (ownKeys && candidateKeys is not null && !ReferenceEquals(keys, candidateKeys)) await candidateKeys.DisposeAsync(); }
+            finally { installSlots.Release(); }
         }
-        catch (Exception error) when (error is TokenException or ArgumentException or ValidationError)
-        { throw new RequestException(401, "A valid setup token for this installation is required"); }
+    }
+    private async Task<(int Status, Node Body)> InstallPaired(Node request, Node binding, CancellationToken cancellation)
+    {
         var value = await store.Read(cancellation: cancellation);
         var tenant = (binding.GetValueOrDefault("scope") as Node)?.GetValueOrDefault("tenantId") as string;
         if (tenant is not null && value.GetValueOrDefault("tenantLock") is string tenantLock && tenant != tenantLock) throw new RequestException(409, "Setup cannot change the installed tenant");
@@ -265,10 +277,11 @@ public sealed class ServiceInstallation : IAsyncDisposable
         await gate.WaitAsync();
         try
         {
+            for (var index = 0; index < MaxInstallRequests; index++) await installSlots.WaitAsync();
             if (sync is not null) await sync.DisposeAsync();
             if (keys is not null) await keys.DisposeAsync();
             client.Dispose();
         }
-        finally { gate.Release(); }
+        finally { installSlots.Release(MaxInstallRequests); gate.Release(); }
     }
 }

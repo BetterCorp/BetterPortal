@@ -140,7 +140,7 @@ async function fetchRegistry(selector: DependencySelector, registryUrl?: string)
   } else {
     url = `${base}/v1/packages?name=${encodeURIComponent(selector.shortName ?? "")}`;
   }
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const response = await fetch(url, { headers: { Accept: "application/json" }, redirect: "error" });
   if (!response.ok) throw new Error(`Registry lookup failed (${response.status}): ${selector.raw}`);
   const body = await response.json() as unknown;
   if (!selector.registryRef && !selector.pluginId) {

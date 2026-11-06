@@ -89,6 +89,36 @@ def run_installation(urls, labels):
                     assert not actual["loggedCredential"], "Node installer logged its control-plane API key"
             check(label, "install-restart-from-control-plane", node_install)
             continue
+        def competing_candidate():
+            with peer() as control, transport_peer() as (base, routes, counts, barriers):
+                path = "/.well-known/jwks.json"
+                barriers[path] = threading.Event(), threading.Event()
+                routes[path] = [{"barrier": True, "body": {"keys": signer_keys}}]
+                claims = {**fixtures()["setup"], "iss": base, "cpUrl": base, "cpJwksUri": base + path,
+                          "instanceId": TARGET, "serviceUrl": "https://service.test", "scope": {"tenantId": TENANT}}
+                token = post(url, {"action": "jwt-raw", "purpose": "setup", "claims": claims})["token"]
+                steps = invoke(url, control, [{"kind": "competing-install", "barrier": base + path,
+                    "body": {"setupToken": token, "cpUrl": base}, "secondBody": issue(control)["body"]}, {}], unpaired=True)
+                assert steps[0]["statuses"] == [403, 200] and all(row["ready"] for row in steps), brief(steps)
+                assert counts.get("/.well-known/bp/services/redeem", 0) == 0
+        check(label, "slow-unverified-candidate-cannot-block-first-pair", competing_candidate)
+        for failure in ("jwks", "redemption", "cancel"):
+            def first_pair_transport_failure():
+                with peer() as control, transport_peer() as (base, routes, counts, barriers):
+                    path = "/.well-known/jwks.json"
+                    routes[path] = [{"status": 404}] if failure == "jwks" else [{"body": {"keys": signer_keys}, "barrier": failure == "cancel"}]
+                    routes["/.well-known/bp/services/redeem"] = [{"status": 500}]
+                    barriers[path] = threading.Event(), threading.Event()
+                    claims = {**fixtures()["setup"], "iss": base, "cpUrl": base, "cpJwksUri": base + path,
+                              "instanceId": TARGET, "serviceUrl": "https://service.test", "scope": {"tenantId": TENANT}}
+                    token = post(url, {"action": "jwt-raw", "purpose": "setup", "claims": claims})["token"]
+                    failed = {"method": "POST", "path": "/.well-known/bp/install", "body": {"setupToken": token, "cpUrl": base}}
+                    if failure == "cancel": failed.update(kind="cancel", barrier=base + path)
+                    steps = invoke(url, control, [failed, issue(control)], unpaired=True)
+                    assert steps[0]["status"] == {"jwks": 401, "redemption": 502, "cancel": 0}[failure], brief(steps)
+                    assert "cpUrl" not in steps[0]["bootstrap"] and "apiKey" not in steps[0]["bootstrap"]
+                    assert steps[1]["status"] == 200 and steps[1]["ready"], brief(steps)
+            check(label, "first-pair-rollback-after-" + failure, first_pair_transport_failure)
         def lifecycle():
             with peer() as control:
                 install = issue(control)

@@ -51,6 +51,16 @@ export function readContract(file: string): BpSchemaOutput {
 }
 
 export function normalizeRegistryUrl(value = DEFAULT_REGISTRY_URL): string {
+  let url: URL;
+  try { url = new URL(value); }
+  catch { throw new Error("Registry URL must be an absolute HTTPS URL"); }
+  const authority = value.split("://")[1]?.split(/[/?#]/)[0] ?? "";
+  const host = authority.startsWith("[") ? authority.slice(0, authority.indexOf("]") + 1) : authority.split(":")[0];
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(host.toLowerCase());
+  if (/\s|\\/.test(value) || url.username || url.password || authority.includes("@") || value.includes("?") || value.includes("#") || url.port === "0"
+    || (url.protocol !== "https:" && !(url.protocol === "http:" && loopback))) {
+    throw new Error("Registry URL requires HTTPS without userinfo, query or fragment (HTTP only on exact loopback)");
+  }
   return value.replace(/\/+$/, "");
 }
 

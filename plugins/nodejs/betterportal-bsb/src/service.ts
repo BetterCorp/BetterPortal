@@ -382,6 +382,7 @@ export abstract class BPService<
   private resolvedApiKey: string | null = null;
   private resolvedCpUrl: string | null = null;
   private installInProgress = false;
+  private setupVerifications = 0;
   private inSetupMode: boolean = false;
 
   protected abstract definition(): BPServiceDefinition;
@@ -2544,10 +2545,17 @@ export abstract class BPService<
           );
         }
         const jwksUri = `${normalizedCp}/.well-known/jwks.json`;
-        const claims = await verifySetupToken(setupToken, {
-          jwks: { jwksUri, issuer: normalizedCp },
-          expectedIssuer: normalizedCp
-        });
+        if ((this.setupVerifications ?? 0) >= 4) {
+          return coreJsonResponse({ error: "Too many pairing requests" }, 429,
+            "service.install_busy", "Too many concurrent setup-token verifications");
+        }
+        this.setupVerifications = (this.setupVerifications ?? 0) + 1;
+        let claims;
+        try {
+          claims = await verifySetupToken(setupToken, {
+            jwks: { jwksUri, issuer: normalizedCp }, expectedIssuer: normalizedCp
+          });
+        } finally { this.setupVerifications--; }
 
         if (claims.cpJwksUri && claims.cpJwksUri !== jwksUri) {
           return coreJsonResponse(

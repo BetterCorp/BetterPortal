@@ -28,6 +28,7 @@ export async function publishContracts(input = "lib/bp-contracts", options: { to
   for (const item of await contractInputs(input)) {
     const response = await fetch(`${normalizeRegistryUrl(options.registryUrl)}/v1/packages/${namespace}/${name}`, {
       method: "POST",
+      redirect: "error",
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${token}`,

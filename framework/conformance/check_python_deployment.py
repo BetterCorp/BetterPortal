@@ -21,12 +21,15 @@ async def main():
     assert key not in repr(config)
     unpaired = DeploymentConfig.from_env({'BP_PUBLIC_ORIGIN': 'https://service.test', 'BP_BOOTSTRAP_MASTER_KEY': key})
     assert unpaired.cp_url is None
+    assert DeploymentConfig.from_env({'BP_PUBLIC_ORIGIN': 'https://service.test', 'BP_BOOTSTRAP_MASTER_KEY': key, 'BP_STATE_DIRECTORY': ''}).state_directory == Path('.')
     assert read_environment({"UNRELATED_SECRET": "ignored"}) == {}
     for name, value in (("BP_CP_URL", "http://remote.test"), ("BP_REGISTRY_URL", "not-a-url"),
                         ("BP_BOOTSTRAP_MASTER_KEY", "secret-invalid-key"), ("BP_REGISTRY_TOKEN", "secret\ntoken"),
                         ("BP_TRUSTED_PROXIES", "not-a-network"), ("BP_STATE_DIRECTORY", "bad\x00path")):
         try: read_environment({name: value})
-        except ValueError as error: assert value not in str(error)
+        except ValueError as error:
+            assert value not in str(error)
+            assert name in str(error)
         else: raise AssertionError("Invalid environment setting was accepted: " + name)
     assert read_environment({"BP_REGISTRY_TOKEN": "publisher-token"})["BP_REGISTRY_TOKEN"] == "publisher-token"
     observed = []

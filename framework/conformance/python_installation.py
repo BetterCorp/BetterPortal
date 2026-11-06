@@ -84,6 +84,16 @@ async def installation_request(body):
                         finally:
                             task.cancel(); await asyncio.gather(task, return_exceptions=True)
                             await control.get(step["barrier"] + "/control/release")
+                elif kind == "competing-install":
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://service.test") as client, httpx.AsyncClient(trust_env=False) as control:
+                        pending = asyncio.create_task(client.post("/.well-known/bp/install", json=step["body"]))
+                        try:
+                            assert (await control.get(step["barrier"] + "/control/started")).status_code == 200
+                            second = await asyncio.wait_for(client.post("/.well-known/bp/install", json=step["secondBody"]), 2)
+                        finally:
+                            await control.get(step["barrier"] + "/control/release")
+                        first = await pending
+                        result = {"status": 200, "statuses": [first.status_code, second.status_code]}
                 elif kind in ("cancel", "close-install", "cancel-after-save", "parallel-install"):
                     fault.started = asyncio.Event(); fault.release = asyncio.Event()
                     if kind == "cancel-after-save":

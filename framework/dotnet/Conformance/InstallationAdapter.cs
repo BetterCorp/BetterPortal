@@ -99,6 +99,20 @@ internal static class InstallationAdapter
                             }
                         }
                         break;
+                    case "competing-install":
+                    {
+                        var pending = client.PostAsync(app!.Urls.Single() + "/.well-known/bp/install", JsonContent.Create(step["body"]));
+                        HttpResponseMessage second;
+                        try
+                        {
+                            using var barrier = await client.GetAsync((string)step["barrier"]! + "/control/started"); barrier.EnsureSuccessStatusCode();
+                            second = await client.PostAsync(app!.Urls.Single() + "/.well-known/bp/install", JsonContent.Create(step["secondBody"])).WaitAsync(TimeSpan.FromSeconds(2));
+                        }
+                        finally { using var released = await client.GetAsync((string)step["barrier"]! + "/control/release"); released.EnsureSuccessStatusCode(); }
+                        using var first = await pending;
+                        using (second) result["statuses"] = new[] { (int)first.StatusCode, (int)second.StatusCode };
+                        break;
+                    }
                     case "cancel": case "close-install": case "cancel-after-save": case "parallel-install":
                         var kind = (string)step["kind"]!;
                         fault.Started = new(TaskCreationOptions.RunContinuationsAsynchronously); fault.Release = new(TaskCreationOptions.RunContinuationsAsynchronously);

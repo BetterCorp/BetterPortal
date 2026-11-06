@@ -125,7 +125,7 @@ Common fields:
 | `host` | Bind host. Usually `0.0.0.0` locally. |
 | `port` | Service port. |
 | `storage` | Config-manager storage backend. Defaults to `backend: file` and `configPath: ./bp-config.yaml` relative to the BSB service cwd. Use `backend: postgres` with `connectionString` for PostgreSQL. |
-| `configApiToken` | **Dev only.** Static bearer for the local config-API fallback. Inert unless `betterportal.allowDevConfigToken: true` is also set through BSB configuration. Production verifies CP-signed tickets via the CP JWKS and needs no token - do **not** set this in production. |
+| `betterportal.configApiToken` | **Dev only.** Static bearer for the local config-API fallback. Inert unless `betterportal.allowDevConfigToken: true` is also set through BSB configuration. Production verifies CP-signed tickets via the CP JWKS and needs no token - do **not** set this in production. |
 
 Services read runtime settings from BSB configuration, never directly from environment variables. `betterportal.controlPlaneUrl` is optional: omit it on first startup to wait for pairing.
 

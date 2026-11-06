@@ -39,6 +39,7 @@ class ServiceInstallation:
                  writable: bool = True, retry_delay: float = 5, request_timeout: float = 30):
         if not service.managed or not service._provisionable: raise ValueError("Installation requires an unprovisioned managed Service")
         self.service, self._store = service, state
+        self._configured_trust = bool(cp_url)
         self._cp = secure_endpoint(cp_url).rstrip("/") if cp_url else ""
         self._address = http_origin(secure_endpoint(service_url))
         self._jwks = secure_endpoint(cp_jwks_uri or self._cp + "/.well-known/jwks.json", allow_query=True) if self._cp else ""
@@ -55,6 +56,7 @@ class ServiceInstallation:
         self._keys = JwksClient(self._cp, self._jwks) if self._cp else None
         self._client = httpx.AsyncClient(follow_redirects=False, trust_env=False, timeout=request_timeout)
         self._gate = asyncio.Lock()
+        self._install_requests = 0
         self._writers: set[asyncio.Task[Any]] = set()
         self._identity: KeyPair | None = None
         self._sync: ControlPlaneSync | None = None
@@ -74,10 +76,10 @@ class ServiceInstallation:
     def status(self) -> dict[str, Any]:
         return {"installed": self._installed, "closed": self._closed, "sync": self._sync.status if self._sync else None}
 
-    def _binding(self, value: Any, *, check_address: bool = True) -> dict[str, Any]:
+    def _binding(self, value: Any, *, check_address: bool = True, cp_url: str | None = None, jwks_uri: str | None = None) -> dict[str, Any]:
         binding = parse("ServiceInstallationBindingSchema", value)
         origin = http_origin(secure_endpoint(binding["serviceUrl"]))
-        if (binding["cpUrl"].rstrip("/") != self._cp or binding["cpJwksUri"] != self._jwks
+        if (binding["cpUrl"].rstrip("/") != (cp_url or self._cp) or binding["cpJwksUri"] != (jwks_uri or self._jwks)
                 or check_address and origin != self._address):
             raise TokenError("Setup token does not match the configured installation")
         return binding
@@ -198,35 +200,46 @@ class ServiceInstallation:
     async def install(self, body: Any) -> tuple[int, dict[str, Any]]:
         try: request = parse("ServiceInstallRequestSchema", body)
         except av.ValidationError: raise RequestError(400, "Invalid installation request") from None
+        if self._closed or not self._started: raise RequestError(503, "Installation is not available")
+        try: candidate = secure_endpoint(request["cpUrl"]).rstrip("/")
+        except ValueError: raise RequestError(400, "Invalid installation control-plane URL") from None
+        trusted_cp = self._cp if self._installed or self._configured_trust else ""
+        if trusted_cp and candidate != trusted_cp:
+            raise RequestError(403, "Installation control plane does not match configured trust")
+        if self._install_requests >= 4: raise RequestError(429, "Too many pairing requests")
+        self._install_requests += 1
         task = asyncio.current_task(); assert task is not None
         self._writers.add(task)
+        candidate_jwks = self._jwks if trusted_cp else candidate + "/.well-known/jwks.json"
+        keys = self._keys if trusted_cp else None
+        own_keys = keys is None
         try:
+            keys = keys or JwksClient(candidate, candidate_jwks)
+            try:
+                claims = await verify_token(request["setupToken"], keys.resolve, issuer=candidate, audience=None, purpose=TokenPurpose.SETUP)
+                binding = self._binding({field: claims[field] for field in ("instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti") if field in claims},
+                                        cp_url=candidate, jwks_uri=candidate_jwks)
+            except (TokenError, ValueError): raise RequestError(401, "A valid setup token for this installation is required") from None
             async with self._gate:
                 if self._closed or not self._started: raise RequestError(503, "Installation is not available")
-                try: candidate = secure_endpoint(request["cpUrl"]).rstrip("/")
-                except ValueError: raise RequestError(400, "Invalid installation control-plane URL") from None
                 if self._cp and candidate != self._cp:
                     raise RequestError(403, "Installation control plane does not match configured trust")
                 first_pair = not self._cp
-                if first_pair:
-                    self._cp, self._jwks = candidate, candidate + "/.well-known/jwks.json"
-                    self._keys = JwksClient(self._cp, self._jwks)
+                if first_pair: self._cp, self._jwks, self._keys = candidate, candidate_jwks, keys
                 try:
-                    return await self._install(request)
+                    return await self._install(request, binding)
                 finally:
                     if first_pair and not self._installed:
-                        assert self._keys is not None
-                        await self._keys.aclose()
                         self._keys = None
                         self._cp = self._jwks = ""
-        finally: self._writers.discard(task)
+        finally:
+            try:
+                if own_keys and keys is not None and self._keys is not keys: await keys.aclose()
+            finally:
+                self._install_requests -= 1
+                self._writers.discard(task)
 
-    async def _install(self, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        assert self._keys is not None
-        try:
-            claims = await verify_token(request["setupToken"], self._keys.resolve, issuer=self._cp, audience=None, purpose=TokenPurpose.SETUP)
-            binding = self._binding({field: claims[field] for field in ("instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti") if field in claims})
-        except (TokenError, ValueError): raise RequestError(401, "A valid setup token for this installation is required") from None
+    async def _install(self, request: dict[str, Any], binding: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         value = await self._store.read()
         tenant = binding.get("scope", {}).get("tenantId")
         if tenant is not None and value.get("tenantLock") is not None and tenant != value["tenantLock"]:
