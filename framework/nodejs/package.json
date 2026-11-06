@@ -35,7 +35,7 @@
     "README.md"
   ],
   "dependencies": {
-    "anyvali": "^1.1.6",
+    "anyvali": "^1.1.7",
     "h3": "^2.0.8",
     "jose": "^6.2.15",
     "jsx-htmx": "4.0.100",

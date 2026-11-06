@@ -1,4 +1,4 @@
-anyvali==1.1.6
+anyvali==1.1.7
 PyJWT[crypto]==2.15.1
 cryptography==50.0.2
 httpx==0.28.1

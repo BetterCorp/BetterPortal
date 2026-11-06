@@ -4,8 +4,8 @@
     "net10.0": {
       "AnyVali": {
         "type": "Transitive",
-        "resolved": "1.1.6",
-        "contentHash": "gSl+paZs7HqybQhm5YR4zZpYpJ8BUkJwRbcUUVZ2dnQCm5/7FWAQfsZ2QdqMWU/VOEVyA4mRvq1Z+YaFjZbLMg=="
+        "resolved": "1.1.7",
+        "contentHash": "TJD6QNcl4Hv45oMuKoMg+105ngPvhKFMfox4xyN2fK9NWAh9JQavIhj9GtAejtHXBZTm670OMrqNnStOcSTGsg=="
       },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
@@ -64,7 +64,7 @@
       "betterportal": {
         "type": "Project",
         "dependencies": {
-          "AnyVali": "[1.1.6, 1.1.6]",
+          "AnyVali": "[1.1.7, 1.1.7]",
           "BouncyCastle.Cryptography": "[2.7.0, 2.7.0]",
           "Microsoft.IdentityModel.JsonWebTokens": "[8.23.0, 8.23.0]"
         }
