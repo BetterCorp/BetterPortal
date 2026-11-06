@@ -18,8 +18,19 @@ Optional config:
 
 Registry org: `betterportal`.
 
+OAuth login states are stored as SHA-256 named pending files beside `workosStatePath` and atomically removed before a callback code is exchanged. Keep this directory writable. Replicas should share the same persistent path so callbacks can complete on any replica; a replica without the issued state rejects the callback. Expired pending files are cleaned during later login starts, and each replica limits its outstanding states to 10,000.
+
 After-login and after-logout destinations are app-owned `app.auth.redirects` view references configured in Tenants & Apps, not provider addon fields.
 
 Role sync keeps BP as the permission source of truth. WorkOS permission slugs are short service-owned keys, `bp_<shortId>_<read|create|update|delete>`, with the full tenant/service/view mapping stored in `workosStatePath`. Roles are mirrored per app from WorkOS role slugs into BP app roles.
 
 The manifest advertises role-sync endpoints through the standard `auth.roles.sync.view`, `auth.permissions.sync`, and `auth.roles.sync` operation roles. Consumers discover their published paths instead of depending on WorkOS route names.
+
+The service uses `@workos-inc/node` 11 on Node 24 (the SDK requires Node 22.11+). Its AuthKit, user/role/permission and SSO integrations retain their existing contracts; this service does not use the SDK's Pipes APIs changed in version 11.
+
+To validate the SDK integration after updating the dependency:
+
+```bash
+npm run build -w @betterportal/auth-workos
+npm run test -w @betterportal/auth-workos
+```

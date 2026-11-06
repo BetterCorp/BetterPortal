@@ -14,14 +14,27 @@ test("app auth redirects resolve configured views and preserve explicit next pat
         }
       }
     },
-    uiRouteUrl: (viewId: string, options?: { serviceId?: string }) => {
-      calls.push([viewId, options?.serviceId]);
-      return "/dashboard";
+    route: (input: { viewId?: string; serviceId?: string }) => {
+      calls.push([input.viewId!, input.serviceId]);
+      return { uiPath: "/dashboard" };
     }
-  } as unknown as Pick<RouteHandlerContext, "app" | "uiRouteUrl">;
+  } as unknown as Pick<RouteHandlerContext, "app" | "route">;
 
   assert.equal(resolveAppAuthRedirect(ctx, "afterLogin"), "/dashboard");
   assert.deepEqual(calls, [["dashboard.index", "019f114d-bdc9-7eca-a3de-470e7a45316f"]]);
   assert.equal(resolveAppAuthRedirect(ctx, "afterLogin", "reports"), "/reports");
   assert.equal(resolveAppAuthRedirect(ctx, "afterLogout"), "/fallback");
+});
+
+test("untrusted login destinations cannot leave the app origin", () => {
+  const ctx = { app: { defaultRoute: "/dashboard" } } as Pick<RouteHandlerContext, "app" | "route">;
+  for (const requested of [
+    "https://attacker.example/collect", "http://attacker.example/collect",
+    "//attacker.example/collect", "/\\attacker.example/collect",
+    "\\\\attacker.example/collect", "javascript:alert(1)",
+    "data:text/html,attacker", "\n//attacker.example"
+  ]) {
+    assert.equal(resolveAppAuthRedirect(ctx, "afterLogin", requested), "/dashboard", requested);
+  }
+  assert.equal(resolveAppAuthRedirect(ctx, "afterLogin", "/reports?filter=open#today"), "/reports?filter=open#today");
 });

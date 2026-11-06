@@ -12,6 +12,7 @@ import {
   type ServiceConfigTicketClaims
 } from "../contracts/serviceConfig.js";
 import { jsonResponse, withCoreHttpOutcome, type BetterPortalEvent, type BetterPortalH3App } from "./h3.js";
+import { readBoundedJsonBody } from "./requestBody.js";
 
 function configError(body: JsonObject, status: number, code: string, reason: string): Response {
   return withCoreHttpOutcome(jsonResponse(body, status), { code, reason });
@@ -179,7 +180,8 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
       }, 501, "config.write_not_supported", "This service does not expose dynamic config writes");
     }
 
-    const body = await event.req.json().catch(() => null);
+    const body = await readBoundedJsonBody(event.req, 1024 * 1024);
+    if (body instanceof Response) return body;
     const parsedWrite = ServiceConfigWriteRequestSchema.safeParse(body);
     if (!parsedWrite.success) {
       return configError({

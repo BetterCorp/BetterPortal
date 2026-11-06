@@ -36,6 +36,7 @@ import {
 } from "@betterportal/framework";
 import { dirname, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
+import { WorkOSStateClaims } from "./oauthState.js";
 
 const SERVICE_ID = "org.betterportal.auth.workos";
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
@@ -272,10 +273,18 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   static EventSchemas = EventSchemas;
   private keyPair!: RsaKeyPair;
   private syncTimer: ReturnType<typeof setInterval> | undefined;
+  private oauthStateClaims?: WorkOSStateClaims;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
   }
+
+  private stateClaims(): WorkOSStateClaims {
+    return this.oauthStateClaims ??= new WorkOSStateClaims(`${resolve(this.config.workosStatePath)}.oauth-pending`);
+  }
+
+  issueOAuthState(state: string): void { this.stateClaims().issue(state); }
+  claimOAuthState(state: string): boolean { return this.stateClaims().claim(state); }
 
   async init(obs: Observable): Promise<void> {
     this.keyPair = loadOrGenerateKeyPair(resolve(this.config.keyStorePath));
@@ -731,8 +740,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
     if (!tenantId || !appId) return htmlResponse(`<div class="alert alert-danger">tenantId and appId are required.</div>`, 400, "text/html; mode=fragment");
-    const permissionsUrl = route?.routeUrl?.("workos-role-sync.permissions", { absolute: true, query: { tenantId, appId } });
-    const rolesUrl = route?.routeUrl?.("workos-role-sync.roles", { absolute: true, query: { tenantId, appId } });
+    const permissionsUrl = route?.route?.({ path: "/.well-known/bp/config/workos-role-sync/permissions", method: "POST", query: { tenantId, appId } })?.absoluteViewPath;
+    const rolesUrl = route?.route?.({ path: "/.well-known/bp/config/workos-role-sync/roles", method: "POST", query: { tenantId, appId } })?.absoluteViewPath;
     if (!permissionsUrl || !rolesUrl) {
       return htmlResponse(`<div class="alert alert-danger">WorkOS role sync routes could not be resolved.</div>`, 500, "text/html; mode=fragment");
     }
@@ -957,8 +966,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
 export type PluginFeature = Pick<Plugin,
   | "authenticateWithCode"
+  | "claimOAuthState"
   | "getAuthorizationUrl"
   | "getWorkOSSessionState"
+  | "issueOAuthState"
   | "issueTokenPair"
   | "refreshWorkOSToken"
   | "verifyRefreshToken"

@@ -4,6 +4,7 @@ import { uuidv7, type BetterPortalConfig, type BetterPortalRouteMount, type Plat
 import type { Observable } from "@bsb/base";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { renderBootstrapWizardHtml } from "./bootstrapWizardHtml.js";
+import { readPublicJsonBody } from "./publicJsonBody.js";
 import { issueBootstrapAdminToken } from "./bootstrapAccess.js";
 import { apiRoutePath } from "./routeMounts.js";
 import type { PostgresStorage } from "./storage/postgres.js";
@@ -144,14 +145,15 @@ export async function registerBootstrapEndpoint(input: {
 
   // POST commit
   input.app.post("/.well-known/bp/bootstrap/commit", async (event) => {
-    const body = await event.req.json().catch(() => null) as {
+    const parsed = await readPublicJsonBody(event);
+    if (parsed instanceof Response) return parsed;
+    const body = parsed as {
       bootstrapKey?: string;
       adminTenant?: { title: string };
       adminApp?: { title: string; hostname: string };
       themeService?: { id: string; hostname: string; title: string };
       authService?: { id: string; hostname: string; title: string };
-    } | null;
-    if (!body) return jsonResponse({ error: "Body must be JSON" }, 400);
+    };
     if (typeof body.bootstrapKey !== "string") return jsonResponse({ error: "Missing bootstrapKey" }, 400);
 
     if (!body.adminTenant?.title || !body.adminApp?.title || !body.adminApp?.hostname) {

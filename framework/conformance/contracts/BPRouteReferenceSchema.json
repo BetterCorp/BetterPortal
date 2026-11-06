@@ -23,24 +23,27 @@
           "params": {
             "kind": "record",
             "valueSchema": {
-              "kind": "union",
-              "variants": [
-                {
-                  "kind": "string"
-                },
-                {
-                  "kind": "int64"
-                },
-                {
-                  "kind": "uint64"
-                },
-                {
-                  "kind": "number"
-                },
-                {
-                  "kind": "bool"
-                }
-              ]
+              "kind": "nullable",
+              "inner": {
+                "kind": "union",
+                "variants": [
+                  {
+                    "kind": "string"
+                  },
+                  {
+                    "kind": "int64"
+                  },
+                  {
+                    "kind": "uint64"
+                  },
+                  {
+                    "kind": "number"
+                  },
+                  {
+                    "kind": "bool"
+                  }
+                ]
+              }
             },
             "default": {}
           },

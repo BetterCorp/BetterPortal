@@ -24,14 +24,14 @@ import type {
   ViewDemoScenario,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ServiceManifestCacheEntrySchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ServiceManifestCacheEntrySchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, readBoundedJsonBody, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
-import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
+import { isPageOperation, apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { applyServicePublicKey, ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
-import { isPreviewService } from "./previewEnvironments.js";
+import { isPreviewService, PreviewEnvironmentError } from "./previewEnvironments.js";
 import { credentialDiagnostics } from "./credentialDiagnostics.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
@@ -117,9 +117,7 @@ export interface CachedManifestOperation {
   demoScenarios: ViewDemoScenario[];
 }
 
-export function isPageOperation(operation: Pick<CachedManifestOperation, "method" | "renderModes">): boolean {
-  return operation.method === "GET" && operation.renderModes.includes("page");
-}
+export { isPageOperation } from "./routeMounts.js";
 
 export interface CachedManifest {
   serviceId: string;
@@ -281,22 +279,27 @@ export function getCachedManifestForService(
       ? normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0])
       : cache.get(key);
   };
-  const direct = read(serviceInstanceId);
-  if (direct) return direct;
-
+  const keys = [serviceInstanceId];
   const activation = config.sharedServiceActivations.find((candidate) => candidate.id === serviceInstanceId);
   if (activation) {
     const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === activation.sharedServiceId);
-    return read(activation.sharedServiceId)
-      ?? (shared?.serviceId ? read(shared.serviceId) : undefined);
+    keys.push(activation.sharedServiceId);
+    if (shared?.serviceId) keys.push(shared.serviceId);
+  } else {
+    for (const tenant of config.tenants) {
+      const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId);
+      if (service?.serviceId) keys.push(service.serviceId);
+    }
+    const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId);
+    if (platform?.serviceId) keys.push(platform.serviceId);
   }
-
-  for (const tenant of config.tenants) {
-    const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId);
-    if (service?.serviceId) return read(service.serviceId);
+  const storedKey = keys.find(key => config.manifestCache?.some(entry => entry.serviceId === key));
+  if (storedKey) return read(storedKey);
+  for (const key of keys) {
+    const manifest = read(key);
+    if (manifest) return manifest;
   }
-  const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId);
-  return platform?.serviceId ? read(platform.serviceId) : undefined;
+  return undefined;
 }
 
 function cacheManifest(serviceId: string, manifest: CachedManifest): void {
@@ -603,16 +606,20 @@ export function registerSyncEndpoint(
   store: PlatformConfigStore,
   options: SyncEndpointOptions = {}
 ): void {
-  const projections = new Map<string, Promise<string>>();
-  store.onChange(() => projections.clear());
+  const inFlight = new Map<string, Promise<string>>();
+  store.onChange(() => { inFlight.clear(); });
   const projection = (serviceId: string, scope: "platform" | "tenant", tenantId?: string) => {
     const key = JSON.stringify([scope, tenantId, serviceId]);
-    let pending = projections.get(key);
+    let pending = inFlight.get(key);
     if (!pending) {
       pending = store.getScopedConfig(serviceId, scope, tenantId)
         .then((config) => JSON.stringify(injectResolvedServicePaths(config)));
-      projections.set(key, pending);
-      void pending.catch(() => { if (projections.get(key) === pending) projections.delete(key); });
+      inFlight.set(key, pending);
+      void pending.then(() => {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+      }, () => {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+      });
     }
     return pending;
   };
@@ -689,14 +696,17 @@ export function registerSyncEndpoint(
       });
     };
 
-    const unsubscribe = store.onChange(() => {
-      sendScopedConfig().catch((error) => {
+    const sendOrClose = () => {
+      void sendScopedConfig().catch(async (error) => {
         obs?.logger.warn("BP SYNC: failed sending config service={serviceId}: {msg}", {
           serviceId,
           msg: error instanceof Error ? error.message : String(error)
         });
+        closed = true;
+        await stream.close().catch(() => {});
       });
-    });
+    };
+    const unsubscribe = store.onChange(sendOrClose);
 
     // Named events work with both h3 stream implementations used by service-base.
     // Sync clients ignore heartbeat events while idle HTTP connections stay active.
@@ -731,12 +741,7 @@ export function registerSyncEndpoint(
     });
 
     const response = stream.send();
-    sendScopedConfig().catch((error) => {
-      obs?.logger.warn("BP SYNC: failed sending initial config service={serviceId}: {msg}", {
-        serviceId,
-        msg: error instanceof Error ? error.message : String(error)
-      });
-    });
+    sendOrClose();
 
     return response;
   });
@@ -775,7 +780,9 @@ export function registerSyncEndpoint(
 
     // POST: extract manifest push if present and cache.
     if (event.req.method === "POST") {
-      const body = await event.req.json().catch(() => null) as {
+      const parsedBody = await readBoundedJsonBody(event.req, 4 * 1024 * 1024);
+      if (parsedBody instanceof Response) return parsedBody;
+      const body = parsedBody as {
         publicKeyPem?: string;
         keyId?: string;
         manifestVersion?: string;
@@ -836,7 +843,7 @@ export function registerSyncEndpoint(
             }
           }, signal);
         } catch (error) {
-          if (error instanceof SyncSubmissionError) return jsonResponse({ error: error.message }, error.status);
+          if (error instanceof SyncSubmissionError || error instanceof PreviewEnvironmentError) return jsonResponse({ error: error.message }, error.status);
           if (signal.aborted || error instanceof ConfigRevisionConflictError) {
             const response = jsonResponse({ error: "Config sync is busy; retry submission" }, 503);
             response.headers.set("retry-after", "5");
@@ -883,6 +890,141 @@ function operationIndex(manifest: CachedManifest): Map<string, { view: CachedMan
   return new Map(Object.values(manifest.viewIndex).flatMap((view) =>
     view.operations.map((operation) => [operation.operationId, { view, operation }] as const)
   ));
+}
+
+function ensureApiRouteMounts(app: BetterPortalApp, serviceId: string, manifest: CachedManifest): void {
+  for (const view of Object.values(manifest.viewIndex)) {
+    for (const operation of view.operations.filter(candidate => !isPageOperation(candidate))) {
+      if (app.routes.some(route => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;
+      app.routes.push({
+        id: uuidv7(), kind: "api", path: apiRoutePath(manifest.serviceId, view.path), serviceId,
+        viewId: view.viewId, targetPath: view.path, title: operation.title,
+        enabled: false, enablement: "auto", operations: [operation.operationId]
+      });
+    }
+  }
+}
+
+function reconcileServiceRouteMounts(
+  app: BetterPortalApp, syncedServiceIds: ReadonlySet<string>, manifest: CachedManifest, normalizePaths = true
+): boolean {
+  const before = structuredClone(app.routes);
+  const manifestOperations = operationIndex(manifest);
+  for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
+    const view = (route.kind === "api"
+      ? route.operations.map(id => manifestOperations.get(id)?.view).find(Boolean)
+      : undefined) ?? manifest.viewIndex[route.viewId];
+    if (!view) continue;
+    if (route.kind === "api") route.viewId = view.viewId;
+    const resolvedOperations = route.operations.map((operationId) => {
+      const legacyMethod = legacyOperationMethod(operationId);
+      if (!legacyMethod) return operationId;
+      return view.operations.find((operation) => operation.method === legacyMethod)?.operationId ?? operationId;
+    });
+    if (!sameOperations(route.operations, resolvedOperations)) {
+      route.operations = resolvedOperations;
+    }
+  }
+  const staleApiRouteIds = new Set(app.routes
+    .filter((route) => syncedServiceIds.has(route.serviceId)
+      && route.kind === "api"
+      && !route.operations.some((operationId) => manifestOperations.get(operationId)?.view.viewId === route.viewId))
+    .map((route) => route.id));
+  if (staleApiRouteIds.size > 0) {
+    app.routes = app.routes.filter((route) => !staleApiRouteIds.has(route.id));
+  }
+  const routeNormalizationIds = normalizePaths ? syncedServiceIds : new Set<string>();
+  for (const route of app.routes.filter((candidate) => routeNormalizationIds.has(candidate.serviceId))) {
+    const view = manifest.viewIndex[route.viewId];
+    if (!view) {
+      if (route.enabled !== false) {
+        route.enabled = false;
+      }
+      continue;
+    }
+
+    const validOperations = route.operations.filter((operationId) =>
+      manifestOperations.get(operationId)?.view.viewId === route.viewId
+    );
+    if (validOperations.length === 0) {
+      if (route.enabled !== false) {
+        route.enabled = false;
+      }
+      continue;
+    }
+    if (!sameOperations(route.operations, validOperations)) {
+      route.operations = validOperations;
+    }
+    const selectedOperations = validOperations.map((operationId) => manifestOperations.get(operationId)!.operation);
+    const pageOperation = selectedOperations.find(isPageOperation);
+    const operation = pageOperation ?? selectedOperations[0];
+    if (route.operations.length > 1) {
+      route.operations = [operation.operationId];
+    }
+    const wasApi = route.kind === "api";
+    const selectedServicePath = !wasApi && pageOperation && route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
+      ? route.servicePathVariant
+      : view.path;
+    if (route.targetPath !== selectedServicePath) {
+      route.targetPath = selectedServicePath;
+    }
+    const routeIsApi = !pageOperation;
+    if (routeIsApi) {
+      const nextPath = apiRoutePath(manifest.serviceId, selectedServicePath);
+      if (route.kind !== "api") {
+        route.kind = "api";
+      }
+      if (route.path !== nextPath) {
+        route.path = nextPath;
+      }
+      if (route.query !== undefined) {
+        delete route.query;
+      }
+      if (route.servicePathVariant !== undefined) {
+        delete route.servicePathVariant;
+      }
+      if (route.fixedParams !== undefined) {
+        delete route.fixedParams;
+      }
+      if (route.title !== operation.title) {
+        route.title = operation.title;
+      }
+    } else {
+      if (wasApi) {
+        route.kind = "page";
+        route.enabled = false;
+        route.path = pageRoutePath(manifest.serviceId, selectedServicePath);
+      }
+    }
+    if (!route.title) {
+      route.title = operation.title;
+    }
+  }
+  for (const serviceId of routeNormalizationIds) {
+    ensureApiRouteMounts(app, serviceId, manifest);
+  }
+  return !isDeepStrictEqual(before, app.routes);
+}
+
+export function reconcileCachedServiceRoutes(config: BetterPortalConfig, serviceIds: Iterable<string>): boolean {
+  const manifests = new Map<string, CachedManifest>();
+  for (const serviceId of serviceIds) {
+    const manifest = getCachedManifestForService(config, serviceId, new Map());
+    if (manifest) manifests.set(serviceId, manifest);
+  }
+  let changed = false;
+  for (const app of config.apps) {
+    if (config.previewEnvironmentDeployments.some(deployment => deployment.appId === app.id)) continue;
+    const available = getAvailableServiceInstanceIdsForApp(config, app);
+    let affected = false;
+    for (const [serviceId, manifest] of manifests) {
+      if (!available.has(serviceId)) continue;
+      affected = true;
+      if (reconcileServiceRouteMounts(app, new Set([serviceId]), manifest)) changed = true;
+    }
+    if (affected && reconcileDependencyRoutes(config, app)) changed = true;
+  }
+  return changed;
 }
 
 export interface OperationDependencyIssue {
@@ -1124,115 +1266,11 @@ function applyServiceMetadata(
     }
     const appServiceIds = getAvailableServiceInstanceIdsForApp(config, app);
     const syncedServiceIds = new Set([...routeServiceIds].filter((id) => appServiceIds.has(id)));
-    const manifestOperations = operationIndex(manifest);
-    for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
-      const view = manifest.viewIndex[route.viewId];
-      if (!view) continue;
-      const resolvedOperations = route.operations.map((operationId) => {
-        const legacyMethod = legacyOperationMethod(operationId);
-        if (!legacyMethod) return operationId;
-        return view.operations.find((operation) => operation.method === legacyMethod)?.operationId ?? operationId;
-      });
-      if (!sameOperations(route.operations, resolvedOperations)) {
-        route.operations = resolvedOperations;
-      }
-    }
-    const staleApiRouteIds = new Set(app.routes
-      .filter((route) => syncedServiceIds.has(route.serviceId)
-        && route.kind === "api"
-        && !route.operations.some((operationId) => manifestOperations.get(operationId)?.view.viewId === route.viewId))
-      .map((route) => route.id));
-    if (staleApiRouteIds.size > 0) {
-      app.routes = app.routes.filter((route) => !staleApiRouteIds.has(route.id));
-    }
     if (manifest.authProvider && app.auth && routeServiceIds.has(app.auth.serviceId)) {
       applyAuthProviderMetadata(app.auth, manifest.authProvider);
     }
-    for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
-      const view = manifest.viewIndex[route.viewId];
-      if (!view) {
-        if (route.enabled !== false) {
-          route.enabled = false;
-        }
-        continue;
-      }
-
-      const validOperations = route.operations.filter((operationId) =>
-        manifestOperations.get(operationId)?.view.viewId === route.viewId
-      );
-      if (validOperations.length === 0) {
-        if (route.enabled !== false) {
-          route.enabled = false;
-        }
-        continue;
-      }
-      if (!sameOperations(route.operations, validOperations)) {
-        route.operations = validOperations;
-      }
-      const selectedOperations = validOperations.map((operationId) => manifestOperations.get(operationId)!.operation);
-      const pageOperation = selectedOperations.find(isPageOperation);
-      const operation = pageOperation ?? selectedOperations[0];
-      if (route.operations.length > 1) {
-        route.operations = [operation.operationId];
-      }
-      const wasApi = route.kind === "api";
-      const selectedServicePath = !wasApi && pageOperation && route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
-        ? route.servicePathVariant
-        : view.path;
-      if (route.targetPath !== selectedServicePath) {
-        route.targetPath = selectedServicePath;
-      }
-      const routeIsApi = !pageOperation;
-      if (routeIsApi) {
-        const nextPath = apiRoutePath(manifest.serviceId, selectedServicePath);
-        if (route.kind !== "api") {
-          route.kind = "api";
-        }
-        if (route.path !== nextPath) {
-          route.path = nextPath;
-        }
-        if (route.query !== undefined) {
-          delete route.query;
-        }
-        if (route.servicePathVariant !== undefined) {
-          delete route.servicePathVariant;
-        }
-        if (route.fixedParams !== undefined) {
-          delete route.fixedParams;
-        }
-        if (route.title !== operation.title) {
-          route.title = operation.title;
-        }
-      } else {
-        if (wasApi) {
-          route.kind = "page";
-          route.enabled = false;
-          route.path = pageRoutePath(manifest.serviceId, selectedServicePath);
-        }
-      }
-      if (!route.title) {
-        route.title = operation.title;
-      }
-    }
-    for (const serviceId of syncedServiceIds) {
-      for (const view of Object.values(manifest.viewIndex)) {
-        for (const operation of view.operations.filter((candidate) => !isPageOperation(candidate))) {
-          if (app.routes.some((route) => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;
-          app.routes.push({
-            id: uuidv7(),
-            kind: "api",
-            path: apiRoutePath(manifest.serviceId, view.path),
-            serviceId,
-            viewId: view.viewId,
-            targetPath: view.path,
-            title: operation.title,
-            enabled: false,
-            enablement: "auto",
-            operations: [operation.operationId]
-          });
-        }
-      }
-    }
+    reconcileServiceRouteMounts(app, syncedServiceIds, manifest,
+      !config.previewEnvironmentDeployments?.some(deployment => deployment.appId === app.id));
     reconcileDependencyRoutes(config, app);
   }
   onManifestUpdated?.(config, [...routeServiceIds], manifest);

@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/theme-bootstrap2",
-  "version": "10.6.35",
+  "version": "11.0.6",
   "private": true,
   "description": "BetterPortal v10 Bootstrap2 theme plugin for Node.js",
   "main": "lib/index.js",
@@ -16,7 +16,8 @@
     "bp:contract": "bp run contract",
     "publish:bp": "bp publish",
     "prepublishOnly": "npm run build",
-    "publish:client": "bsb-client-cli publish"
+    "publish:client": "bsb-client-cli publish",
+    "prebuild": "bp run check-routes"
   },
   "keywords": [
     "betterportal",
@@ -28,16 +29,16 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
-    "@bsb/tests": "^9.7.3",
+    "@bsb/tests": "^9.7.4",
     "@types/node": "^26.5.1",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@betterportal/framework": "10.6.35",
-    "@betterportal/plugin-bsb": "10.6.35",
-    "@betterportal/theme-runtime": "10.6.35",
-    "@bsb/base": "^9.7.3",
+    "@betterportal/framework": "11.0.6",
+    "@betterportal/plugin-bsb": "11.0.6",
+    "@betterportal/theme-runtime": "11.0.6",
+    "@bsb/base": "^9.7.4",
     "anyvali": "^1.1.6",
     "bootstrap": "^5.3.8",
     "jsx-htmx": "4.0.100"

@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 import inspect
+import json
 import re
 from typing import Any, Awaitable, Callable, Generic, Iterable, Mapping, TypeVar, cast
 from urllib.parse import quote
@@ -12,7 +13,8 @@ from .contracts import parse
 from .generated_types import RendererDeclaration, RendererDeclarationInput, ViewRenderData, ViewTenantContext, ViewAppContext, ViewRenderDataRequest, ViewRenderDataRoute
 from .handler import RequestContext
 from .media import NotAcceptable
-from .urls import Urls
+from .urls import Urls, RouteDestination
+from .generated_types import RouteOptionsInput
 
 Result = TypeVar("Result")
 
@@ -22,6 +24,9 @@ class RenderContext:
     data: ViewRenderData
     urls: Urls
 
+    def route(self, input: RouteOptionsInput | None = None) -> RouteDestination | None:
+        return self.urls._resolve(input, self.request["method"], self.request["params"], self.request["query"], view_context=True)
+
     @property
     def tenant(self) -> ViewTenantContext: return self.data["tenant"]
     @property
@@ -29,7 +34,7 @@ class RenderContext:
     @property
     def request(self) -> ViewRenderDataRequest: return self.data["request"]
     @property
-    def route(self) -> ViewRenderDataRoute: return self.data["route"]
+    def route_info(self) -> ViewRenderDataRoute: return self.data["route"]
 
     @classmethod
     def create(cls, request: RequestContext, view_id: str, matched_path: str, renderer: str, mode: str, kind: str,
@@ -62,7 +67,7 @@ class Renderer(Generic[Result]):
         value = self._render(data, context)
         if inspect.isawaitable(value): value = await value
         if not isinstance(value, str): raise TypeError("Renderers must return HTML strings")
-        return context.urls.rewrite(value)
+        return value
 
 
 def renderers(values: Iterable[Renderer[Result]]) -> tuple[Renderer[Result], ...]:
@@ -105,6 +110,7 @@ def content_type(mode: str, chrome: Mapping[str, Any] | None = None) -> str:
     for name, value in parse("BetterPortalRouteChromeSchema", chrome or {}).items():
         key = re.sub(r"[_\s]+", "-", re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", name)).lower()
         if not re.fullmatch(r"[a-z][a-z0-9-]*", key): continue
-        encoded = quote(value, safe="~()*!.'-") if isinstance(value, str) else str(value).lower()
+        encoded = quote(json.dumps(value, ensure_ascii=False, separators=(",", ":")), safe="~()*!.'-") if isinstance(value, list) else quote(value, safe="~()*!.'-") if isinstance(value, str) else str(value).lower()
         result += f"; bp-chrome-{key}={encoded}"
+        if isinstance(value, list): result += f"; bp-array-chrome-{key}=true"
     return result + "; charset=utf-8"

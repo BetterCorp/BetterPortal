@@ -38,14 +38,16 @@ npm run bp-codegen
 
 ## Release publishing
 
-Tag releases publish npm packages, BSB registry schemas, and BetterPortal contracts. Set and commit the workspace version before tagging:
+Tag releases publish npm packages and BSB registry schemas. The separate BetterPortal contract publish job is intentionally disabled until its registry setup is enabled. Set and commit the workspace version before tagging:
 
 ```bash
-node scripts/release/set-workspace-version.mjs 10.0.2
-npm install --package-lock-only
-git commit -am "chore(release): prepare v10.0.2"
-git tag v10.0.2
+node scripts/release/set-workspace-version.mjs 11.0.0
+npm install --package-lock-only --ignore-scripts
+git commit -S -am "chore(release): prepare v11.0.0"
+git tag -s v11.0.0 -m "BetterPortal v11.0.0"
 ```
+
+Verify the commit/tag signatures with the configured signing identity before pushing. Push the release commit to master, then push the signed tag to start publication.
 
 The tag and committed workspace versions must match; release CI checks this before build/publish. Master builds and tests only, and pushing a commit without the tag does not publish.
 
@@ -73,6 +75,23 @@ image: "./betterportal-logo.png"
 
 Keep that PNG at the package root and include it in `package.json` `files`. The BSB registry image upload path accepts PNG assets. `bsb-plugin.json` is generated during build, so do not hand-edit it to add registry imagery.
 
+## Easypanel
+
+For inline Dockerfile deployments, pin BetterPortal and BSB packages to the release being deployed. Rebuild after npm publication has completed; a successful publish job can precede public registry availability by a few minutes.
+
+```dockerfile
+FROM code.bettercorp.dev/bettercorp/service-base:node-latest
+WORKDIR /home/bsb
+ENV BSB_PLUGIN_DIRS=""
+RUN npm install --omit=dev --save-exact \
+    @bsb/base@9.7.4 @bsb/config-vault@9.7.4 @bsb/observable-axiom@9.7.4 \
+    anyvali@1.1.6 @betterportal/config-manager@11.0.0
+```
+
+Retain the deployment's existing entrypoint adjustments and health check. Keep `BSB_CONFIG_PLUGIN_PACKAGE=@bsb/config-vault` as an unversioned package name; the installed dependency carries the version. Preserve service-specific Vault credentials, volumes, ports and replica/update settings when replacing the Dockerfile. Rebuild matching auth, admin, theme and example services together for a breaking routing upgrade; APIs return domain data and views resolve their own destinations.
+
+The private registry workspace must be built from an immutable release commit. Download its archive with `gh api repos/BetterCorp/BetterPortal/tarball/<commit>`, verify its version, calculate SHA-256 and use `ADD --checksum=sha256:<digest>` for the matching archive URL in the builder stage. Copy the built registry into the runtime image. Confirm public BP manifests report the expected release and health returns `ok: true`, and wait for the configured replica counts to converge before completing deployment.
+
 ## Coolify
 
 Use `docker-compose.coolify.yaml` for repo-sync deployments. It runs the BSB runtime image directly and uses a dedicated BSB plugin watcher container to install/update BetterPortal plugin packages into a shared plugin volume. Runtime service containers mount that shared plugin volume read-only and do not run package installation on startup. The compose does not build the local workspace inside Coolify. The default BSB image is `code.bettercorp.dev/bettercorp/service-base:node-latest`; set `BSB_IMAGE` to override it.
@@ -97,15 +116,16 @@ BSB_SHOW_PACKAGES=${BSB_SHOW_PACKAGES:-false}
 The `bsb-plugin-watcher` service is the only container that sets `BSB_PLUGINS` and `BSB_PLUGIN_UPDATE`. It mounts `bp-plugins` read/write, runs with `BSB_PLUGIN_WATCHER=true`, and syncs these packages into `/mnt/plugins`:
 
 ```text
-@betterportal/config-manager@10.6
-@betterportal/theme-bootstrap1@10.6
-@betterportal/theme-embedded@10.6
-@betterportal/auth-default@10.6
-@betterportal/auth-authress-io@10.6
-@betterportal/auth-workos@10.6
-@betterportal/hello-view@10.6
-@bsb/observable-opentelemetry@9.6
-@bsb/observable-axiom@9.6
+@betterportal/config-manager@10.7
+@betterportal/theme-bootstrap1@10.7
+@betterportal/theme-embedded@10.7
+@betterportal/auth-default@10.7
+@betterportal/auth-authress-io@10.7
+@betterportal/auth-workos@10.7
+@betterportal/hello-view@10.7
+@bsb/config-vault@9.7.4
+@bsb/observable-opentelemetry@9.7.4
+@bsb/observable-axiom@9.7.4
 ```
 
 The plugin selectors are hardcoded in compose because releases update this file alongside package publishing. Do not use bare/latest selectors in Coolify; the BSB watcher expects explicit `major.minor` or `major.minor.patch` selectors. `BSB_PLUGIN_UPDATE` is defined only on the watcher and defaults to `true` there. Runtime service containers must not set `BSB_PLUGIN_UPDATE`. The watcher intentionally has no compose healthcheck; runtime services depend only on `service_started` for the watcher because package installation is owned by BSB itself. `BSB_PLUGIN_WATCH_INTERVAL_SECONDS` defaults to `3600`. `BSB_SHOW_PACKAGES` defaults to `false`; set it to `true` only when debugging package resolution/startup in Coolify logs.
@@ -137,7 +157,7 @@ Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB
 
 Each vault-backed service profile still sets `package: "@betterportal/..."`; BSB resolves that package from `/mnt/plugins` first, then runtime `node_modules`. The runtime containers do not set `BSB_PLUGINS`; package sync is owned by `bsb-plugin-watcher`. The BSB runtime image provides its built-in config plugins, including config-vault.
 
-Set the config-manager issuer/public URL inside the config-manager vault profile. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
+Set the config-manager issuer/public URL inside the config-manager vault profile. Before deploying each non-CM Node service, set its `betterportal.controlPlaneUrl` or `BP_CONTROL_PLANE_URL` to that exact URL. This is the service's trust anchor for the browser-driven installer; the install request cannot choose a different control plane. Do not set a service API key for first deploy. The service remains in setup mode until the browser completes installation.
 
 For the bundled database, config-manager storage should use the `postgres` compose hostname:
 
@@ -175,3 +195,5 @@ Use these endpoints for health checks and manifest validation.
 Setup mode is different: a not-yet-adopted service may report healthy for bootstrap/install endpoints while still returning `503` for normal view traffic until installation and sync complete.
 
 Live anonymous health probes return only `{ "ok": true }` or `{ "ok": false }`. Additional diagnostics, including the service version, require a valid access token from the configured admin tenant's management app in the `Authorization: Bearer ...` header. Config manager also uses the normal management Origin/Referer to resolve that app. Setup-mode diagnostics remain public so config manager can discover services that need installation or reconnect. Responses are never cacheable; invalid credentials fall back to the minimal public result.
+
+The example pins the config-vault, OpenTelemetry and Axiom BSB plugins to `9.7.4`, matching the Node service/framework BSB baseline. The watcher installs the versioned config-vault selector; `BSB_CONFIG_PLUGIN_PACKAGE` identifies its npm package as `@bsb/config-vault`. AnyVali is `1.1.6` across npm, Python and .NET. Update these selectors along with dependency manifests when upgrading BSB.

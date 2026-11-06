@@ -112,31 +112,25 @@ a generic 500. Disconnects cancel async callbacks. Pass shared error renderers a
 operation-local error renderers take precedence. Global renderers also cover
 unmatched routes after resolving a valid app scope.
 
-Handlers and renderers receive `context.urls`. `route(view_id, options)` builds
-service request URLs; `ui_route(...)` builds navigation links only for enabled
-mounted GET pages. Both resolve declared dependency aliases, plugin IDs and exact
-instance IDs. Missing params or ambiguous destinations return `None`. Local
-optional routes select the most specific satisfiable path. Cross-service requests
-merge fixed mount params with explicit params; navigation uses public path params.
-`absolute=True` resolves a trusted service/app origin. These helpers neither send
-requests nor attach credentials; every destination still authorizes its callers.
+Handlers and renderers use the same resolver: `context.route(input=None)` in Python and `context.Route(input = null)` in .NET. Supply a service `path` or `viewId`; omit both to resolve self with the current method, params and query. Explicit targets default to GET. Self preserves repeated query values; scalar overrides replace all values for that key, and null removes the key. Query strings embedded in `path` preserve repeated pairs too. Dependency aliases, plugin IDs and instance IDs are supported. Unknown targets, unsupported methods and missing params return `None`/`null`.
+
+Renderer selection uses the explicit `component` or `fragment` option. Reserved `_c`/`_f` keys in query input, supplied paths, or the current request are removed before resolution; only view destinations receive an explicit selector. API and mounted page destinations remain free of renderer selectors.
+
+
+
+The result has six wire fields: `apiPath` and `viewPath` are service-relative; `uiPath` is the mounted theme path; `absoluteApiPath` and `absoluteViewPath` use the service origin; `absoluteUiPath` is the public app URL. Component/fragment selectors affect view fields only. UI fields are null unless exactly one enabled GET page resolves; select `mountId` for a frontend alias. Resolve internal links in the renderer from domain data and cursors. API code may return a public `absoluteUiPath` link where that link is domain data.
 
 ```python
-from betterportal.urls import Urls
+from betterportal.generated_types import RouteOptionsInput, ResolvedRoute
 
-url = Urls.path("/items", {"query": {"name": "Hi BP", "omit": None}, "fragment": "nav.profile"})
-assert url == "/items?name=Hi+BP&_f=nav.profile"
-assert Urls.form("/items", {"method": "POST", "target": "#items"})["hx-post"] == "/items"
+request: RouteOptionsInput = {"path": "/items/:id", "params": {"id": 42}, "query": {"page": 2}}
+# In either callback: destination = context.route(request)
+# API requests use destination["absoluteApiPath"].
+# HTML requests use destination["absoluteViewPath"].
+# Service views use str(destination) or destination["viewPath"]; emails use destination["absoluteUiPath"].
 ```
 
-`current`, `path`, `link`, `form` and `current_ui` support query encoding,
-components, fragments, SSE URLs and HTMX attribute maps. Escape attribute values
-when writing HTML. `element(reference)` resolves a single app-mounted service
-fragment or a shell fragment, returning `url`/`serviceId` or an `unavailable`
-reason. URL helpers retain only navigation data. They ignore credential-bearing
-or non-HTTP service origins and reject path traversal/network-path references.
-Rendered HTML rewrites quoted `{view.id}` tokens in supported request attributes;
-unresolved tokens remain unchanged. Use `ui_route` for internal page anchors.
+The old string-returning route/current/path/UI helpers and literal route tokens have been removed. Update callers to select a destination field. The resolver neither sends requests nor grants access. Fragment composition remains available through the scoped element resolver; no credentials are retained in renderer navigation helpers.
 
 `RawHandler[Params, Query, Headers, Body]` shares input validation and host
 authorization with JSON handlers. It must return `RawResponse`; JSON handlers
@@ -402,7 +396,7 @@ assert negotiate("text/html;mode=fragment").mode == "fragment"
 assert negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).kind == "json"
 ```
 
-Implemented: embedded canonical contracts validated with AnyVali 1.1.5, RS256 keys and token
+Implemented: embedded canonical contracts validated with AnyVali 1.1.6, RS256 keys and token
 purposes, tenant/app-bound refresh pairs, config-ticket scope/action checks, and
 service authorization against current scoped bindings and grants, static JWKS
 imports and a cancellable remote JWKS cache. Cryptography
@@ -787,7 +781,7 @@ defaults to rejecting queries for control-plane base URLs.
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
-passes 1,580/1,580 scenarios with AnyVali 1.1.5: 536 checks in each native runtime and 508 in Node.
+passes 1,580/1,580 scenarios with AnyVali 1.1.6: 536 checks in each native runtime and 508 in Node.
 The eight C# extension regressions from [AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)
 pass with their original expectations and no BP workaround.
 See the conformance ledger for runtime results and remaining
@@ -843,7 +837,8 @@ Destinations require HTTPS, with the same exact-loopback HTTP exceptions as sync
 Clients reject redirects, cookie replay and caller overrides of BP routing/auth
 headers. JSON requests/responses are bounded to 16 MiB, URLs to 8,192 characters,
 and transport waits to 30 seconds; unsolicited compressed responses are rejected.
-Snapshot replacement invalidates captured request clients and pending responses;
+Snapshot replacement invalidates captured request clients and cancels pending JSON,
+raw and streaming HTTP work, including calls waiting for response headers;
 background clients resolve policy again on each call. Cancellation and service
 shutdown stop pending HTTP work. `ClientError` exposes the upstream status with a
 generic message; upstream error bodies are never included.
@@ -1064,7 +1059,8 @@ store. See the [deployment acceptance procedure](PRODUCTION_READINESS.md).
 Handlers expose `tenant`, `app`, `config`, `user`, `service_caller`, `caller_mode`,
 `method`, `path`, `multipart`, `clients`, `urls`, `response`, `bp_headers`, `trace`
 and `obs`. `context.require_permission(service_id, view_id, action)` resolves an
-enabled target and checks the current user's app role grants. It fails after the
+enabled target and checks the current user's app role grants. A denied handler
+check returns HTTP 403 through the normal JSON or HTML error response. It fails after the
 captured snapshot is retired. The scoped platform schema can be authored with the
 canonical generated types and validated with `contracts.parse`; environment
 configuration never replaces authenticated control-plane scope.
@@ -1086,6 +1082,38 @@ Callbacks receive safe presentation fields, scoped service `config`, `urls`,
 BP element attributes for service fragments or shell chrome; its child HTML is
 trusted application output. Shell fragment endpoints require this service to be
 the active shell for the resolved app, with normal origin restrictions.
+
+`sse: true` resolves only a known registered GET SSE/finite-stream endpoint on the current service. Ordinary routes, non-GET methods and dependency mounts without streaming capability return null instead of a guessed stream URL.
+
+Embedded query values may contain raw question marks, for example `/items?q=what?x&next=/a?b`; the resolver preserves and encodes the complete values before applying query overrides.
+
+A dependency mount without a resolved service path cannot identify a service endpoint, so resolution returns null rather than guessing or throwing.
+
+
+Use `betterportal.themes.bp_route` for native HTML controls/embeds; its states use the shared browser runtime. Component/fragment success wraps fetched HTML rather than authored children:
+
+```python
+from betterportal.themes import bp_route
+
+# Inside a renderer, context is the RenderContext supplied by BetterPortal.
+# html = bp_route(context, {"viewId": "items.detail", "params": {"id": 42}},
+#     {"ok": "Item", "error": {"as": "label", "id": "unavailable", "content": "Unavailable"}})
+```
+
+Route results stringify to apiPath in handlers and viewPath in renderers. Immutable selector chaining uses `destination.component("summary")` or `.fragment("body.live")`. The theme maps service controls to public UI mounts; do not prefer uiPath for service-renderer hrefs.
+
+The success state's HTML `method` selects the request method unless an explicit
+`hx-get`/`hx-post`/`hx-put`/`hx-patch`/`hx-delete` attribute selects it. Methods are
+normalized to uppercase. Explicit `serviceId`, `params` and `query` take precedence
+over the `service` alias and legacy `args`, matching Node's BPRoute behavior.
+Conditional `None` values use the next non-null fallback; explicit empty parameter
+or query dictionaries remain intentional overrides.
+
+Incoming JSON rejects duplicate members, nonfinite numbers (including overflowing
+exponents) and excessive nesting before the handler runs. Exact integer tokens
+retain Python's integer precision. CI checks the entire runtime with mypy,
+including bodies of functions without annotations, and verifies accepted and
+rejected consumer typing examples.
 
 ## PyPI publishing
 

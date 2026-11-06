@@ -56,6 +56,11 @@ function run(): void {
       console.log("[bp-init] Removed duplicate legacy BSB prebuild hook.");
       modified = true;
     }
+    if (!raw.scripts.prebuild?.includes("bp run check-routes")) {
+      raw.scripts.prebuild = "bp run check-routes" + (raw.scripts.prebuild ? " && " + raw.scripts.prebuild : "");
+      console.log("[bp-init] Added fatal prebuild route checks.");
+      modified = true;
+    }
     // Route generation and dependency types must exist before TypeScript compilation.
     if (!raw.bsb.hooks) raw.bsb.hooks = {};
     const afterSchemas = Array.isArray(raw.bsb.hooks.afterSchemas)
@@ -87,6 +92,18 @@ function run(): void {
     } else {
       console.log("[bp-init] prebuild script already configured.");
     }
+  }
+
+  const tsconfigPath = path.join(packageDir, "tsconfig.json");
+  if (fs.existsSync(tsconfigPath)) {
+    try {
+      const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, "utf8"));
+      if (tsconfig.compilerOptions?.jsxImportSource === "jsx-htmx") {
+        tsconfig.compilerOptions.jsxImportSource = "@betterportal/framework";
+        fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2) + "\n");
+        console.log("[bp-init] Installed the typed BPRoute JSX facade.");
+      }
+    } catch { /* JSONC/custom configurations are documented for manual migration. */ }
   }
 
   // Ensure betterportal key exists

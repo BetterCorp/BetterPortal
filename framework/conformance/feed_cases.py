@@ -190,23 +190,23 @@ def run_feeds(urls, labels):
         def initial(actual):
             assert actual["status"] == 200 and actual["invoked"] == 1 and actual["feed"]["mapped"] == 0 and actual["body"] == "<p>Initial</p>", actual
         check(url, label, "initial-fragment", body, initial)
-        for name in ("query-default", "headers-required", "rewrite"):
+        for name in ("query-default", "headers-required", "route-link"):
             body = fixture(); route = body["routes"][0]; feed = route["feed"]
             if name == "query-default":
                 route["operations"][0]["schemas"] = {"query": {**feed["inputSchema"], "root": {"kind": "object", "properties": {"limit": {"kind": "int", "coerce": {"toInt": True}, "default": 10}}, "required": ["limit"], "unknownKeys": "strip"}}}
                 feed.update(contextEvent=True, publications=[{"value": None}])
             if name == "headers-required":
                 route["operations"][0]["schemas"] = {"headers": {**feed["inputSchema"], "root": {"kind": "object", "properties": {"x-required": {"kind": "string"}}, "required": ["x-required"], "unknownKeys": "strip"}}}
-            if name == "rewrite":
-                themed(body); feed["renderers"][0]["text"] = '<a href="{about.index}">Reload</a>'
+            if name == "route-link":
+                themed(body); feed["renderers"][0]["routeLink"] = "about.index"
                 about = deepcopy(route); about.pop("feed"); about.update(viewId="about.index", path="/about")
                 about["operations"] = [about["operations"][0]]; about["operations"][0]["declaration"]["operationId"] = "about.get"
                 body["routes"].append(about)
             def inputs(actual):
                 status(actual, 400 if name == "headers-required" else 200, 0 if name == "headers-required" else 1 if name == "query-default" else 3)
                 if name == "query-default": assert json.loads(events(actual)[0]["data"])["query"] == {"limit": 10}, actual
-                if name == "rewrite": assert events(actual)[0]["data"] == '<a href="/about">Reload</a>', actual
-            check(url, label, name, body, inputs, native=name in ("headers-required", "rewrite"))
+                if name == "route-link": assert events(actual)[0]["data"] == '<a href="/about">Reload</a>', actual
+            check(url, label, name, body, inputs, native=name == "headers-required")
     keys = [post(url, {"action": "jwt-key"}) for url in urls]
     claims = fixtures()
     with peer() as (base, routes, counts, barriers):

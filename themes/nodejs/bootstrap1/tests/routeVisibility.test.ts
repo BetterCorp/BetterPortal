@@ -1,12 +1,40 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadBootstrap1Asset } from "../src/plugins/service-betterportal-theme-bootstrap1/assets.js";
+import { Bootstrap1AdapterSource } from "../src/plugins/service-betterportal-theme-bootstrap1/adapter.js";
 import { isUserFacingRoute, renderBootstrap1HostPage, renderBootstrap1Shell } from "../src/plugins/service-betterportal-theme-bootstrap1/shell/index.js";
 
 test("API routes are never browser navigation candidates", () => {
   assert.equal(isUserFacingRoute({ kind: "page", href: "/tunnels/dashboard" }), true);
   assert.equal(isUserFacingRoute({ kind: "api", href: "/tunnels/dashboard" }), false);
   assert.equal(isUserFacingRoute({ href: "/_bp/service/example/tunnels/dashboard" }), false);
+});
+
+test("sidebar titles remain text when the adapter converts them", async t => {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.setContent('<div id="root"><section data-bp-sidebar="panel" data-bp-sidebar-title="&lt;img src=x onerror=alert(1)&gt;"><button id="existing">Open</button></section></div>');
+  await page.evaluate(() => { (window as any).bootstrap = {}; });
+  await page.addScriptTag({ content: "const __name = value => value;\n" + String(Bootstrap1AdapterSource) });
+  await page.evaluate(() => (window as any).BetterPortalShellAdapter.initComponents(document.querySelector("#root")));
+  assert.equal(await page.locator("#panel img").count(), 0);
+  assert.equal(await page.locator("#panel .offcanvas-title").innerText(), '<img src=x onerror=alert(1)>');
+  assert.equal(await page.locator("#existing").count(), 1);
+});
+
+test("navigation building stays fast with a long interior slash run", () => {
+  const href = `/${"/".repeat(50_000)}page`;
+  const started = performance.now();
+  renderBootstrap1HostPage({
+    title: "Test", brandName: "Test", themeMode: "light",
+    themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets", currentPath: "/", routeLinks: [
+      { href, requestUrl: "https://service.test/page", serviceId: "service", kind: "page", title: "Page", active: false }
+    ]
+  } as never);
+  assert.ok(performance.now() - started < 250, "navigation normalization must stay linear");
 });
 
 test("SSE requests keep BetterPortal headers", async () => {

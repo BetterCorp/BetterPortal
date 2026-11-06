@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveAppServiceOrigins, resolveServiceForTenant } from "../src/runtime/configProvider.js";
+import { resolveAppServiceOrigins, resolveServiceForTenant, resolveServiceViewTitle } from "../src/runtime/configProvider.js";
 
 test("app credential destinations include enabled fragments and slots but exclude unbound services", () => {
   const context = {
@@ -35,4 +35,37 @@ test("shared destinations require an enabled activation scoped to this tenant an
   assert.deepEqual(resolveAppServiceOrigins(config, context), { activation: "https://shared.test" });
   shared.enabled = false;
   assert.deepEqual(resolveAppServiceOrigins(config, context), {});
+});
+
+test("shared view labels use the catalog manifest and respect activation scope", () => {
+  const activation = { id: "activation", sharedServiceId: "catalog", tenantId: "tenant", appId: "app", enabled: true };
+  const config = {
+    platformServices: [],
+    sharedServiceActivations: [activation],
+    sharedServiceCatalog: [{ id: "catalog", serviceId: "org.example.shared", baseUrl: "https://shared.test", enabled: true }],
+    manifestCache: [
+      { serviceId: "org.example.shared", viewIndex: { detail: { title: "Package default" } } },
+      { serviceId: "activation", viewIndex: { detail: { title: "Wrong activation cache" } } },
+      { serviceId: "catalog", viewIndex: { detail: { title: "Catalog view" } } }
+    ]
+  } as any;
+  const context = { tenant: { id: "tenant", services: [], activatedPlatformServices: [] }, app: { id: "app" } } as any;
+  assert.equal(resolveServiceViewTitle(config, "activation", "detail", context), "Catalog view");
+  assert.equal(resolveServiceViewTitle(config, "activation", "missing", context), undefined);
+  for (const changes of [{ enabled: false }, { tenantId: "other" }, { appId: "other" }]) {
+    config.sharedServiceActivations = [{ ...activation, ...changes }];
+    assert.equal(resolveServiceViewTitle(config, "activation", "detail", context), undefined);
+  }
+});
+
+test("concrete service view labels take precedence over package defaults", () => {
+  const config = { sharedServiceActivations: [], platformServices: [], manifestCache: [
+    { serviceId: "org.example.service", viewIndex: { detail: { title: "Package default" } } },
+    { serviceId: "first", viewIndex: { detail: { title: "First instance" } } },
+    { serviceId: "second", viewIndex: { detail: { title: "Second instance" } } }
+  ] } as any;
+  const context = { tenant: { services: ["first", "second"].map(id => ({ id, serviceId: "org.example.service", enabled: true })), activatedPlatformServices: [] }, app: {} } as any;
+  assert.equal(resolveServiceViewTitle(config, "second", "detail", context), "Second instance");
+  config.manifestCache = config.manifestCache.filter((entry: { serviceId: string }) => entry.serviceId !== "second");
+  assert.equal(resolveServiceViewTitle(config, "second", "detail", context), "Package default");
 });

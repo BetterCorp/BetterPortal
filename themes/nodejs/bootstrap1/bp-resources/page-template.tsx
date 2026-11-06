@@ -1,14 +1,14 @@
-/** @jsxImportSource jsx-htmx */
+import { BPRoute } from "@betterportal/framework";
+/* @jsxImportSource @betterportal/framework */
 import type { RegisteredViewRenderer } from "@betterportal/framework";
 
 export const render: RegisteredViewRenderer["render"] = (data, ctx) => (
   <section class="container-fluid py-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div>
-        <h1 class="h3 mb-1">Page title</h1>
         <p class="text-body-secondary mb-0">Explain the task in one sentence.</p>
       </div>
-      <a class="btn btn-primary" href={ctx.url.uiRoute("example.create") ?? "#"}>Create</a>
+      <BPRoute ctx={ctx} {...{ viewId: "example.create" }} class="btn btn-primary"><bp-ok>Create</bp-ok></BPRoute>
     </div>
     <div class="card shadow-sm">
       <div class="card-body">{JSON.stringify(data)}</div>

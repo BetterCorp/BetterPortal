@@ -46,3 +46,24 @@ test("service registration authenticates management calls without sending admin 
   assert.ok(external.every(request => request.authorization === undefined));
   assert.deepEqual(errors, []);
 });
+
+test("Bootstrap theme Configure uses the ticketed configuration client", () => {
+  for (const serviceId of ["org.betterportal.theme.bootstrap1", "org.betterportal.theme.bootstrap2"]) {
+    const data = ResponseSchema.parse({
+      title: "Services", adminApiBase: "/.well-known/bp/admin",
+      tenants: [{ id: "tenant", title: "Tenant" }],
+      apps: [{ id: "app", tenantId: "tenant", title: "App" }],
+      tenantApps: { tenant: [{ id: "app", title: "App" }] },
+      services: [{
+        id: "instance", hostname: "https://theme.example", serviceId,
+        title: "Theme", createdAt: new Date().toISOString(), enabled: true,
+        scope: "tenant", tenantId: "tenant", pushBase: "/theme", capabilities: [],
+        supportsCustomUi: true, customUiPath: "/.well-known/bp/config/ui",
+        configManifestKnown: true, hasConfigurableOptions: true
+      }]
+    });
+    const html = toHtmlString(render(data));
+    assert.match(html, /hx-get="\/\.well-known\/bp\/admin\/configure\?/);
+    assert.doesNotMatch(html, /hx-get="https:\/\/theme\.example\/\.well-known\/bp\/config\/ui\?/);
+  }
+});

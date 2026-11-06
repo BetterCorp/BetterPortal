@@ -12,7 +12,7 @@ test("Embedded runtime keeps shared shell behavior", async () => {
   assert.match(source, /reconnectMaxAttempts:\s*Infinity/);
   assert.match(hook, /attachBpHeaders\(ctx\.request\.headers/);
   assert.match(source, /refreshStoredHeader/);
-  assert.match(source, /bp-element\[data-bp-element\]/);
+  assert.match(source, /bp-route\[data-bp-route\]/);
   assert.match(source, /#bp-main, \[data-bp-main-outlet\]/);
   assert.match(source, /BetterPortalShellAdapter/);
 });

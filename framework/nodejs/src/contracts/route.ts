@@ -1,9 +1,12 @@
+import type { RouteResolver } from "./routing.js";
+export type { RouteInput, RouteOptions, RouteResolver, ResolvedRoute } from "./routing.js";
 import * as av from "anyvali";
 import type { Infer, ParseContext, SchemaNode } from "anyvali";
 import { PluginIdSchema, type HttpMethod } from "./common.js";
 import { JsonObjectSchema, JsonValueSchema, type JsonObject, type JsonValue } from "./json.js";
 import type { BetterPortalObservability, HttpOutcomeDiagnostic } from "./observability.js";
 import type { BetterPortalResolvedApp, BetterPortalTenant } from "./platformConfig.js";
+import type { BetterPortalRouteChrome } from "./chrome.js";
 import { ElevationRequirementSchema, type ElevationRequirement, AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
 import { ApiCallerModeSchema, type ApiCallerMode, type M2MCallerMode, type ServiceTokenClaims } from "./m2m.js";
 
@@ -140,23 +143,6 @@ export const MultipartRequestSchema: av.BaseSchema<unknown, MultipartRequest> = 
   files: av.record(av.union([UploadedFileSchema, av.array(UploadedFileSchema)]))
 });
 
-export interface RouteUrlOptions {
-  /** Defaults to this handler's service id. Accepts a declared dependency alias, plugin id, or service-instance UUID. */
-  serviceId?: string;
-  params?: Record<string, string | number | boolean | null | undefined>;
-  query?: Record<string, string | number | boolean | null | undefined>;
-  /** Defaults to false, returning a root-relative path. */
-  absolute?: boolean;
-  /** Overrides the resolved origin when absolute is true. */
-  origin?: string;
-  /** Request a named component renderer (`?_c=`) from the resolved service route. */
-  component?: string;
-  /** Request a named fragment renderer (`?_f=`) from the resolved service route. */
-  fragment?: string;
-  /** Resolve the route's SSE endpoint (`/__sse`). */
-  sse?: boolean;
-}
-
 export interface WebhookEmitOptions {
   tenantId?: string;
   appId?: string;
@@ -208,21 +194,33 @@ export interface RouteHandlerContextBase<
   readonly responseHeaders?: Headers;
   /** Set HTTP status without raw event reach-through. */
   readonly setStatus?: (status: number) => void;
+  /**
+   * Set presentation metadata for this request's successful GET HTML page.
+   *
+   * @param chrome - Overrides the operation's declared chrome. `title` updates
+   * the shell and browser title; `parents` lists ancestors from outermost to
+   * immediate parent. Leading-slash parents are paths in this service, resolved
+   * through enabled page mounts; other parents are plain text. `//` is invalid.
+   * @remarks
+   * JSON, fragments, components and error responses do not publish these
+   * overrides. Omitted fields use the operation defaults, not the previous page.
+   * @example
+   * ```ts
+   * ctx.chrome({ title: `Batch ${batch.id}`, parents: ["/batches"] });
+   * return batch;
+   * ```
+   */
+  readonly chrome: (chrome: BetterPortalRouteChrome) => void;
   /** Attach structured diagnostic context to the final HTTP outcome. */
   readonly diagnostic: (diagnostic: HttpOutcomeDiagnostic) => void;
   /** The service id this handler belongs to. Always present when adapter wires it. */
   readonly serviceId?: string;
   /**
-   * Build a URL to the service route that owns the view.
-   * Use for service requests: HTMX requests, form actions, fetch, SSE, and downloads.
+   * Resolve self, a service path, or a view id using the same function as renderers.
+   * Select apiPath/viewPath/uiPath or their absolute counterparts at the point of use.
+   * Do not pass internal renderer navigation URLs through an API response.
    */
-  readonly routeUrl?: (viewId: string, options?: RouteUrlOptions) => string | null;
-  /**
-   * Build a GET navigation URL for a page mounted in the app shell.
-   * Do not use for HTMX requests, form actions, fetch, SSE, or downloads; those
-   * must use routeUrl or they can target the theme/app origin and return 404.
-   */
-  readonly uiRouteUrl?: (viewId: string, options?: RouteUrlOptions) => string | null;
+  readonly route: RouteResolver;
   /** Emit a dev-declared webhook event through the control plane. */
   readonly webhook?: (eventId: string, payload: JsonValue, options?: WebhookEmitOptions) => Promise<void>;
   readonly response: (body?: RawResponseBody, init?: ResponseInit) => Response;
@@ -327,8 +325,7 @@ export type SseMapperContext<
   readonly serviceCaller?: ValidatedServiceClaims;
   readonly callerMode?: ApiCallerMode;
   readonly serviceId?: string;
-  readonly routeUrl?: RouteHandlerContext["routeUrl"];
-  readonly uiRouteUrl?: RouteHandlerContext["uiRouteUrl"];
+  readonly route?: RouteHandlerContext["route"];
   readonly obs?: BetterPortalObservability;
   readonly config?: TServiceConfig;
   /** Aborted when the browser closes the SSE connection. */

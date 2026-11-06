@@ -37,6 +37,7 @@ export async function hostingRequest(body) {
       const run = context => {
         invoked++;
         if (spec.status !== undefined) context.setStatus(spec.status);
+        if (spec.pageChrome) context.chrome(spec.pageChrome);
         for (const [key, value] of spec.responseHeaders ?? []) context.responseHeaders.append(key, value);
         if (spec.throw) throw new Error("private-password-must-not-leak");
         if (spec.urlCalls) return urlCalls(context, spec.urlCalls);
@@ -81,7 +82,7 @@ export async function hostingRequest(body) {
       methods: [...new Set(routes.flatMap(route => route.methods)), "OPTIONS"], allowHeaders: ["Accept", "Content-Type", "Authorization"],
       preflight: { statusCode: 204 } }) || undefined;
   });
-  createH3Router({ routes, dependencies: body.dependencies ?? {} }, app, { serviceId: snapshot.serviceIdentity?.id ?? body.declaration.pluginId, resolveContext: resolve, resolveAuth: event => {
+  createH3Router({ routes, dependencies: body.dependencies ?? {} }, app, { serviceId: snapshot.serviceIdentity?.id ?? body.declaration.pluginId, resolveRouteServiceId: () => body.routeServiceId ?? snapshot.serviceIdentity?.id, resolveContext: resolve, resolveAuth: event => {
     const context = resolve(event); const auth = context?.app.auth;
     if (!context || !auth) return undefined;
     return { tenantId: context.tenant.id, appId: context.app.id, appAuthConfig: auth,

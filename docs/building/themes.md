@@ -1,3 +1,5 @@
+> Routing contract: prefer `BPRoute` for links, actions, forms and embedded components/fragments. Use `ctx.route()` only when a destination value is specifically required. Service-view defaults use `viewPath`; the theme owns UI mounting/history. See [the detailed BPRoute contract](https://github.com/BetterCorp/BetterPortal/blob/master/docs/building/bp-route.md).
+
 # Shell services and themes
 
 Shell services render the BetterPortal host page and provide the visual theme. The shell service identity and its service-view renderer compatibility key are separate contracts.
@@ -64,7 +66,7 @@ Check light/dark modes with the effective app palette, including select options,
 
 ## Shared Node shell runtime
 
-Node shells use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and `bp-element` lifecycle states.
+Node shells use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and `bp-route` lifecycle states.
 
 The shared runtime automatically upgrades plain internal `<a href="/route">` links and forms using native GET or POST to HTMX requests owned by the rendering service. A bare `<form>` posts to the current service view. Put `bp-no-override` or `data-bp-no-override` on an element or ancestor when native browser navigation/submission is intentional; `data-bp-no-route` remains the shell-owned equivalent. External links/forms and unsupported form methods stay native.
 
@@ -93,7 +95,11 @@ export const MyShellAdapterSource = js(() => {
 
 The optional `showRequestError(status, content, context)` hook receives the initiating `serviceId`. Error UI rendered outside the main outlet must retain that service context so relative HTMX actions continue to resolve to the service that produced the response.
 
-The server emits initial chrome with `betterPortalChromeAttributes(currentRoute?.chrome)`. The browser runtime applies response `bp-chrome-*` values as `data-bp-chrome-*`, removes stale values, and calls the optional typed `applyChrome` hook. Prefer theme CSS for chrome presentation; use the hook only when the theme needs imperative behavior. Chrome is presentation state and never implies authentication.
+The server emits initial chrome with `betterPortalChromeAttributes(currentRoute?.chrome)`. The browser runtime applies response `bp-chrome-*` values as `data-bp-chrome-*` after a successful GET HTML page swaps into the main outlet, removes stale values, and calls the optional typed `applyChrome` hook. JSON, fragments, components, mutations, errors and responses without a swap do not apply page metadata. Prefer theme CSS for chrome presentation; use the hook only when the theme needs imperative behavior. Chrome is presentation state and never implies authentication.
+
+For dynamic page presentation, handlers call `ctx.chrome({ title, parents })`. Provide `[data-bp-current-title]` and `[data-bp-current-breadcrumb]` outlets for the shared runtime to render text-safe titles and accessible breadcrumbs. `[data-bp-up]` is a theme-owned anchor that the runtime shows only when the final parent resolves to an enabled page. `[data-bp-back]` is a theme-owned button that uses browser history. Breadcrumb and Up destinations use service-relative parent paths resolved through app mounts; themes must not derive ancestry by trimming URL segments. The runtime resets omitted metadata on navigation and reloads the matching metadata on history restoration. Custom titles set the document title to `Custom title - App Name`; route defaults retain the existing title format.
+
+Use `data-bp-document-title` on the shell root to supply a stable app title. Without it, the shared runtime uses the document's initial title as the custom-title suffix and restores that initial title when a new page omits its custom title. This fallback also supports Embedded and custom shells that do not render a title outlet.
 
 Theme packages keep their public asset URLs and provide only presentation hooks. Bootstrap1 owns Bootstrap modal/offcanvas and component lifecycle behavior; Embedded owns its loading and error presentation. The required HTMX extension allowlist is `bp-shell, sse`. BetterPortal's header-aware preload is part of `bp-shell`; do not also load the stock preload extension.
 
@@ -140,7 +146,7 @@ export function render(ctx: ShellFragmentRenderContext): HtmlRenderable {
 }
 ```
 
-`ShellFragmentRenderContext` supplies the tenant, app, shell service configuration, request URL, fragment id, and server-resolved block items. Cross-service URLs are not constructed by shell code. Service views reuse a singular active-shell fragment with `<BPElement ctx={ctx} service="shell" fragment="theme-selector" />`; a successful response inserts directly when `bp-ok` is omitted. See [Routes and views](./routes-and-views.md).
+`ShellFragmentRenderContext` supplies the tenant, app, shell service configuration, request URL, fragment id, and server-resolved block items. Cross-service URLs are not constructed by shell code. Service views reuse a singular active-shell fragment with `<BPRoute ctx={ctx} service="shell" fragment="theme-selector" />`; a successful response inserts directly when `bp-ok` is omitted. See [Routes and views](./routes-and-views.md).
 
 There is no reserved `background` location and no browser-side fragment discovery. A theme that needs a background block declares `_background/index.tsx` explicitly.
 
@@ -173,9 +179,9 @@ Views render typed handler data, semantic controls, theme components and HTMX at
 
 ### Document title, header and navigation ownership
 
-Theme authors must state in their theme notes and published UI guide which page titles, headers, breadcrumbs and navigation the shell already renders. Document any configuration that changes that behavior, the heading level supplied by the shell, and what service views should supply or omit. Keep the theme's skills, examples and templates consistent with these rules so LLM-generated views do not recreate shell UI.
+Theme authors must state in their theme notes and published UI guide which page titles, headers, breadcrumbs, Back/Up controls and navigation the shell already renders. When the theme supplies them, explicitly tell service authors to omit their own page titles and Back/Up buttons or links. Document any configuration that changes that behavior, the heading level supplied by the shell, and what service views should supply or omit. Keep the theme's skills, examples and templates consistent with these rules so LLM-generated views do not recreate shell UI.
 
-View authors must check that guidance and the active layout first. When the theme supplies the page title/header or app navigation, do not add duplicate titles, heading banners, menus, navigation cards or link grids inside service content. Start with the actual content and actions. Retain meaningful section headings, accessible heading order and task-specific controls; add a page heading or local navigation only when the theme delegates that responsibility and it serves a distinct content/workflow need. If ownership is undocumented, inspect the rendered shell instead of automatically adding another header or navigation layer.
+View authors must check that guidance and the active layout first. When the theme supplies the page title/header, Back/Up controls or app navigation, do not add the corresponding titles, heading banners, Back/Up buttons or links, menus, navigation cards or link grids inside service content. Start with the actual content and actions. Retain meaningful section headings, accessible heading order and task-specific controls; add a page heading or local navigation only when the theme delegates that responsibility and it serves a distinct content/workflow need. If ownership is undocumented, inspect the rendered shell instead of automatically adding another header or navigation layer.
 
 ### Initialization must not submit
 
@@ -219,13 +225,16 @@ Check a failed POST followed by menu navigation, Back/Forward, prefetched naviga
 
 ## Service route links
 
-Service HTML should use `{view.id}` tokens for service-owned links and HTMX paths:
+Prefer BPRoute for service-rendered navigation. Service paths are mapped to enabled UI mounts by the theme:
 
-```html
-<a hx-get="{profile.summary}">Profile</a>
+```tsx
+<BPRoute ctx={ctx} viewId="profile.summary">
+  <bp-ok>Profile</bp-ok>
+  <bp-error as="span">Profile unavailable</bp-error>
+</BPRoute>
 ```
 
-The framework rewrites those tokens to service route paths before sending HTML. Do not emit absolute service URLs from renderers.
+Use `apiPath`/`absoluteApiPath` for API requests and `absoluteUiPath` for public links. Omit the selector to resolve self. Literal route tokens were removed; internal URL payload fields and old helper calls fail builds.
 
 ### Auth-aware navigation
 
@@ -256,3 +265,5 @@ in `data-bp-shell-service` on the shell root, include its registered origin in
 hostname with the selected theme service, including when that hostname differs
 from the service's registered origin. Apply the shared visibility filter on both
 initial rendering and menu refreshes.
+
+Plain service anchors are upgraded to main-panel HTMX only when their complete enabled page mount resolves. Preload markers alone do not indicate routing success. Encoded service template placeholders from older shell metadata are recognized when declared in the UI mount. Custom themes must rebuild/redeploy their bundled shared runtime to receive fixes; see [11.0.0 routing notes](https://github.com/BetterCorp/BetterPortal/blob/master/docs/releases/11.0.0.md).

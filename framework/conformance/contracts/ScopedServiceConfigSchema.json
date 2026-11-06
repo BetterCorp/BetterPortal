@@ -11,7 +11,7 @@
           "properties": {
             "id": {
               "kind": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              "minLength": 1
             },
             "publicKeyPem": {
               "kind": "optional",
@@ -43,7 +43,7 @@
               "kind": "array",
               "items": {
                 "kind": "string",
-                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                "minLength": 1
               }
             },
             "services": {
@@ -53,7 +53,7 @@
                 "properties": {
                   "id": {
                     "kind": "string",
-                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    "minLength": 1
                   },
                   "serviceId": {
                     "kind": "optional",
@@ -402,16 +402,6 @@
                                 }
                               }
                             },
-                            "serviceId": {
-                              "kind": "optional",
-                              "inner": {
-                                "kind": "optional",
-                                "inner": {
-                                  "kind": "string",
-                                  "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
-                                }
-                              }
-                            },
                             "authProvider": {
                               "kind": "optional",
                               "inner": {
@@ -563,6 +553,13 @@
                             "enabled": {
                               "kind": "bool",
                               "default": true
+                            },
+                            "serviceId": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "string",
+                                "minLength": 1
+                              }
                             },
                             "source": {
                               "kind": "optional",
@@ -1427,6 +1424,28 @@
                                               "kind": "bool"
                                             }
                                           }
+                                        },
+                                        "title": {
+                                          "kind": "optional",
+                                          "inner": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "string"
+                                            }
+                                          }
+                                        },
+                                        "parents": {
+                                          "kind": "optional",
+                                          "inner": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "array",
+                                              "items": {
+                                                "kind": "string",
+                                                "pattern": "^(?!//)"
+                                              }
+                                            }
+                                          }
                                         }
                                       },
                                       "required": [],
@@ -1438,13 +1457,24 @@
                                         "kind": "union",
                                         "variants": [
                                           {
-                                            "kind": "string"
+                                            "kind": "union",
+                                            "variants": [
+                                              {
+                                                "kind": "string"
+                                              },
+                                              {
+                                                "kind": "number"
+                                              },
+                                              {
+                                                "kind": "bool"
+                                              }
+                                            ]
                                           },
                                           {
-                                            "kind": "number"
-                                          },
-                                          {
-                                            "kind": "bool"
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "string"
+                                            }
                                           }
                                         ]
                                       }
@@ -6117,6 +6147,22 @@
                                           "inner": {
                                             "kind": "bool"
                                           }
+                                        },
+                                        "title": {
+                                          "kind": "optional",
+                                          "inner": {
+                                            "kind": "string"
+                                          }
+                                        },
+                                        "parents": {
+                                          "kind": "optional",
+                                          "inner": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "string",
+                                              "pattern": "^(?!//)"
+                                            }
+                                          }
                                         }
                                       },
                                       "required": [],
@@ -6128,13 +6174,24 @@
                                         "kind": "union",
                                         "variants": [
                                           {
-                                            "kind": "string"
+                                            "kind": "union",
+                                            "variants": [
+                                              {
+                                                "kind": "string"
+                                              },
+                                              {
+                                                "kind": "number"
+                                              },
+                                              {
+                                                "kind": "bool"
+                                              }
+                                            ]
                                           },
                                           {
-                                            "kind": "number"
-                                          },
-                                          {
-                                            "kind": "bool"
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "string"
+                                            }
                                           }
                                         ]
                                       }
@@ -6342,16 +6399,6 @@
                       }
                     }
                   },
-                  "serviceId": {
-                    "kind": "optional",
-                    "inner": {
-                      "kind": "optional",
-                      "inner": {
-                        "kind": "string",
-                        "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
-                      }
-                    }
-                  },
                   "authProvider": {
                     "kind": "optional",
                     "inner": {
@@ -6503,6 +6550,13 @@
                   "enabled": {
                     "kind": "bool",
                     "default": true
+                  },
+                  "serviceId": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "string",
+                      "minLength": 1
+                    }
                   },
                   "source": {
                     "kind": "optional",
@@ -7399,6 +7453,28 @@
                                     "kind": "bool"
                                   }
                                 }
+                              },
+                              "title": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string"
+                                  }
+                                }
+                              },
+                              "parents": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "array",
+                                    "items": {
+                                      "kind": "string",
+                                      "pattern": "^(?!//)"
+                                    }
+                                  }
+                                }
                               }
                             },
                             "required": [],
@@ -7410,13 +7486,24 @@
                               "kind": "union",
                               "variants": [
                                 {
-                                  "kind": "string"
+                                  "kind": "union",
+                                  "variants": [
+                                    {
+                                      "kind": "string"
+                                    },
+                                    {
+                                      "kind": "number"
+                                    },
+                                    {
+                                      "kind": "bool"
+                                    }
+                                  ]
                                 },
                                 {
-                                  "kind": "number"
-                                },
-                                {
-                                  "kind": "bool"
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "string"
+                                  }
                                 }
                               ]
                             }
@@ -12089,6 +12176,22 @@
                                 "inner": {
                                   "kind": "bool"
                                 }
+                              },
+                              "title": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "string"
+                                }
+                              },
+                              "parents": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "string",
+                                    "pattern": "^(?!//)"
+                                  }
+                                }
                               }
                             },
                             "required": [],
@@ -12100,13 +12203,24 @@
                               "kind": "union",
                               "variants": [
                                 {
-                                  "kind": "string"
+                                  "kind": "union",
+                                  "variants": [
+                                    {
+                                      "kind": "string"
+                                    },
+                                    {
+                                      "kind": "number"
+                                    },
+                                    {
+                                      "kind": "bool"
+                                    }
+                                  ]
                                 },
                                 {
-                                  "kind": "number"
-                                },
-                                {
-                                  "kind": "bool"
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "string"
+                                  }
                                 }
                               ]
                             }

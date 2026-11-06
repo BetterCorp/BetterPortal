@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/auth-default",
-  "version": "10.6.35",
+  "version": "11.0.6",
   "description": "BetterPortal v10 default auth service for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
@@ -16,7 +16,8 @@
     "bp:gen": "bp run gen",
     "bp:types": "bp run types",
     "bp:contract": "bp run contract",
-    "publish:bp": "bp publish"
+    "publish:bp": "bp publish",
+    "prebuild": "bp run check-routes"
   },
   "keywords": [
     "betterportal",
@@ -36,9 +37,9 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@betterportal/framework": "10.6.35",
-    "@betterportal/plugin-bsb": "10.6.35",
-    "@bsb/base": "^9.7.3",
+    "@betterportal/framework": "11.0.6",
+    "@betterportal/plugin-bsb": "11.0.6",
+    "@bsb/base": "^9.7.4",
     "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^14.0.1",
     "anyvali": "^1.1.6",

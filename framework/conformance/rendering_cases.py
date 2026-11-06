@@ -185,6 +185,37 @@ def run_rendering(urls, labels):
                 assert value in content, actual
             assert "invalid" not in content, actual
         check(label, "chrome", chrome)
+        def dynamic_chrome():
+            from urllib.parse import quote, unquote
+            body = fixture()
+            operation = body["routes"][0]["operations"][0]
+            operation["declaration"]["chrome"] = {"title": "Declared", "hideMenu": True}
+            operation["pageChrome"] = {"title": 'Batch 1; café "A"', "parents": ["Sales", "/check?tab=all"], "tabs": ["summary", "history"], "literal": '["summary","history"]'}
+            actual = post(url, body)
+            assert actual["status"] == 200, actual
+            content = actual["headers"]["content-type"]
+            assert "bp-chrome-hide-menu=true" in content, actual
+            assert "bp-chrome-title=" + quote(operation["pageChrome"]["title"], safe="~()*!.'-") in content, actual
+            encoded = content.split("bp-chrome-parents=", 1)[1].split(";", 1)[0]
+            assert json.loads(unquote(encoded)) == operation["pageChrome"]["parents"], actual
+            assert "bp-array-chrome-parents=true" in content and "bp-array-chrome-tabs=true" in content, actual
+            assert "bp-array-chrome-literal=" not in content, actual
+            encoded = content.split("bp-chrome-tabs=", 1)[1].split(";", 1)[0]
+            assert json.loads(unquote(encoded)) == operation["pageChrome"]["tabs"], actual
+            base_path = body["request"]["path"]
+            for accept, selector in (("application/json", ""), ("text/html; mode=fragment", ""), ("text/html", "&_c=card"), ("text/html", "&_f=nav.profile")):
+                body["request"]["headers"]["accept"] = accept
+                body["request"]["path"] = base_path + selector
+                actual = post(url, body)
+                assert actual["status"] == 200, actual
+                assert "bp-chrome-parents=" not in actual["headers"]["content-type"], actual
+                assert "Batch" not in actual["headers"]["content-type"], actual
+            body["request"]["headers"]["accept"] = "text/html"
+            body["request"]["path"] = base_path
+            operation["status"] = 500
+            actual = post(url, body)
+            assert "bp-chrome-parents=" not in actual["headers"].get("content-type", ""), actual
+        check(label, "dynamic-page-chrome", dynamic_chrome)
         def no_fallback():
             body = fixture(); body["routes"][0]["operations"][0]["status"] = 201
             actual = post(url, body)

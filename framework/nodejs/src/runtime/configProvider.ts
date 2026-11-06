@@ -267,6 +267,37 @@ export function resolveServiceForTenant(
 }
 
 /**
+ * Read a view label from the manifest of a service available to this app.
+ *
+ * @param config - Platform snapshot containing registrations and cached manifests.
+ * @param serviceId - Concrete tenant/platform service or shared activation ID.
+ * @param viewId - Published view identity.
+ * @param context - Resolved tenant and application for the shell request.
+ * @returns The view title, or `undefined` when the binding or view is unavailable.
+ * @remarks
+ * Shared activations use their catalog instance's manifest. Concrete instance
+ * caches take precedence over package defaults, including when several service
+ * instances have the same package identity.
+ */
+export function resolveServiceViewTitle(
+  config: BetterPortalConfig,
+  serviceId: string,
+  viewId: string,
+  context: BetterPortalResolvedRequestContext
+): string | undefined {
+  const binding = resolveServiceForTenant(config, serviceId, context);
+  if (!binding) return undefined;
+  const activation = config.sharedServiceActivations.find(item => item.id === binding.service.id);
+  const keys = [activation?.sharedServiceId, binding.service.id, binding.service.serviceId];
+  for (const key of keys) {
+    if (!key) continue;
+    const title = config.manifestCache.find(entry => entry.serviceId === key)?.viewIndex[viewId]?.title;
+    if (title) return title;
+  }
+  return undefined;
+}
+
+/**
  * Resolve the credential-destination map for a tenant's application.
  *
  * @remarks
@@ -373,8 +404,21 @@ export function serviceBaseUrl(service: { hostname: string } | { endpointBaseUrl
   return url.slice(0, end);
 }
 
+/** Public shell metadata may contain only credential-free HTTP(S) service bases. */
+export function safeServiceBaseUrl(service: { hostname: string } | { endpointBaseUrl: string }): string | undefined {
+  try {
+    const parsed = new URL(serviceBaseUrl(service));
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) return undefined;
+    return `${parsed.origin}${parsed.pathname === "/" ? "" : parsed.pathname}`;
+  } catch { return undefined; }
+}
+
 function splitRoutePath(pathname: string): string[] {
-  return pathname.replace(/^\/+|\/+$/g, "").split("/").filter((segment) => segment.length > 0);
+  let start = 0;
+  let end = pathname.length;
+  while (start < end && pathname[start] === "/") start++;
+  while (end > start && pathname[end - 1] === "/") end--;
+  return pathname.slice(start, end).split("/").filter((segment) => segment.length > 0);
 }
 
 function routeParamName(segment: string): string | null {
@@ -424,7 +468,11 @@ function extractRouteParams(routePath: string, currentPath: string): Record<stri
   for (let i = 0; i < routeSegments.length; i++) {
     const paramName = routeParamName(routeSegments[i]);
     if (paramName) {
-      params[paramName] = currentSegments[i];
+      try {
+        params[paramName] = decodeURIComponent(currentSegments[i]);
+      } catch {
+        return null;
+      }
     } else if (routeSegments[i] !== currentSegments[i]) {
       return null;
     }
@@ -459,6 +507,16 @@ function interpolatePath(pathTemplate: string, params: Record<string, string>): 
   return resolvedQuery ? `${resolvedPath}?${resolvedQuery}` : resolvedPath;
 }
 
+/**
+ * Resolve a mounted public page path to its owning service URL.
+ *
+ * @param binding - Service hostname or endpoint base URL.
+ * @param route - Mount, service-path template and optional fixed parameters.
+ * @param currentPath - Encoded public pathname. Dynamic segments are decoded
+ * once before interpolation; fixed parameter values are already decoded data.
+ * @returns The service URL, or `null` for an invalid base URL, malformed path
+ * parameter or a missing required service parameter.
+ */
 export function buildServiceViewUrl(
   binding: { hostname: string } | { endpointBaseUrl: string },
   route: BetterPortalRouteMount,
@@ -469,7 +527,10 @@ export function buildServiceViewUrl(
     const parsed = new URL(baseUrl);
     if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
   } catch { return null; }
-  const params = { ...route.fixedParams, ...(extractRouteParams(route.path, currentPath) ?? {}) };
+  const pathParams = extractRouteParams(route.path, currentPath);
+  // A malformed URL parameter must not fall back to a fixed value.
+  if (routePatternMatches(route.path, currentPath) && !pathParams) return null;
+  const params = { ...route.fixedParams, ...pathParams };
   const servicePath = route.resolvedServicePath ?? route.servicePathVariant ?? route.targetPath;
   const resolvedPath = servicePath
     ? interpolatePath(servicePath, params)

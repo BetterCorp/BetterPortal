@@ -14,7 +14,7 @@
  *     tenant/app context resolves from the request). Then logs in.
  */
 export function renderBootstrapWizardHtml(input: { cpIssuer: string }): string {
-  const cpIssuerSafe = JSON.stringify(input.cpIssuer);
+  const cpIssuerSafe = JSON.stringify(input.cpIssuer).replace(/</g, "\\u003c");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -134,7 +134,12 @@ function step(id, label) {
   const div = document.createElement("div");
   div.className = "step";
   div.id = id;
-  div.innerHTML = '<span class="marker">...</span><span>' + label + '</span>';
+  const marker = document.createElement("span");
+  marker.className = "marker";
+  marker.textContent = "...";
+  const description = document.createElement("span");
+  description.textContent = label;
+  div.replaceChildren(marker, description);
   wrap.appendChild(div);
   return {
     done() { div.classList.add("done"); div.querySelector(".marker").textContent = "OK"; },

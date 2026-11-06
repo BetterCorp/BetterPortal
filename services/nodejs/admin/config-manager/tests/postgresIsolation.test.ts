@@ -1,15 +1,21 @@
-import { editAppRows, readAppEditor, readRequestConfig, readCacheData, readDirectory, readTenantPage } from "../src/plugins/service-betterportal-config-manager/appQueries.js";
+import { editAppRows, readAppEditor, readAppPage, readRequestConfig, readCacheData, readDirectory, readTenantPage } from "../src/plugins/service-betterportal-config-manager/appQueries.js";
 import { deleteApp, deleteTenant } from "../src/plugins/service-betterportal-config-manager/tenantManagement.js";
 import { setConfigManagerRouteContext } from "../src/plugins/service-betterportal-config-manager/routeContext.js";
 import assert from "node:assert/strict";
+import { isDeepStrictEqual } from "node:util";
 import { test, type TestContext } from "node:test";
 import { Pool } from "pg";
-import { BetterPortalConfigSchema, resolveEmbeddedRequestContext, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, resolveEmbeddedRequestContext, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { PluginEvents } from "@bsb/base";
+import { H3 } from "h3";
+import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
+import BetterportalConfigManagerClient from "../src/.bsb/clients/service-betterportal-config-manager.js";
 import { PostgresStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { entityKey, splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
 import { createPreviewGroup, provisionPreviewDeployment } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { collectServiceDeleteBlockers, purgeServiceReferences, registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
+import { getCachedManifestForService, getManifestCache, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 
 const connectionString = process.env.BP_CONFIG_TEST_POSTGRES;
 const pgTest = (name: string, fn: (t: TestContext) => Promise<void>) => test(name, { skip: !connectionString, timeout: 20000 }, fn);
@@ -107,6 +113,85 @@ pgTest("tenant, service and manifest writes do not conflict with unrelated apps"
   role.apps[1].auth!.roles.push({ id: "reader", title: "Reader", permissions: [] });
   await Promise.all([a.saveConfig(manifest), b.saveConfig(role)]);
   assert.equal((await makeStore().loadConfig()).apps[1].auth!.roles[0].id, "reader");
+});
+
+pgTest("route pages and writes use app-scoped persisted manifests with a cold replica cache", async t => {
+  const config = fixture();
+  const app = config.apps[0];
+  const service = config.tenants[0].services[0];
+  config.manifestCache.push({ serviceId: service.serviceId, manifestVersion: "2", fetchedAt: new Date().toISOString(), viewIndex: {
+    "frame.kiosks": { viewId: "frame.kiosks", title: "Kiosks", path: "/kiosks", pathVariants: [], operations: [{
+      operationId: "frame.kiosks.read", method: "GET", title: "Kiosks", description: "List kiosks", authRequired: true,
+      renderable: true, renderModes: ["page"], dependencies: []
+    }] }
+  } } as never, { serviceId: config.tenants[1].services[0].id, manifestVersion: "1", fetchedAt: new Date().toISOString(), viewIndex: {} } as never);
+  const { makeStore } = await database(t, config);
+  const store = makeStore();
+  await store.initialize();
+  store.loadConfig = async () => { throw new Error("Unexpected whole-platform read"); };
+  const cache = getManifestCache() as Map<string, CachedManifest>;
+  const original = new Map(cache);
+  cache.clear();
+  t.after(() => { cache.clear(); for (const [key, value] of original) cache.set(key, value); });
+
+  const page = await readAppPage(store.database, app.id, false, true);
+  assert.deepEqual(page.manifestCache?.map(manifest => manifest.serviceId), [service.serviceId]);
+  assert.equal(getCachedManifestForService(page, service.id)?.viewIndex["frame.kiosks"].operations[0].renderModes.includes("page"), true);
+  const client = await store.database.pool.connect();
+  try {
+    assert.equal((await readAppEditor(client, store.database, app.id)).manifestCache, undefined);
+  } finally { client.release(); }
+
+  const handlers = new Map<string, (event: never) => Promise<Response>>();
+  registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
+    (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`${method} ${path}`, handler)
+  ])) as never, store, {} as never, store.database);
+  const response = await handlers.get("post /.well-known/bp/admin/apps/:appId/routes")!({
+    context: { params: { appId: app.id } }, req: new Request("https://config.example/routes", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
+        serviceId: service.id, viewId: "frame.kiosks", operationId: "frame.kiosks.read", path: "/frame/kiosks", servicePathVariant: "/kiosks", title: "Kiosks"
+      })
+    })
+  } as never);
+  assert.equal(response.status, 201, await response.text());
+  const saved = await readAppPage(store.database, app.id, false, true);
+  const route = saved.apps[0].routes.find(route => route.path === "/frame/kiosks");
+  assert.equal(route?.kind, "page");
+  assert.equal(route?.targetPath, "/kiosks");
+  assert.equal(cache.size, 0);
+});
+
+pgTest("shared activation persists API mounts from a previously accepted manifest without another sync", async t => {
+  const config = fixture();
+  const selected = config.apps[0], sharedId = "cloud.betterportal.frame";
+  config.sharedServiceCatalog.push({ id: sharedId, serviceId: sharedId, title: "BetterFrame", baseUrl: "https://frame.example", enabled: true,
+    apiKeyHash: "test-only", supportedDeploymentModes: ["self-hosted"], tags: [] });
+  config.manifestCache.push({ serviceId: sharedId, manifestVersion: "1", fetchedAt: new Date().toISOString(), viewIndex: {
+    "frame.kiosks.pair": { viewId: "frame.kiosks.pair", title: "Pair kiosk", description: "Pair kiosk", path: "/kiosks/pair", pathVariants: [], operations: [{
+      operationId: "frame.kiosks.pair.post", method: "POST", title: "Pair kiosk", description: "Pair kiosk", authRequired: true,
+      renderable: true, renderModes: ["page"], dependencies: []
+    }] }
+  } } as never);
+  const { makeStore } = await database(t, config);
+  const store = makeStore();
+  await store.initialize();
+  const handlers = new Map<string, (event: never) => Promise<Response>>();
+  registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
+    (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`${method} ${path}`, handler)
+  ])) as never, store, {} as never, store.database);
+  const response = await handlers.get("post /.well-known/bp/admin/shared-services/:sharedServiceId/activations")!({
+    context: { params: { sharedServiceId: sharedId } }, req: new Request("https://config.example/activations", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tenantId: selected.tenantId, appId: selected.id })
+    })
+  } as never);
+  assert.equal(response.status, 200, await response.text());
+  const fresh = await makeStore().loadConfig();
+  const activation = fresh.sharedServiceActivations[0];
+  const mounted = fresh.apps[0].routes.find(route => route.serviceId === activation.id);
+  assert.equal(mounted?.kind, "api");
+  assert.deepEqual(mounted?.operations, ["frame.kiosks.pair.post"]);
+  assert.equal(mounted?.enabled, false);
+  assert.equal(fresh.apps[1].routes.length, config.apps[1].routes.length);
 });
 pgTest("cross-entity writes roll back on conflict and foreign keys protect referenced parents", async t => {
   const { makeStore, pool } = await database(t); const a = makeStore(), b = makeStore();
@@ -380,6 +465,86 @@ pgTest("replicas read committed roles and grants without broadcasts, and unrelat
   assert.deepEqual((await b.loadConfig()).apps[0].auth!.roles[0].permissions[0].permissions, ["read", "update"]);
 });
 
+pgTest("one outbox worker broadcasts grants and revocations to four replica caches and service streams", async t => {
+  const config = fixture();
+  const appId = config.apps[0].id;
+  const tenantId = config.apps[0].tenantId;
+  const serviceId = config.tenants[0].services[0].id;
+  const apiKey = "local-replica-sync-test-key";
+  config.tenants[0].services[0].apiKeyHash = hashApiKey(apiKey);
+  const pair = generateKeyPair();
+  config.apps[0].auth!.publicKeys = { keys: [publicKeyToJwk(pair.publicKeyPem, pair.kid)] };
+  const { pool, makeStore } = await database(t, config);
+  const stores = [makeStore(), makeStore(), makeStore(), makeStore()];
+  await Promise.all(stores.map(store => store.initialize()));
+  const listeners = new Map<string, Array<(obs: unknown, input: unknown) => Promise<void>>>();
+  const errors: unknown[] = [];
+  const obs = { trace: {}, log: { warn(message: string) { errors.push(message); }, debug() {} } };
+  const bus = {
+    async onBroadcast(_context: unknown, _trace: unknown, plugin: string, event: string, listener: (obs: unknown, input: unknown) => Promise<void>) {
+      const key = `${plugin}:${event}`;
+      const handlers = listeners.get(key) ?? [];
+      handlers.push(listener);
+      listeners.set(key, handlers);
+    },
+    async emitBroadcast(_trace: unknown, plugin: string, event: string, ...args: unknown[]) {
+      await Promise.all((listeners.get(`${plugin}:${event}`) ?? []).map(listener => (listener as any)(obs, ...args)));
+    }
+  };
+  const plugins: any[] = [];
+  const readers: ReadableStreamDefaultReader<Uint8Array>[] = [];
+  try {
+    for (const [index, store] of stores.entries()) {
+      const plugin = Object.create(ConfigManagerPlugin.prototype) as any;
+      const client = new BetterportalConfigManagerClient({ _clients: [] } as never);
+      Object.assign(client, { events: new PluginEvents("development", bus as never, client as never, client.__clientEventSchemas!, undefined as never) });
+      Object.assign(plugin, {
+        storage: store, postgresStorage: store, selfClient: client, workerId: `worker-${index}`,
+        authCacheGeneration: 0, authConfigCache: new Map(),
+        events: new PluginEvents("development", bus as never, { pluginName: client.pluginName } as never, ConfigManagerPlugin.EventSchemas, undefined as never)
+      });
+      plugins.push(plugin);
+      await plugin.subscribeConfigChanges(obs);
+      const app = new H3();
+      registerSyncEndpoint(app, store);
+      const response = await app.request("/.well-known/bp/sync", { headers: { authorization: `Bearer ${apiKey}` } });
+      assert.equal(response.status, 200);
+      readers.push(response.body!.getReader());
+    }
+    const readRoles = async (reader: ReadableStreamDefaultReader<Uint8Array>, expected: unknown) => {
+      for (let frame = 0; frame < 10; frame++) {
+        const chunk = new TextDecoder().decode((await reader.read()).value);
+        assert.match(chunk, /event: config/);
+        const scoped = JSON.parse(chunk.split("data: ")[1]);
+        const roles = scoped.apps.find((app: { id: string }) => app.id === appId).auth.roles;
+        if (isDeepStrictEqual(roles, expected)) return roles;
+      }
+      assert.fail("expected role update was not delivered");
+    };
+    assert.deepEqual(await Promise.all(readers.map(reader => readRoles(reader, []))), [[], [], [], []]);
+    assert.equal(listeners.get("service-betterportal-config-manager:platform-config.changed")!.length, 4);
+    const grant = { id: "admin", title: "Admin", permissions: [{ serviceId, viewId: "frame.layouts", permissions: ["read", "create", "update", "delete"] }] };
+    for (const [index, roles] of [[0, [grant]], [1, []]] as const) {
+      await stores[index].mutateApp(appId, async data => { data.apps[0].auth!.roles = structuredClone([...roles]); });
+      const worker = plugins[index];
+      worker.startOutbox(obs);
+      await worker.outboxDrain;
+      clearInterval(worker.outboxTimer);
+      assert.deepEqual(errors, []);
+      assert.deepEqual(await Promise.all(readers.map(reader => readRoles(reader, roles))), [roles, roles, roles, roles]);
+      for (const plugin of plugins) assert.deepEqual(plugin.authConfigCache.get(`${tenantId}::${appId}`).auth.roles, roles);
+      assert.equal((await pool.query("select count(*)::int as count from bp_platform_config_outbox")).rows[0].count, 0);
+    }
+    assert.deepEqual(errors, []);
+  } finally {
+    await Promise.all(readers.map(reader => reader.cancel().catch(() => {})));
+    for (const plugin of plugins) {
+      clearInterval(plugin.outboxTimer);
+      await plugin.outboxDrain;
+    }
+  }
+});
+
 pgTest("role POST transactions preserve concurrent roles and reject duplicates", async t => {
   const { makeStore, config } = await database(t);
   const stores = [makeStore(), makeStore()];
@@ -573,6 +738,24 @@ pgTest("read-only page snapshots stay fresh and cannot be submitted as writable 
   const current = await reader.loadConfig({ readOnly: true });
   assert.equal(current.apps[0].auth!.roles[0].id, "fresh-role");
   assert.equal(original.apps[0].auth!.roles.length, 0);
+});
+
+pgTest("scoped sync reads see grants and revocations committed by another replica without mutating earlier snapshots", async t => {
+  const { makeStore, config } = await database(t);
+  const reader = makeStore(), writer = makeStore();
+  const tenantId = config.tenants[0].id, serviceId = config.tenants[0].services[0].id, appId = config.apps[0].id;
+  const read = () => reader.getScopedConfig(serviceId, "tenant", tenantId);
+  const original = await read();
+  await writer.mutateApp(appId, async current => {
+    current.apps[0].auth!.roles.push({ id: "reader", title: "Reader", permissions: [{ serviceId, viewId: "home", permissions: ["read"] }] });
+  });
+  const granted = await read();
+  assert.deepEqual(granted.apps.find(app => app.id === appId)!.auth!.roles[0].permissions[0].permissions, ["read"]);
+  await writer.mutateApp(appId, async current => { current.apps[0].auth!.roles = []; });
+  const revoked = await read();
+  assert.deepEqual(revoked.apps.find(app => app.id === appId)!.auth!.roles, []);
+  assert.deepEqual(original.apps.find(app => app.id === appId)!.auth!.roles, []);
+  assert.equal(granted.apps.find(app => app.id === appId)!.auth!.roles.length, 1);
 });
 
 pgTest("direct app operations isolate rows, roll back invalid references and never load a platform snapshot", async t => {

@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { css } from "jsx-htmx";
 import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework";
 import {
@@ -21,6 +21,8 @@ export interface EmbeddedRouteLink {
   id: string;
   href: string;
   requestUrl?: string;
+  /** Service endpoint base, including its deployment path prefix. */
+  serviceBaseUrl?: string;
   servicePath?: string;
   methods?: string[];
   fixedParams?: Record<string, string>;

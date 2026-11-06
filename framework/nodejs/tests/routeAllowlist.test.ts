@@ -6,6 +6,7 @@ import { createH3Router, type H3RouterObservabilityOptions } from "../src/adapte
 import type { JwtClaims } from "../src/contracts/auth.js";
 import { createNoopObservability } from "../src/contracts/observability.js";
 import type { BetterPortalRegistry, RegisteredRoute } from "../src/contracts/registry.js";
+import { createSse } from "../src/runtime/sse.js";
 import { createHandler, createRawHandler } from "../src/runtime/handler.js";
 import type { RouteHandler } from "../src/contracts/route.js";
 import type { BetterPortalApp, BetterPortalResolvedApp, BetterPortalTenant } from "../src/contracts/platformConfig.js";
@@ -110,6 +111,55 @@ async function withServer(
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 }
+
+test("route-level telemetry does not record callback query values", async () => {
+  const app = { id: uuidv7(), tenantId: tenant.id, hostnames: ["app.local"], routes: [], slots: [], fragments: {} } as unknown as BetterPortalApp;
+  let attributes: Record<string, unknown> | undefined;
+  await withServer(app, { routes: [route("/.well-known/trace", "trace")] }, async baseUrl => {
+    const response = await fetch(`${baseUrl}/.well-known/trace?code=private-code&state=private-state&custom=private-value`);
+    assert.equal(response.status, 200);
+  }, { router: { createRequestObservability: (_name, received) => {
+    attributes = received;
+    return createNoopObservability();
+  } } });
+  const logged = new URL(String(attributes?.["url.full"]));
+  for (const name of ["code", "state", "custom"]) assert.equal(logged.searchParams.get(name), "[REDACTED]");
+});
+
+test("registered routes reject oversized streamed JSON and multipart bodies before parsing", async () => {
+  const serviceId = uuidv7();
+  const app = { id: uuidv7(), tenantId: tenant.id, hostnames: ["app.local"], routes: [
+    { id: uuidv7(), path: "/bounded", serviceId, viewId: "bounded", enabled: true, operations: ["bounded"] }
+  ], slots: [], fragments: {} } as unknown as BetterPortalApp;
+  const registered = route("/bounded", "bounded");
+  const post = { ...registered.methodRoutes!.GET!, method: "POST" as const };
+  const postRoute: RegisteredRoute = {
+    ...registered,
+    methods: ["POST"],
+    handlers: { POST: post.handler },
+    methodRoutes: { POST: post }
+  };
+  await withServer(app, { routes: [postRoute] }, async baseUrl => {
+    const oversizedJson = JSON.stringify({ data: "a".repeat(1024 * 1024) });
+    const jsonResponse = await fetch(`${baseUrl}/bounded`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(oversizedJson)); controller.close(); } }),
+      duplex: "half"
+    } as RequestInit);
+    assert.equal(jsonResponse.status, 413);
+
+    const boundary = "bp-upload-boundary";
+    const multipart = `--${boundary}\r\nContent-Disposition: form-data; name="payload"\r\n\r\n${"x".repeat(26 * 1024 * 1024)}\r\n--${boundary}--\r\n`;
+    const multipartResponse = await fetch(`${baseUrl}/bounded`, {
+      method: "POST",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+      body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(multipart)); controller.close(); } }),
+      duplex: "half"
+    } as RequestInit);
+    assert.equal(multipartResponse.status, 413);
+  }, { serviceId });
+});
 
 test("HTML renderers receive limited tenant and app presentation context", async () => {
   const serviceId = uuidv7();
@@ -462,15 +512,15 @@ test("builds service and app route URLs for the current plugin service", async (
 
   await withServer(app, {
     routes: [
-      route("/reports/:reportId", "reports.detail.index"),
+      { ...route("/reports/:reportId", "reports.detail.index"), sse: createSse({ input: av.any(), event: av.any() }, input => input) },
       route(
         "/self",
         "self.index",
         (ctx) => ({
-          serviceUrl: ctx.routeUrl?.("reports.detail.index", { absolute: true, params: { reportId: "r1" }, query: { token: "t1" } }) ?? null,
-          componentUrl: ctx.routeUrl?.("reports.detail.index", { params: { reportId: "r1" }, component: "active" }) ?? null,
-          sseUrl: ctx.routeUrl?.("reports.detail.index", { params: { reportId: "r1" }, sse: true, fragment: "body.live" }) ?? null,
-          uiUrl: ctx.uiRouteUrl?.("reports.detail.index", { absolute: true, params: { reportId: "r1" }, query: { token: "t1" } }) ?? null
+          serviceUrl: ctx.route?.({ viewId: "reports.detail.index", params: { reportId: "r1" }, query: { token: "t1" } })?.absoluteApiPath ?? null,
+          componentUrl: ctx.route?.({ viewId: "reports.detail.index", params: { reportId: "r1" }, component: "active" })?.viewPath ?? null,
+          sseUrl: ctx.route?.({ viewId: "reports.detail.index", params: { reportId: "r1" }, sse: true, fragment: "body.live" })?.viewPath ?? null,
+          uiUrl: ctx.route?.({ viewId: "reports.detail.index", params: { reportId: "r1" }, query: { token: "t1" } })?.absoluteUiPath ?? null
         }),
         av.object({ serviceUrl: av.string(), componentUrl: av.string(), sseUrl: av.string(), uiUrl: av.string() })
       )
@@ -531,7 +581,7 @@ test("absolute app route URLs prefer the matched request origin", async () => {
       route(
         "/login",
         "login.index",
-        (ctx) => ({ uiUrl: ctx.uiRouteUrl?.("login.index", { absolute: true }) ?? null }),
+        (ctx) => ({ uiUrl: ctx.route?.({ viewId: "login.index" })?.absoluteUiPath ?? null }),
         av.object({ uiUrl: av.string() })
       )
     ]
@@ -546,7 +596,7 @@ test("absolute app route URLs prefer the matched request origin", async () => {
   }, { tenant: scopedTenant, serviceId: pluginId });
 });
 
-test("uiRouteUrl only resolves GET page mounts", async () => {
+test("routeUrl UI fields only resolve GET page mounts", async () => {
   const pluginId = "service.test.routes";
   const serviceInstanceId = uuidv7();
   const scopedTenant: BetterPortalTenant = {
@@ -588,11 +638,11 @@ test("uiRouteUrl only resolves GET page mounts", async () => {
       route("/api", "api.index"),
       route("/mutate", "mutation.index"),
       route("/self", "self.index", (ctx) => ({
-        uiPage: ctx.uiRouteUrl?.("page.index") ?? null,
-        uiApi: ctx.uiRouteUrl?.("api.index") ?? null,
-        uiMutation: ctx.uiRouteUrl?.("mutation.index") ?? null,
-        serviceApi: ctx.routeUrl?.("api.index") ?? null,
-        serviceMutation: ctx.routeUrl?.("mutation.index") ?? null
+        uiPage: ctx.route?.({ viewId: "page.index" })?.uiPath ?? null,
+        uiApi: ctx.route?.({ viewId: "api.index" })?.uiPath ?? null,
+        uiMutation: ctx.route?.({ viewId: "mutation.index" })?.uiPath ?? null,
+        serviceApi: ctx.route?.({ viewId: "api.index" })?.apiPath ?? null,
+        serviceMutation: ctx.route?.({ viewId: "mutation.index" })?.apiPath ?? null
       }), av.object({
         uiPage: av.nullable(av.string()),
         uiApi: av.nullable(av.string()),
@@ -669,10 +719,10 @@ test("route helpers resolve dependency services from the application route index
 
   const sourceRoute = {
     ...route("/self", "self.index", (ctx) => ({
-      aliasService: ctx.routeUrl?.("auth.exchange", { serviceId: "auth", absolute: true }) ?? null,
-      instanceService: ctx.routeUrl?.("auth.exchange", { serviceId: authServiceId }) ?? null,
-      aliasUi: ctx.uiRouteUrl?.("login.index", { serviceId: "auth" }) ?? null,
-      localCollision: ctx.routeUrl?.("auth.exchange") ?? null
+      aliasService: ctx.route?.({ viewId: "auth.exchange", method: "POST", serviceId: "auth" })?.absoluteApiPath ?? null,
+      instanceService: ctx.route?.({ viewId: "auth.exchange", method: "POST", serviceId: authServiceId })?.apiPath ?? null,
+      aliasUi: ctx.route?.({ viewId: "login.index", serviceId: "auth" })?.uiPath ?? null,
+      localCollision: ctx.route?.({ viewId: "auth.exchange" })?.apiPath ?? null
     }), av.object({
       aliasService: av.nullable(av.string()),
       instanceService: av.nullable(av.string()),
@@ -686,8 +736,8 @@ test("route helpers resolve dependency services from the application route index
           type: "page" as const,
           method: "GET" as const,
           render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => JSON.stringify({
-            service: ctx.url.route("auth.exchange", { serviceId: "auth", absolute: true }),
-            ui: ctx.url.uiRoute("login.index", { serviceId: "auth" })
+            service: ctx.route({ viewId: "auth.exchange", method: "POST", serviceId: "auth" })?.absoluteApiPath,
+            ui: ctx.route({ viewId: "login.index", serviceId: "auth" })?.uiPath
           })
         }],
         components: [],
@@ -847,10 +897,8 @@ test("elevation is enforced before effects; root and conditional handlers cannot
   }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, managementScope: { tenantId: tenant.id, appId: app.id } }) } });
 });
 
-test("renderer service URLs encode queries and route tokens require a whole supported attribute", async () => {
-  const warnings: string[] = [];
+test("renderer destinations encode queries and expose both service and mounted UI paths", async () => {
   const observability = createNoopObservability();
-  observability.logger.warn = message => { warnings.push(message); };
   observability.startSpan = () => observability;
   const serviceId = uuidv7();
   const app = {
@@ -870,13 +918,12 @@ test("renderer service URLs encode queries and route tokens require a whole supp
         pages: [{
           rendererId: "default", type: "page" as const, method: "GET" as const,
           render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
-            assert.equal(ctx.url.route("archive.call", { query: { id: "call 42&x" } }), "/call?id=call+42%26x");
-            assert.equal(ctx.url.uiRoute("archive.call", { query: { id: "call 42&x" } }), "/archive/call?id=call+42%26x");
-            assert.equal(ctx.url.route("missing.page"), null);
-            return `<a href="{archive.call}">Call</a><form action='{archive.call}'></form>`
-              + ["get", "post", "put", "patch", "delete", "download"].map(method => `<button hx-${method}="{archive.call}"></button>`).join("")
-              + '<a href="{archive.call}?id=123">Invalid query</a><a href="{missing.page}">Missing</a>'
-              + '<a data-href="{archive.call}" title="{archive.call}">Unsupported</a>';
+            assert.equal(ctx.route({ viewId: "archive.call", query: { id: "call 42&x" } })?.apiPath, "/call?id=call+42%26x");
+            assert.equal(ctx.route({ viewId: "archive.call", query: { id: "call 42&x" } })?.uiPath, "/archive/call?id=call+42%26x");
+            assert.equal(ctx.route({ viewId: "missing.page" }), null);
+            const target = ctx.route({ viewId: "archive.call" })!;
+            return `<a href="${target.uiPath}">Call</a><form action="${target.apiPath}"></form>`;
+
           }
         }],
         components: [], fragments: []
@@ -887,19 +934,12 @@ test("renderer service URLs encode queries and route tokens require a whole supp
     const response = await fetch(`${baseUrl}/call`, { headers: { accept: "text/html" } });
     assert.equal(response.status, 200);
     const body = await response.text();
-    assert.match(body, /href="\/call"/);
-    assert.match(body, /action='\/call'/);
-    for (const method of ["get", "post", "put", "patch", "delete", "download"]) {
-      assert.ok(body.includes(`hx-${method}="/call"`));
-    }
-    assert.ok(body.includes('href="{archive.call}?id=123"'));
-    assert.ok(body.includes('href="{missing.page}"'));
-    assert.ok(body.includes('data-href="{archive.call}" title="{archive.call}"'));
-    assert.ok(warnings.some(message => message.includes("must occupy the whole attribute")));
-    assert.ok(warnings.some(message => message.includes("BP route token unresolved")));
-    assert.ok(warnings.every(message => !message.includes("id=123")));
+    assert.match(body, /href="\/archive\/call"/);
+    assert.match(body, /action="\/call"/);
+
   }, { serviceId, router: { createRequestObservability: () => observability } });
 });
+
 
 test("renderer app URLs resolve parameterized mounts and reject missing or ambiguous mounts", async () => {
   const serviceId = uuidv7();
@@ -923,9 +963,9 @@ test("renderer app URLs resolve parameterized mounts and reject missing or ambig
         pages: [{ rendererId: "default", type: "page" as const, method: "GET" as const,
           render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
             const options = { params: { id: "call 42" }, query: { tab: "recording" } };
-            return JSON.stringify({ service: ctx.url.route("archive.call", options),
-              app: ctx.url.uiRoute("archive.call", options),
-              missingParams: ctx.url.uiRoute("archive.call") });
+            return JSON.stringify({ service: ctx.route({ viewId: "archive.call", ...options })?.apiPath,
+              app: ctx.route({ viewId: "archive.call", ...options })?.uiPath,
+              missingParams: ctx.route({ viewId: "archive.call" }) });
           }
         }], components: [], fragments: []
       } }
@@ -940,4 +980,47 @@ test("renderer app URLs resolve parameterized mounts and reject missing or ambig
       }, `mounts: ${paths.join(", ") || "none"}`);
     }, { serviceId });
   }
+});
+
+test("BPRoute rejects user controls for required service/delegated-only operations", async () => {
+  const { BPRoute } = await import("../src/runtime/element.js");
+  const serviceId = uuidv7();
+  const app = { id: uuidv7(), tenantId: tenant.id, slug: "app", title: "App", hostnames: ["app.local"], originOverrides: [], refererOverrides: [], themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} }, shell: { serviceId, service: "test", renderer: "bootstrap5" }, defaultRoute: "/page", menu: [], slots: [], fragments: {}, routes: [] } as unknown as BetterPortalApp;
+  const page = route("/page", "page");
+  page.methodRoutes.GET!.auth = { required: true, permissions: [] };
+  const target = route("/target", "target");
+  target.renderers = { bootstrap5: { pages: [{ rendererId: "default", type: "page", method: "GET", render: () => "target" }], components: [], fragments: [] } };
+  page.renderers = { bootstrap5: { pages: [{ rendererId: "default", type: "page", method: "GET", render: (_data, ctx) => BPRoute({ ctx, viewId: "target", children: '<bp-ok>Allowed</bp-ok><bp-noperm>Denied</bp-noperm>' }) }], components: [], fragments: [] } };
+  app.routes = [page, target].map(r => ({ id: uuidv7(), kind: "page", resolvedMethods: ["GET"], path: r.path, resolvedServicePath: r.path, serviceId, viewId: r.viewId, enabled: true, operations: [r.viewId] }));
+  const now = Math.floor(Date.now() / 1000);
+  let claims: JwtClaims = { iss: "test", aud: "test", sub: "root", jti: uuidv7(), iat: now, exp: now + 60, tenantId: tenant.id, appId: app.id, roles: ["*"], realm: "runtime", tokenType: "access" };
+  await withServer(app, { routes: [page, target] }, async baseUrl => {
+    for (const callers of [["service"], ["delegated"], ["user"]] as const) {
+      target.methodRoutes.GET!.auth = { required: true, permissions: [], callers: [...callers] };
+      const response = await fetch(baseUrl + "/page", { headers: { Authorization: "Bearer valid", Accept: "text/html", "BP-Renderer": "bootstrap5" } });
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      assert.match(html, callers[0] === "user" ? /data-bp-state="ok"/ : /data-bp-state="noperm"/);
+    }
+    target.methodRoutes.GET!.auth = { required: true, callers: ["user"], permissions: [], elevation: { minimum: "mfa" } };
+    const elevated = await fetch(baseUrl + "/page", { headers: { Authorization: "Bearer valid", Accept: "text/html" } });
+    assert.equal(elevated.status, 200);
+    assert.match(await elevated.text(), /data-bp-state="noperm"/);
+    target.methodRoutes.GET!.auth = { required: false, permissions: [{ serviceId, viewId: "target", permissions: ["read"] }] };
+    page.methodRoutes.GET!.auth = { required: false, permissions: [] };
+    claims = { ...claims, roles: [] };
+    for (const headers of [{ Accept: "text/html" }, { Accept: "text/html", Authorization: "Bearer valid" }]) {
+      const optional = await fetch(baseUrl + "/page", { headers });
+      assert.equal(optional.status, 200);
+      assert.match(await optional.text(), /data-bp-state="ok"/);
+      const actual = await fetch(baseUrl + "/target", { headers: { ...headers, Accept: "application/json" } });
+      assert.equal(actual.status, 200);
+    }
+    target.methodRoutes.GET!.auth.elevation = { minimum: "mfa" };
+    const anonymousElevation = await fetch(baseUrl + "/page", { headers: { Accept: "text/html" } });
+    assert.match(await anonymousElevation.text(), /data-bp-state="noauth"/);
+    claims = { ...claims, elevation: { assurance: "mfa", verifiedAt: now, expiresAt: now + 60 } };
+    const optionalElevated = await fetch(baseUrl + "/page", { headers: { Authorization: "Bearer valid", Accept: "text/html" } });
+    assert.match(await optionalElevated.text(), /data-bp-state="ok"/);
+  }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, platformRoot: { tenantId: tenant.id, appId: app.id } }) } });
 });

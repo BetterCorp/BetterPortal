@@ -8,6 +8,7 @@ import {
   buildServiceViewUrl,
   resolveAppRoute,
   serviceBaseUrl,
+  safeServiceBaseUrl,
   type BetterPortalApp,
   type BetterPortalRegistry,
   type RegisteredRoute
@@ -204,4 +205,35 @@ test("static app routes win and fixed service params resolve without leaking pla
     buildServiceViewUrl({ hostname: "https://plans.example" }, { ...mounted, fixedParams: undefined }, "/plans"),
     null
   );
+});
+
+test("route matching handles long interior slash runs without request latency amplification", () => {
+  const path = `/plans/${"/".repeat(50_000)}one`;
+  const started = performance.now();
+  assert.equal(resolveAppRoute(app([dynamicRoute]), path)?.id, dynamicRoute.id);
+  assert.ok(performance.now() - started < 250, "route matching must stay linear for request paths");
+});
+
+
+test("public service base metadata rejects credentials and URL payloads while preserving prefixes", () => {
+  for (const hostname of ["https://user:pass@plans.example/prefix", "https://user@plans.example", "https://:pass@plans.example", "javascript:alert(1)", "//plans.example", "invalid", "https://plans.example/?token=secret", "https://plans.example/#secret"]) {
+    assert.equal(safeServiceBaseUrl({ hostname }), undefined);
+    assert.equal(safeServiceBaseUrl({ endpointBaseUrl: hostname }), undefined);
+  }
+  assert.equal(safeServiceBaseUrl({ hostname: "https://plans.example" }), "https://plans.example");
+  assert.equal(safeServiceBaseUrl({ endpointBaseUrl: "https://plans.example///" }), "https://plans.example");
+  assert.equal(safeServiceBaseUrl({ hostname: "https://plans.example/prefix/" }), "https://plans.example/prefix");
+  assert.equal(safeServiceBaseUrl({ endpointBaseUrl: "http://plans.example:8080/prefix" }), "http://plans.example:8080/prefix");
+});
+
+test("service view URLs decode dynamic segments once and preserve fixed parameter values", () => {
+  const mounted = { ...dynamicRoute, path: "/ui/plans/:planId", resolvedServicePath: "/plans/:planId" };
+  for (const [encoded, expected] of [
+    ["batch%20one", "batch%20one"], ["caf%C3%A9", "caf%C3%A9"],
+    ["a%2Fb", "a%2Fb"], ["a%252Fb", "a%252Fb"], ["100%25", "100%25"]
+  ]) {
+    assert.equal(buildServiceViewUrl({ hostname: "https://plans.example" }, mounted, `/ui/plans/${encoded}`), `https://plans.example/plans/${expected}`);
+  }
+  assert.equal(buildServiceViewUrl({ hostname: "https://plans.example" }, { ...mounted, fixedParams: { planId: "fallback" } }, "/ui/plans/%ZZ"), null);
+  assert.equal(buildServiceViewUrl({ hostname: "https://plans.example" }, { ...mounted, path: "/plans", fixedParams: { planId: "literal%20value" } }, "/plans"), "https://plans.example/plans/literal%2520value");
 });

@@ -10,6 +10,7 @@ import { validateScanResult } from "../../../../framework/nodejs/src/codegen/val
 import type { BetterPortalApp, BetterPortalTenant } from "../../../../framework/nodejs/src/contracts/platformConfig.js";
 import { createBetterPortalApp } from "../../../../framework/nodejs/src/runtime/h3.js";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
@@ -38,6 +39,75 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
 }
 
 const html = (route: Route, body: string, status = 200, headers = {}) => route.fulfill({ status, contentType: "text/html", body, headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "HX-Location,HX-Redirect,HX-Trigger,BP-SetHeader", ...headers } });
+
+test("WorkOS callback sends browser-held state only to the configured auth service", async t => {
+  const seen: Array<{ url: string; proof?: string }> = [];
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    seen.push({ url: route.request().url(), proof: route.request().headers()["x-bp-workos-state"] });
+    return html(route, '<p id="loaded">Loaded</p>');
+  });
+  await page.waitForSelector("#loaded");
+  await page.evaluate(fingerprint => {
+    sessionStorage.setItem("bp:workos:oauth-state", fingerprint);
+    window.htmx.ajax("GET", "https://auth.test/login?code=first&state=issued-state", { target: "#bp-main", swap: "innerHTML" });
+  }, createHash("sha256").update("issued-state").digest("hex"));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=first")));
+  assert.equal(await page.evaluate(() => sessionStorage.getItem("bp:workos:oauth-state")), null,
+    "a callback must consume its browser proof");
+  await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login?code=replayed&state=issued-state", { target: "#bp-main", swap: "innerHTML" }));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=replayed")));
+  await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login?code=second&state=forged", { target: "#bp-main", swap: "innerHTML" }));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=second")));
+  assert.equal(seen.find(request => request.url.includes("code=first"))?.proof, "issued-state");
+  assert.equal(seen.find(request => request.url.includes("code=replayed"))?.proof, undefined,
+    "a second callback using the same state must not receive the proof");
+  assert.equal(seen.find(request => request.url.includes("code=second"))?.proof, undefined);
+  assert.deepEqual(errors, []);
+});
+
+test("WorkOS provider error callback consumes its matching browser proof", async t => {
+  const seen: Array<{ url: string; proof?: string }> = [];
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    seen.push({ url: route.request().url(), proof: route.request().headers()["x-bp-workos-state"] });
+    return html(route, '<p id="loaded">Loaded</p>');
+  });
+  await page.waitForSelector("#loaded");
+  await page.evaluate(fingerprint => {
+    sessionStorage.setItem("bp:workos:oauth-state", fingerprint);
+    window.htmx.ajax("GET", "https://auth.test/login?error=access_denied&state=issued-state", { target: "#bp-main", swap: "innerHTML" });
+  }, createHash("sha256").update("issued-state").digest("hex"));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("error=access_denied")));
+  assert.equal(await page.evaluate(() => sessionStorage.getItem("bp:workos:oauth-state")), null);
+  await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login?code=replayed&state=issued-state", { target: "#bp-main", swap: "innerHTML" }));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=replayed")));
+  assert.equal(seen.find(request => request.url.includes("error=access_denied"))?.proof, "issued-state");
+  assert.equal(seen.find(request => request.url.includes("code=replayed"))?.proof, undefined);
+  assert.deepEqual(errors, []);
+});
+
+test("a login form next value cannot send the shell to an external origin", async t => {
+  let externalRequests = 0;
+  const { page } = await shell(t, route => {
+    if (route.request().method() === "POST" && route.request().url().includes("auth.test/login")) return route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
+      headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "HX-Redirect", "HX-Redirect": "/tools/dashboard" }
+    });
+    return html(route, '<form id="bp-login-form" hx-post="https://auth.test/login" data-bp-service="auth"><input name="next" value="https://attacker.test/collect"><button>Sign in</button></form>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.route("https://attacker.test/**", route => { externalRequests++; return html(route, "Unexpected"); });
+  await page.waitForSelector("#bp-login-form");
+  await page.evaluate(() => window.bpLoginSubmit({ currentTarget: document.querySelector("#bp-login-form"), preventDefault() {}, stopImmediatePropagation() {} } as never));
+  await page.waitForURL("https://app.test/tools/dashboard");
+  assert.equal(externalRequests, 0);
+  assert.equal(new URL(page.url()).origin, "https://app.test");
+});
 
 test("absolute role-sync fragments returned by a service receive managed credentials", async t => {
   let authorization: string | undefined;
@@ -289,7 +359,7 @@ test("cancelling elevation leaves the session and submitted action untouched", a
   assert.deepEqual(errors, []);
 });
 
-const passwordLoginForm = '<form id="bp-login-form" hx-post="this" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="alice"><input name="password" value="password"><input name="next" value="/tools/dashboard"><button type="submit">Sign in</button></form><p id="bp-login-error" class="d-none"></p>';
+const passwordLoginForm = '<form id="bp-login-form" data-factor-endpoint="https://auth.test/account" hx-post="this" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="alice"><input name="password" value="password"><input name="next" value="/tools/dashboard"><button type="submit">Sign in</button></form><p id="bp-login-error" class="d-none"></p>';
 const loginJson = (route: Route, body: unknown, status = 200, headers = {}) => route.fulfill({ status, json: body, headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true", "access-control-expose-headers": "BP-SetHeader,HX-Trigger", ...headers } });
 
 for (const enroll of [false, true]) test(`password login completes ${enroll ? "factor enrollment" : "MFA"} before navigation with a shared auth origin`, async t => {
@@ -308,7 +378,7 @@ for (const enroll of [false, true]) test(`password login completes ${enroll ? "f
     if (request.method() === "POST") {
       logins++;
       assert.equal(new URLSearchParams(request.postData()!).get("next"), "/tools/dashboard");
-      return loginJson(route, { status: "ok", accountUrl: "https://auth.test/account", challenge: { id: "login-ticket", secret: "login-proof", methods: ["totp"], enroll, ...(enroll ? { totpSecret: "enrollment-secret" } : {}) } });
+      return loginJson(route, { status: "ok", challenge: { id: "login-ticket", secret: "login-proof", methods: ["totp"], enroll, ...(enroll ? { totpSecret: "enrollment-secret" } : {}) } });
     }
     return html(route, passwordLoginForm);
   }, {}, "https://auth.test/login", "/auth/login", true);
@@ -342,7 +412,7 @@ test("cancelled or rejected login verification stays on the form without storing
   const { page, errors } = await shell(t, route => {
     if (route.request().url().endsWith("/dashboard")) { dashboards++; return html(route, "Unexpected navigation"); }
     if (route.request().url().endsWith("/account")) { completions++; return loginJson(route, { status: "error", message: "Invalid verification code." }, 403); }
-    if (route.request().method() === "POST") return loginJson(route, { status: "ok", accountUrl: "/account", challenge: { id: "ticket", secret: "proof", methods: ["recovery"] } });
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok", challenge: { id: "ticket", secret: "proof", methods: ["recovery"] } });
     return html(route, passwordLoginForm);
   }, {}, "https://auth.test/login", "/auth/login");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -377,11 +447,11 @@ test("login challenges cannot send verification proof to another installed servi
   let otherRequests = 0;
   const { page, errors } = await shell(t, route => {
     if (new URL(route.request().url()).origin === "https://service.test") { otherRequests++; return loginJson(route, { status: "ok" }); }
-    if (route.request().method() === "POST") return loginJson(route, { status: "ok", accountUrl: "https://service.test/account", challenge: { id: "ticket", secret: "proof", methods: ["totp"] } });
-    return html(route, passwordLoginForm);
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok", challenge: { id: "ticket", secret: "proof", methods: ["totp"] } });
+    return html(route, passwordLoginForm.replace("https://auth.test/account", "https://service.test/account"));
   }, {}, "https://auth.test/login", "/auth/login");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.locator("#bp-login-error").getByText("The auth service returned an invalid verification endpoint.").waitFor();
+  await page.locator("#bp-login-error").getByText("The login view has an invalid verification endpoint.").waitFor();
   assert.equal(otherRequests, 0); assert.equal(await page.locator("dialog").count(), 0); assert.deepEqual(errors, []);
 });
 
@@ -408,12 +478,12 @@ test("generated JSX anchors preserve mounted queries and Back/Forward across ori
     export default createHandler({ response: ResponseSchema, query: QuerySchema }, ctx => ({ detail: !!ctx.query.id }));
   `);
   writeFileSync(join(routeDir, "_renderer.bootstrap5", "GET.tsx"), `
-    /** @jsxImportSource jsx-htmx */
+    /** @jsxImportSource @betterportal/framework */
     import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
     import type { ResponseData } from "../GET.js";
     export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
       if (data.detail) return <p id="call-detail">Call 42</p>;
-      return <a id="call-link" href={ctx.url.route("archive.call", { query: { id: "call 42" } }) ?? undefined}>Call 42</a>;
+      return <a id="call-link" href={ctx.route({ viewId: "archive.call", query: { id: "call 42" } })?.viewPath ?? undefined}>Call 42</a>;
     }
   `);
   const scanned = scanRoutes(root);
@@ -617,4 +687,168 @@ test("shared-origin history replay keeps credentials scoped to the matched servi
   assert.equal(authorization, "Bearer other-service");
   assert.equal(wrongScope, undefined);
   assert.deepEqual(errors, []);
+});
+
+
+for (const metadata of [true, false]) test(`service base prefixes survive template navigation and history (${metadata ? "base metadata" : "request URL fallback"})`, async t => {
+  const requests: string[] = [];
+  let reports = 0;
+  const { page, errors } = await shell(t, route => {
+    requests.push(new URL(route.request().url()).pathname);
+    if (route.request().url().includes("/prefix/reports/1")) return html(route, `<p id="report">Report ${++reports}</p>`);
+    return html(route, '<a id="report-link" href="/preview/reports/1?tab=rows">Report</a>');
+  }, {}, "https://service.test/prefix/dashboard", "/tools/dashboard", false, [
+    { href: "/preview/reports/:id", servicePath: "/reports/:id", serviceId: "service", kind: "page", methods: ["GET"],
+      ...(metadata ? { serviceBaseUrl: "https://service.test/prefix///" } : { requestUrl: "https://service.test/prefix/reports/seed" }) }
+  ]);
+  await page.waitForSelector("#report-link");
+  assert.equal(await page.getAttribute("#report-link", "hx-get"), "https://service.test/prefix/reports/1?tab=rows");
+  const historyPath = await page.evaluate(() => {
+    const detail = { history: { path: "https://service.test/prefix/reports/1?tab=rows" } };
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update", { detail }));
+    return detail.history.path;
+  });
+  assert.equal(historyPath, "/preview/reports/1?tab=rows");
+  await page.locator("#report-link").click();
+  await page.waitForSelector("#report");
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("htmx:before:history:restore", { cancelable: true, detail: { path: "/preview/reports/1?tab=rows" } })));
+  await page.waitForFunction(() => document.querySelector("#report")?.textContent === "Report 2");
+  assert.ok(requests.filter(path => path === "/prefix/reports/1").length >= 2);
+  assert.ok(!requests.includes("/reports/1"));
+  assert.deepEqual(errors, []);
+});
+
+test("encoded service placeholders from older shell metadata preserve the UUID UI mount and history", async t => {
+  const mounted = "/01a0fa1c-4ba2-7753-a7d8-0d2cfa0921c8/batches";
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/batches/1")) return html(route, '<p id="batch-detail">Batch 1</p>');
+    return html(route, '<a id="batch-link" href="/batches/1">1</a>');
+  }, {}, "https://service.test/batches", mounted, false, [
+    { href: mounted, requestUrl: "https://service.test/batches", serviceId: "service", kind: "page" },
+    { href: mounted + "/:batchId", requestUrl: "https://service.test/batches/%3AbatchId", serviceId: "service", kind: "page" }
+  ]);
+  await page.waitForSelector("#batch-link");
+  assert.equal(await page.locator("#batch-link").getAttribute("href"), mounted + "/1");
+  assert.equal(await page.locator("#batch-link").getAttribute("hx-get"), "https://service.test/batches/1");
+  assert.equal(await page.locator("#batch-link").getAttribute("hx-target"), "#bp-main");
+  assert.equal(await page.locator("#batch-link").getAttribute("hx-swap"), "innerHTML");
+  assert.equal(await page.locator("#batch-link").getAttribute("hx-push-url"), mounted + "/1");
+  await page.locator("#batch-link").click();
+  await page.waitForSelector("#batch-detail");
+  assert.equal(new URL(page.url()).pathname, mounted + "/1");
+  await page.goBack();
+  await page.waitForSelector("#batch-link");
+  assert.equal(new URL(page.url()).pathname, mounted);
+  await page.goForward();
+  await page.waitForSelector("#batch-detail");
+  assert.deepEqual(errors, []);
+});
+
+test("BPRoute component response fills only the chosen wrapper and error replaces it", async t => {
+  const bp = '<bp-route data-bp-route data-bp-mode="embed" data-bp-state="loading" data-bp-service="service" hx-get="https://service.test/batches/1?_c=summary" hx-trigger="load" hx-target="this" hx-swap="none">'
+    + '<template data-bp-route-state="ok"><div class="p-3" id="summary"><template data-bp-route-insertion></template></div></template>'
+    + '<template data-bp-route-state="error"><label id="mysum">Summary unavailable</label></template></bp-route>';
+  const { page, errors } = await shell(t, route => route.request().url().includes("_c=summary")
+    ? html(route, '<p id="summary-content">Summary loaded</p>') : html(route, bp));
+  await page.waitForSelector("#summary-content");
+  assert.equal(await page.locator("#summary").getAttribute("class"), "p-3");
+  assert.equal(await page.locator("bp-route a, bp-route button").count(), 0);
+  await page.evaluate(() => {
+    const element = document.querySelector("bp-route")!;
+    const event = new CustomEvent("htmx:sendError", { bubbles: true, detail: { ctx: { sourceElement: element } } });
+    element.dispatchEvent(event);
+  });
+  // Network errors are also covered through actual failed fetches in the action test below.
+  assert.deepEqual(errors, []);
+});
+
+test("BPRoute failed DELETE renders a label without replaying the mutation or retaining the anchor", async t => {
+  let deletes = 0;
+  const bp = '<bp-route data-bp-route data-bp-mode="action" data-bp-state="ok" data-bp-service="service">'
+    + '<template data-bp-route-state="ok"><a id="delete-item" hx-delete="https://service.test/batches/1" hx-target="#result" hx-swap="innerHTML" data-bp-route-control>Delete</a></template>'
+    + '<template data-bp-route-state="error"><label id="delete-error">Delete unavailable</label></template>'
+    + '<a id="delete-item" hx-delete="https://service.test/batches/1" hx-target="#result" hx-swap="innerHTML" data-bp-route-control>Delete</a></bp-route><div id="result"></div>';
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "DELETE") { deletes++; return html(route, "Failure", 500); }
+    return html(route, bp);
+  });
+  await page.waitForSelector("#delete-item");
+  assert.equal(deletes, 0);
+  await page.locator("#delete-item").click();
+  await page.waitForSelector("#delete-error");
+  assert.equal(await page.locator("#delete-error").evaluate(el => el.tagName), "LABEL");
+  assert.equal(await page.locator("#delete-item").count(), 0);
+  assert.equal(await page.locator("#result").textContent(), "");
+  assert.equal(deletes, 1);
+  assert.deepEqual(errors, []);
+});
+
+
+test("an owning service path wins over another service's identically named UI mount", async t => {
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url() === "https://service.test/batches/1") return html(route, '<p id="own-batch">Own batch</p>');
+    if (route.request().url().startsWith("https://auth.test/")) return html(route, '<p id="wrong-service">Wrong service</p>');
+    return html(route, '<a id="owner-link" href="/batches/1">1</a>');
+  }, {}, "https://service.test/batches", "/inventory/batches", false, [
+    { href: "/inventory/batches", requestUrl: "https://service.test/batches", serviceId: "service", kind: "page" },
+    { href: "/inventory/batches/:batchId", requestUrl: "https://service.test/batches/%3AbatchId", serviceId: "service", kind: "page" },
+    { href: "/batches/:batchId", requestUrl: "https://auth.test/reports/%3AbatchId", serviceId: "auth", kind: "page" }
+  ]);
+  await page.waitForSelector("#owner-link");
+  assert.equal(await page.locator("#owner-link").getAttribute("href"), "/inventory/batches/1");
+  assert.equal(await page.locator("#owner-link").getAttribute("hx-get"), "https://service.test/batches/1");
+  await page.locator("#owner-link").click();
+  await page.waitForSelector("#own-batch");
+  assert.equal(await page.locator("#wrong-service").count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test("Node shell service items insert successful fragments through the shared runtime", async t => {
+  const { BPService } = await import("../../../../plugins/nodejs/betterportal-bsb/src/service.js");
+  const app = createBetterPortalApp();
+  const settings = {
+    shell: { serviceId: "shell", service: "test", renderer: "bootstrap5" },
+    shellFragments: { shell: { nav: { mode: "items", items: [{ source: "service", serviceId: "service", targetPath: "/dashboard", fragmentId: "menu.badge" }] } } },
+    routes: [{ enabled: true, serviceId: "service", resolvedServicePath: "/dashboard" }],
+    fragments: {}, slots: []
+  };
+  const service = Object.create(BPService.prototype) as any;
+  Object.assign(service, { app, manifest: { shell: { service: "test" } },
+    resolveHandlerContext: () => ({ tenant: { id: "tenant", services: [{ id: "service", enabled: true, hostname: "https://service.test" }] }, app: settings }),
+    effectiveServiceConfig: () => ({}) });
+  service.registerShellFragmentRoutes({ shellFragments: [{ id: "nav", kind: "block", render: (ctx: any) => `<nav id="shell-nav">${ctx.items.join("")}</nav>` }] });
+  const response = await app.fetch(new Request("https://shell.test/.well-known/bp/shell/fragment/nav"));
+  assert.equal(response.status, 200);
+  const generated = await response.text();
+  let fragmentRequests = 0;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).searchParams.get("_f") === "menu.badge") {
+      fragmentRequests++;
+      return html(route, '<mark id="shell-fragment">Fragment loaded</mark>');
+    }
+    return html(route, generated);
+  });
+  await page.waitForSelector("#shell-fragment");
+  assert.equal(await page.locator("#shell-nav").textContent(), "Fragment loaded");
+  assert.equal(await page.locator("bp-route").getAttribute("data-bp-state"), "ok");
+  assert.equal(fragmentRequests, 1);
+  assert.deepEqual(errors, []);
+});
+
+test("swap-only BPRoute and plain anchors retain outerHTML during main enhancement", async t => {
+  const { BPRoute } = await import("../../../../framework/nodejs/src/runtime/element.js");
+  const { createRouteResult } = await import("../../../../framework/nodejs/src/runtime/routeResult.js");
+  const destination = createRouteResult({ apiPath: "/dashboard", viewPath: "/dashboard", uiPath: "/tools/dashboard", absoluteApiPath: "https://service.test/dashboard", absoluteViewPath: "https://service.test/dashboard", absoluteUiPath: "https://app.test/tools/dashboard" }, () => null, {}, "viewPath", { serviceId: "service" });
+  for (const control of [String(BPRoute({ ctx: { route: () => destination } as any, swap: "outerHTML", id: "swap-link", children: "Swap" })), '<a id="swap-link" href="/dashboard" hx-swap="outerHTML">Swap</a>']) {
+    let requests = 0;
+    const { page, errors } = await shell(t, route => html(route, ++requests === 1 ? control : '<main id="bp-main" data-bp-service="service"><p id="outer-content">Replaced main</p></main>'));
+    await page.waitForSelector("#swap-link");
+    assert.equal(await page.locator("#swap-link").getAttribute("hx-swap"), "outerHTML");
+    assert.equal(await page.locator("#swap-link").getAttribute("hx-get"), "https://service.test/dashboard");
+    await page.locator("#swap-link").click();
+    await page.waitForSelector("#outer-content");
+    assert.equal(await page.locator("#bp-main").count(), 1);
+    assert.equal(requests, 2);
+    assert.deepEqual(errors, []);
+  }
 });

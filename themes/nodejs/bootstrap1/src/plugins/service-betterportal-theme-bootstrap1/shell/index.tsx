@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { css } from "jsx-htmx";
 import {
   createPluginManifest,
@@ -15,8 +15,11 @@ export interface Bootstrap1RouteLink {
   id: string;
   kind?: "page" | "api";
   title: string;
+  viewTitle?: string;
   href: string;
   requestUrl?: string;
+  /** Service endpoint base, including its deployment path prefix. */
+  serviceBaseUrl?: string;
   serviceId: string;
   active: boolean;
   error?: string;
@@ -120,7 +123,9 @@ export interface Bootstrap1NavGroup {
 export type Bootstrap1NavItem = Bootstrap1NavLeaf | Bootstrap1NavGroup | { kind: "external"; title: string; href: string };
 
 function normalizeRoutePath(path: string): string {
-  const normalized = path.replace(/\/+$/, "");
+  let end = path.length;
+  while (end > 0 && path[end - 1] === "/") end--;
+  const normalized = path.slice(0, end);
   return normalized === "" ? "/" : normalized;
 }
 
@@ -2244,6 +2249,8 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
               >
                 Menu
               </button>
+              <button class="btn btn-outline-secondary" type="button" data-bp-back="" aria-label="Go back">Back</button>
+              <a class="btn btn-outline-secondary" data-bp-up="" hidden>Up</a>
               <div class="bp-admin__topbar-context">
                 <div class="bp-admin__topbar-label bp-admin__breadcrumb" data-bp-current-breadcrumb="">{currentBreadcrumb}</div>
                 <div class="bp-admin__topbar-title" data-bp-current-title="">

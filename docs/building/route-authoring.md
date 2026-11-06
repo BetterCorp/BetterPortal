@@ -1,3 +1,5 @@
+> Routing contract: prefer `BPRoute` for links, actions, forms and embedded components/fragments. Use `ctx.route()` only when a destination value is specifically required. Service-view defaults use `viewPath`; the theme owns UI mounting/history. See [the detailed BPRoute contract](https://github.com/BetterCorp/BetterPortal/blob/master/docs/building/bp-route.md).
+
 # Route authoring
 
 BetterPortal services declare view identity, method-specific operations and AnyVali
@@ -85,6 +87,14 @@ Declare `ParamsSchema` in the route index and pass that same schema to each meth
 Each method owns its stable `operationId`, auth and schemas. Node renderer and SSE
 filenames are described in [Routes and views](routes-and-views.md#fragment-stream-and-sse-selection);
 native factories use the conventions below.
+
+### Routing migration check
+
+Node packages run `bp run check-routes` before building. The check scans `.ts`, `.tsx`, `.mts` and `.cts` files in `src` and configured `betterportal.routes`/`betterportal.shells` roots (including folders outside `src`), including helper folders named `lib` and `dist`; package build output remains outside that source root. Import handler factories from `@betterportal/framework` or the generated route runtime so their context ownership remains explicit.
+
+Removed URL helpers/options and literal route tokens are build errors. API responses contain domain data, state, IDs and cursors; renderers resolve destinations with `ctx.route`. The authoring gate follows statically traceable returned/yielded response construction through context/array destructuring declarations and assignments with statically named computed keys, aliases, local helper functions and object methods, named callbacks, standard promise constructors/combinators, reductions, array element selection and removed splice values, string transformations and replacement values and property descriptor factories/mutations and returned array mutations, transparent object/collection serialization and reversible URI/base64 encoding. Named callbacks retain their caller-input provenance. Explicit string annotations support replacement checks for dynamic initializers without reserving provider method names.
+
+Public links, scalar state such as string/array lengths, single-character string selections/indexing and collection sizes, and domain clients that consume service destinations remain valid. Framework auth redirect helpers are identified by imports and aliases, so unrelated provider helpers may use the same names. See [the routing contract and migration examples](routes-and-views.md).
 
 ## Python and .NET
 
@@ -368,3 +378,17 @@ has access. Explicit alternatives are **Always show**, **Only signed out**,
 at least one named role, and parent group conditions also apply to descendants.
 An explicit **Always show** choice remains an override of automatic visibility.
 Menu visibility does not replace service-side authorization.
+
+Selecting a domain field from a known object remains valid even when another field holds an internal destination. The authoring check follows the selected field through aliases.
+
+BP `ctx.response()` bodies participate in the same checks as `Response` and JSON response helpers; public links and domain data remain valid.
+
+The authoring gate follows explicitly rejected promise reasons into recovery callbacks and local response factories invoked through `call`, `apply` and `bind`. Recovery that returns domain data and factories that consume destinations without returning them remain valid. This source check covers recognized static patterns; it is not a proof of arbitrary JavaScript data flow.
+
+Bound callback arguments precede caller-supplied promise/collection inputs during source checks. Explicit rejection reasons also follow local recovery parameters, preserving safe recovery without overlooking returned destinations.
+
+Statically known spread arguments are expanded before call/apply/bind parameter mapping, including bound callbacks stored in known object fields.
+
+Rejection provenance passes through `then` calls without rejection handlers and through `finally`, stopping when a rejection handler recovers.
+
+Rest parameters retain the remaining argument array. Explicit rethrows and rejections retain their reason until recovery; native promise operations ignore extra callback arguments.

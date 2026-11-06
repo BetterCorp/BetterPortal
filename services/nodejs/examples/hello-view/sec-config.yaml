@@ -18,6 +18,7 @@ default:
         betterportal:
           # No bpConfigPath - BP services receive their config from the CP via
           # sync push, cached locally at .bp-sync-cache/scoped.json. With no
-          # serviceApiKey/controlPlaneUrl either, the service boots in setup
-          # mode: install it from the CM admin UI (services registry -> install)
-          # and the redeemed apiKey persists to .bp-bootstrap/state.enc.
+          # serviceApiKey, the service boots in setup mode. Configure its
+          # trusted controlPlaneUrl before installation from the CM admin UI;
+          # the redeemed apiKey persists to .bp-bootstrap/state.enc.
+          controlPlaneUrl: https://config.example

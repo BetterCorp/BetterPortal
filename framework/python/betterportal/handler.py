@@ -5,14 +5,15 @@ import asyncio
 from dataclasses import dataclass, field
 import inspect
 from types import MappingProxyType
-from typing import Any, Awaitable, Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, cast
+from typing import Any, Awaitable, Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, Union, cast
 
 import anyvali as av
 from .authorization import AuthorizedCaller
 from .context import ScopedContext
 from .contracts import contract, export, object_document
 from .generated_types import HttpMethod, MultipartRequest
-from .urls import Urls
+from .urls import Urls, RouteDestination
+from .generated_types import RouteOptionsInput, BetterPortalRouteChromeValueInput
 from .bp_headers import BpHeaders
 from .observability import TraceContext, current_trace, current_observability
 if TYPE_CHECKING:
@@ -39,7 +40,7 @@ class HandlerOutputError(ValueError):
 
 class ResponseState:
     """Per-request status and application headers; transport/CORS stay host-owned."""
-    def __init__(self) -> None: self._status = 200; self._headers: list[tuple[str, str]] = []; self.bp_headers = BpHeaders()
+    def __init__(self) -> None: self._status = 200; self._headers: list[tuple[str, str]] = []; self.bp_headers = BpHeaders(); self.page_chrome: dict[str, Any] = {}
     @property
     def status(self) -> int: return self._status
     @status.setter
@@ -97,6 +98,9 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     query: Query
     headers: Headers
     request: Body
+    def chrome(self, value: Mapping[str, Union[BetterPortalRouteChromeValueInput, list[str]]]) -> None:
+        """Override chrome for a successful GET HTML page; parents are service paths or plain text."""
+        self.response.page_chrome.update(contract("BetterPortalRouteChromeSchema").parse(value))
     def require_elevation(self, requirement: Mapping[str, Any]) -> None: self.request_context.require_elevation(requirement)
     async def webhook(self, event_id: str, payload: Any, *, idempotency_key: str | None = None) -> str:
         return await self.request_context.clients.webhook(event_id, payload, idempotency_key=idempotency_key)
@@ -128,11 +132,17 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     def obs(self): return current_observability()
     def require_permission(self, service_id: str, view_id: str, action: str) -> str:
         from .auth_helpers import require_permission
-        return require_permission(self.request_context, service_id, view_id, action)
+        from .security import PermissionDenied
+        from .service import RequestError
+        try: return require_permission(self.request_context, service_id, view_id, action)
+        except PermissionDenied as error:
+            raise RequestError(error.status, "Access denied", scope=self.request_context.scope) from error
     @property
     def response(self) -> ResponseState: return self.request_context.response
     @property
     def urls(self) -> Urls: return self.request_context.urls
+    def route(self, input: "RouteOptionsInput | None" = None) -> "RouteDestination | None":
+        return self.urls._resolve(input, self.request_context.method, cast(Mapping[str, Any], self.params), cast(Mapping[str, Any], self.query))
 
 
 @dataclass(frozen=True)

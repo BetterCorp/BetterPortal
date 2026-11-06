@@ -21,3 +21,27 @@ test("shared lint config checks source and documentation, excluding generated ou
     assert.equal(await eslint.isPathIgnored(path), true, path);
   }
 });
+
+
+test("routing ESLint documents and enforces the same breaking contract as prebuild", async () => {
+  const eslint = new ESLint();
+  for (const source of [
+    'export function render(data, ctx) { return <a href={ctx.route()?.uiPath}>Item</a>; }',
+    'export function render(data, ctx) { return <bp-ok hx-get hx-delete>Delete</bp-ok>; }',
+    'export function handler(ctx) { return { link: String(ctx.route()) }; }'
+  ]) {
+    const [result] = await eslint.lintText(source, { filePath: source.includes("function handler") ? "services/nodejs/examples/hello-view/src/plugin/bp-routes/items/GET.ts" : "services/nodejs/examples/hello-view/src/plugin/bp-routes/items/_renderer.bootstrap5/GET.tsx" });
+    assert.ok(result.messages.some(message => message.ruleId === "betterportal/routing-contract"), source);
+  }
+});
+
+
+test("routing JSX diagnostics point at the offending element instead of the file start", async () => {
+  const eslint = new ESLint();
+  const source = 'export function render(data, ctx) {\n  return (\n    <BPRoute ctx={ctx} component="summary" fragment="badge" />\n  );\n}';
+  const [result] = await eslint.lintText(source, { filePath: "services/nodejs/examples/hello-view/src/plugin/bp-routes/items/_renderer.bootstrap5/GET.tsx" });
+  const diagnostic = result.messages.find(message => message.ruleId === "betterportal/routing-contract");
+  assert.ok(diagnostic);
+  assert.equal(diagnostic.line, 3);
+  assert.equal(diagnostic.column, 5);
+});

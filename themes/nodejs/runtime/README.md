@@ -36,7 +36,7 @@ const asset = await buildBetterPortalShellRuntimeAsset({
 
 `js()` returns safe `RawText`. Pass it directly to the runtime builder or place it directly inside a `<script>` element. Do not call `.toString()` and do not wrap it with `raw()`.
 
-The shared runtime owns service/app URL rewriting, managed BP headers, header-aware preload, HTMX lifecycle handling, downloads, history, authentication failures, SSE, `bp-element` states, and route chrome state. It never discovers service schemas in the browser.
+The shared runtime owns service/app URL rewriting, managed BP headers, header-aware preload, HTMX lifecycle handling, downloads, history, authentication failures, SSE, `bp-route` states, and route chrome state. It never discovers service schemas in the browser.
 
 Managed BP headers are sent only to registered app service origins over HTTPS. Local development may use HTTP on `localhost`, `127.0.0.1`, or `[::1]`; other HTTP service URLs must migrate to HTTPS. Shells publish origins for enabled route, slot, fragment, auth, and shell bindings. Legacy origin-based header ownership and scopes remain supported.
 
@@ -53,3 +53,7 @@ For initial shell rendering, spread `betterPortalChromeAttributes(route.chrome)`
 Shell adapters are presentation-only. They may implement loading/error UI, component initialization and disposal, overlay cleanup, scrolling, and optional chrome presentation. A shell package does not add `htmx.org`; this runtime owns and bundles it. This runtime also imports `jsx-htmx`, but a shell that imports `jsx-htmx` directly for TSX must declare it as its own dependency. Do not bundle the stock preload extension: BetterPortal's preload implementation is part of `bp-shell` so it can attach scoped BP headers and reuse the prefetched response. The fixed HTMX extension allowlist is `bp-shell, sse`.
 
 The runtime tests include a headless Chromium preload regression. From the workspace root, run `npx playwright install chromium` once before `npm test` (Linux CI uses `--with-deps`).
+
+Plain service anchors are upgraded to main-panel HTMX only when their complete enabled page mount resolves. Preload markers alone do not indicate routing success. Encoded service template placeholders from older shell metadata are recognized when declared in the UI mount. Custom themes must rebuild/redeploy their bundled shared runtime to receive fixes; see [11.0.0 routing notes](https://github.com/BetterCorp/BetterPortal/blob/master/docs/releases/11.0.0.md).
+
+Ordinary service-rendered destinations resolve against the owning service before any UI alias. An identically named UI mount belonging to another service cannot take over the link. Shell-owned navigation is explicitly marked. A configured UI path is a compatibility fallback only when no owning service destination matches.

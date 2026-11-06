@@ -1,5 +1,6 @@
 """Strict JSON decoding at protocol trust boundaries; schema validation remains AnyVali's job."""
 import json
+import math
 from typing import Any
 
 
@@ -15,7 +16,12 @@ def loads(value: str) -> Any:
     def invalid_constant(value: str) -> None:
         raise ValueError("Invalid JSON number")
 
+    def finite_float(value: str) -> float:
+        result = float(value)
+        if not math.isfinite(result): raise ValueError("Invalid JSON number")
+        return result
+
     try:
-        return json.loads(value, object_pairs_hook=unique, parse_constant=invalid_constant)
+        return json.loads(value, object_pairs_hook=unique, parse_constant=invalid_constant, parse_float=finite_float)
     except RecursionError as error:
         raise ValueError("JSON nesting exceeds the parser limit") from error

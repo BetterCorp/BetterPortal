@@ -5,6 +5,7 @@ import { BaseStorage, ConfigRevisionConflictError } from "../src/plugins/service
 import { createPreviewGroup } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { registerPreviewDeploymentApi } from "../src/plugins/service-betterportal-config-manager/previewApi.js";
 import { credentialDiagnostics } from "../src/plugins/service-betterportal-config-manager/credentialDiagnostics.js";
+import { apiRoutePath } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { registerSyncEndpoint } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 
 class ConflictStorage extends BaseStorage {
@@ -80,8 +81,54 @@ function fixture() {
     }),
     context: { params: { groupId: group.id, key: "123" } }
   } as never);
-  return { storage, call, logs };
+  return { storage, call, logs, apiKey, group };
 }
+
+test("preview group key cannot submit an oversized streamed deployment", async () => {
+  const { storage, apiKey, group } = fixture();
+  const handlers = new Map<string, (event: never) => Promise<Response>>();
+  registerPreviewDeploymentApi({
+    app: Object.fromEntries(["get", "post", "delete"].map(method => [method,
+      (_path: string, handler: (event: never) => Promise<Response>) => handlers.set(method, handler)
+    ])) as never,
+    storage, controlPlaneUrl: "https://config.example", replayEncryptionKey: "test-key"
+  });
+  const payload = new TextEncoder().encode(JSON.stringify({
+    hostname: "pr.example", services: { "org.example.service": "https://service-pr.example" },
+    name: "x".repeat(2 * 1024 * 1024)
+  }));
+  const request = new Request("https://config.example/preview", {
+    method: "POST", headers: { authorization: `Bearer ${apiKey}` },
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(payload); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("content-length"), null);
+  const response = await handlers.get("post")!({ req: request, context: { params: { groupId: group.id, key: "big" } } } as never);
+  assert.equal(response.status, 413);
+  assert.equal(storage.saves, 0);
+});
+
+test("service sync key cannot submit an oversized streamed manifest", async () => {
+  const { storage } = fixture();
+  storage.validateApiKey = async () => ({
+    scope: "tenant" as const,
+    tenantId: storage.current.tenants[0].id,
+    serviceId: storage.current.tenants[0].services[0].id
+  });
+  const handlers = new Map<string, (event: never) => Promise<Response>>();
+  registerSyncEndpoint(Object.fromEntries(["get", "post"].map(method => [method,
+    (_path: string, handler: (event: never) => Promise<Response>) => handlers.set(method, handler)
+  ])) as never, storage);
+  const payload = new TextEncoder().encode(JSON.stringify({ title: "x".repeat(5 * 1024 * 1024) }));
+  const request = new Request("https://config.example/.well-known/bp/sync/poll", {
+    method: "POST", headers: { authorization: "Bearer valid-service-key" },
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(payload); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("content-length"), null);
+  const response = await handlers.get("post")!({ req: request } as never);
+  assert.equal(response.status, 413);
+});
 
 test("preview logs correlate committed and replayed credentials without exposing secrets", async () => {
   const { storage, call, logs } = fixture();
@@ -219,4 +266,38 @@ test("preview DELETE and GET expiry cleanup retry conflicts", async () => {
     assert.equal(storage.current.previewEnvironmentDeployments.length, 0);
     assert.equal(storage.current.apps[0].title, "Concurrent edit");
   }
+});
+
+
+test("deployment POST refresh migrates legacy API operation mounts without 409 and remains stable", async () => {
+  const { storage, call } = fixture();
+  const source = storage.current.apps[0];
+  const sourceId = source.routes[0].serviceId;
+  const viewId = "reports.owner.report", path = "/internal/reports/owner/reports/:reportId";
+  const operations = ["GET", "PUT", "DELETE"].map(method => ({ operationId: `${viewId}.${method.toLowerCase()}`, method, title: method, renderable: false, renderModes: [], robots: [] }));
+  source.routes = operations.map(operation => ({ id: uuidv7(), kind: "api", path: apiRoutePath(sourceId, path), targetPath: path,
+    serviceId: sourceId, viewId, enabled: true, operations: [operation.operationId], query: "format=json" }));
+  assert.equal((await call()).status, 201);
+  const deployment = storage.current.previewEnvironmentDeployments[0];
+  const instanceId = deployment.services[0].instanceId;
+  const preview = storage.current.apps.find(app => app.id === deployment.appId)!;
+  const firstId = preview.routes[0].id;
+  storage.current.manifestCache.push({ serviceId: instanceId, manifestVersion: "11", fetchedAt: new Date().toISOString(), viewIndex: {
+    [viewId]: { viewId, path, pathVariants: [], operations }
+  } } as never);
+  delete deployment.credentialReplay;
+  storage.invalidate();
+  assert.equal((await call()).status, 200, "cached-manifest refresh must not fail on equivalent mounts");
+  const migrated = storage.current.apps.find(app => app.id === deployment.appId)!;
+  assert.equal(migrated.routes.length, 1);
+  assert.equal(migrated.routes[0].id, firstId);
+  assert.equal(migrated.routes[0].path, apiRoutePath("org.example.service", path));
+  assert.equal(migrated.routes[0].query, "format=json");
+  assert.deepEqual(migrated.routes[0].operations, operations.map(operation => operation.operationId));
+  const routes = structuredClone(migrated.routes);
+  delete storage.current.previewEnvironmentDeployments[0].credentialReplay;
+  storage.invalidate();
+  assert.equal((await call()).status, 200);
+  assert.deepEqual(storage.current.apps.find(app => app.id === deployment.appId)!.routes, routes);
+  assert.deepEqual(storage.current.apps[0].routes, source.routes, "source mounts must remain untouched");
 });

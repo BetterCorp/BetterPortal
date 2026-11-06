@@ -36,9 +36,11 @@ import {
   resolveEmbeddedRequestContext,
   resolveThemeSourceHeader,
   resolveThemeLlmsContext,
+  readBoundedJsonBody,
   verifySetupToken,
   verifyServiceConfigTicket,
   ElevationRequirementSchema,
+  ScopedServiceConfigSchema,
   type ElevationRequirement,
   type JwtClaims,
   type BpTokenIssuer,
@@ -446,7 +448,7 @@ export abstract class BPService<
         const escape = (value: string) => value.replace(/[&<>"']/g, (character) => ({
           "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
         })[character]!);
-        return `<bp-element data-bp-element data-bp-state="loading" aria-busy="true" data-bp-service="${escape(item.serviceId)}" hx-get="${escape(target.toString())}" hx-trigger="load, bp:element-retry" hx-target="this" hx-swap="none"></bp-element>`;
+        return `<bp-route data-bp-route data-bp-mode="embed" data-bp-state="loading" aria-busy="true" data-bp-service="${escape(item.serviceId)}" hx-get="${escape(target.toString())}" hx-trigger="load, bp:route-retry" hx-target="this" hx-swap="none" style="display:contents"><template data-bp-route-state="ok"><template data-bp-route-insertion></template></template></bp-route>`;
       };
 
       if (definition.kind === "fragment") {
@@ -700,6 +702,7 @@ export abstract class BPService<
 
     const mountedServiceId = serviceType === "auth" ? app.auth?.serviceId : app.shell?.serviceId;
     if (!mountedServiceId) return false;
+    const identityId = scoped.serviceIdentity?.id;
 
     return tenant.services.some((service) =>
       service.enabled !== false
@@ -707,6 +710,7 @@ export abstract class BPService<
       && (
         service.serviceId === this.manifest.pluginId
         || service.sharedServiceId === this.manifest.pluginId
+        || (identityId !== undefined && (service.id === identityId || service.sharedServiceId === identityId))
       )
     );
   }
@@ -995,6 +999,7 @@ export abstract class BPService<
 
     createH3Router(registry, this.app, {
       serviceId: def.manifest.pluginId,
+      resolveRouteServiceId: () => this.scopedConfig?.serviceIdentity?.id,
       resolveAuth: (event, route) => this.resolveAuthForRequest(event, route),
       validateTenantApp: (tenantId, appId) => this.validateTenantApp(tenantId, appId),
       resolveContext: (event, route) => this.resolveHandlerContext(event, route)
@@ -1158,9 +1163,9 @@ export abstract class BPService<
 
     let lastAppliedConfig: string | undefined;
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
-      const serialized = JSON.stringify(rawConfig);
+      const nextConfig = ScopedServiceConfigSchema.parse(rawConfig) as unknown as ScopedServiceConfig;
+      const serialized = JSON.stringify(nextConfig);
       if (serialized === lastAppliedConfig) return;
-      const nextConfig = rawConfig as ScopedServiceConfig;
       this.applyPreviewConfig(nextConfig);
       this.scopedConfig = nextConfig;
       this.seoProbeCache.clear();
@@ -1168,7 +1173,7 @@ export abstract class BPService<
       // Persist for restart resilience - the service owns its cache; CM's
       // bp-config.yaml is never shared.
       try {
-        this.scopedConfigCache.write(rawConfig);
+        this.scopedConfigCache.write(nextConfig);
         lastAppliedConfig = serialized;
       } catch (err) {
         obs.log.warn("Failed to persist scoped config cache: {msg}", { msg: (err as Error).message });
@@ -1359,7 +1364,7 @@ export abstract class BPService<
         let eventType = "";
         let dataLines: string[] = [];
 
-        const dispatchEvent = (): void => {
+        const dispatchEvent = async (): Promise<void> => {
           const data = dataLines.join("\n");
           if (eventType === "config" && dataLines.length > 0) {
             obs.log.info("BP SYNC CLIENT: SSE config event received service={serviceId} bytes={bytes} lines={lines}", {
@@ -1374,6 +1379,8 @@ export abstract class BPService<
               obs.log.warn("Control plane config parse failed: {msg}", {
                 msg: error instanceof Error ? error.message : String(error)
               });
+              await reader.cancel().catch(() => {});
+              throw error;
             }
           } else if (dataLines.length > 0) {
             obs.log.warn("BP SYNC CLIENT: ignored SSE event service={serviceId} event={event} bytes={bytes}", {
@@ -1402,7 +1409,7 @@ export abstract class BPService<
               const value = normalizedLine.slice(5);
               dataLines.push(value.startsWith(" ") ? value.slice(1) : value);
             } else if (normalizedLine === "") {
-              dispatchEvent();
+              await dispatchEvent();
             }
           }
         }
@@ -2494,7 +2501,8 @@ export abstract class BPService<
   private registerInstallEndpoint(obs: Observable): void {
     this.app.post("/.well-known/bp/install", async (event) => {
       // CORS already handled by handleWithCors for public discovery paths.
-      const body = await event.req.json().catch(() => null);
+      const body = await readBoundedJsonBody(event.req, 1024 * 1024);
+      if (body instanceof Response) return body;
       if (!body || typeof body !== "object") {
         return coreJsonResponse(
           { error: "Request body must be JSON object" },
@@ -2520,9 +2528,25 @@ export abstract class BPService<
           "Install request is missing cpUrl"
         );
       }
+      if (!this.resolvedCpUrl) {
+        return coreJsonResponse(
+          { error: "A trusted control-plane URL must be configured before installation" },
+          503,
+          "service.install_control_plane_unconfigured",
+          "A trusted control-plane URL is required for installation"
+        );
+      }
 
       try {
         const normalizedCp = normalizeControlPlaneUrl(cpUrl);
+        if (normalizedCp !== normalizeControlPlaneUrl(this.resolvedCpUrl)) {
+          return coreJsonResponse(
+            { error: "Installation control plane does not match configured trust" },
+            403,
+            "service.install_control_plane_mismatch",
+            "Installation control plane does not match configured trust"
+          );
+        }
         const jwksUri = `${normalizedCp}/.well-known/jwks.json`;
         const claims = await verifySetupToken(setupToken, {
           jwks: { jwksUri, issuer: normalizedCp },
@@ -2632,7 +2656,9 @@ export abstract class BPService<
 
   private registerHostnameChangeEndpoint(obs: Observable): void {
     this.app.post("/.well-known/bp/hostname-change", async (event) => {
-      const body = await event.req.json().catch(() => null) as { changeToken?: string } | null;
+      const parsed = await readBoundedJsonBody(event.req, 1024 * 1024);
+      if (parsed instanceof Response) return parsed;
+      const body = parsed as { changeToken?: string } | null;
       if (!body || typeof body.changeToken !== "string" || body.changeToken.length === 0) {
         return coreJsonResponse(
           { error: "Missing changeToken" },

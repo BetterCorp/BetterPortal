@@ -27,8 +27,6 @@ export const RequestSchema = av.object({
 
 export const ResponseSchema = av.object({
   challenge: av.optional(JsonObjectSchema),
-  accountUrl: av.optional(av.string()),
-  socialUrl: av.optional(av.string()),
   status: av.enum_(["ok", "error"] as const).describe("Login request outcome."),
   message: av.optional(av.string()).describe("Human-readable status or error message for the renderer."),
   accessToken: av.optional(av.string()).describe("Signed JWT access token returned on successful login."),
@@ -43,18 +41,10 @@ export const ResponseSchema = av.object({
   // True while management bootstrap is incomplete - the theme renderer redirects
   // to the register view (first-admin setup) instead of showing the login form.
   requiresFirstAdmin: av.optional(av.bool()).describe("True while management bootstrap is incomplete; the theme renderer should redirect to first-admin registration instead of showing the login form."),
-  // Absolute URL of this auth service's register view (self-origin). Provided so
-  // the theme renderer can load it in-shell without knowing the auth origin.
-  firstAdminUrl: av.optional(av.string()).describe("Absolute self-origin URL of this auth service's register view so the theme can load it in-shell without knowing the auth origin."),
   // True when the GET request already carried a valid access token - the theme
   // renderer shows a "signed in" state instead of the login form.
   alreadyLoggedIn: av.optional(av.bool()).describe("True when the GET request already carried a valid access token; the theme renderer should show a signed-in state instead of the login form."),
-  loggedOut: av.optional(av.bool()).describe("True after the login route handled ?action=logout."),
-  // Tenant-app path of the logout view (app config auth.logoutViewId).
-  logoutUrl: av.optional(av.string()).describe("Tenant-app path of the logout view from app auth config."),
-  // Echo of ?next= when already signed in - the theme renderer redirects there
-  // immediately instead of showing the signed-in card.
-  nextUrl: av.optional(av.string()).describe("Echo of the next path when already signed in; the theme renderer should redirect there immediately.")
+  loggedOut: av.optional(av.bool()).describe("True after the login route handled ?action=logout.")
 });
 export type ResponseData = Infer<typeof ResponseSchema>;
 
@@ -88,22 +78,19 @@ export const handleGet = createHandler(
     const requiresFirstAdmin = runtime.isManagement({ tenantId: ctx.tenant.id, appId: ctx.app.id }) && await runtime.identity.bootstrapAvailable({ tenantId: ctx.tenant.id, appId: ctx.app.id });
     if ((ctx.query as Infer<typeof QuerySchema>).action === "logout") {
       await revokePresentedRefreshToken(runtime, ctx.headers["x-bp-refresh"], ctx.tenant.id, ctx.app.id);
-      const nextUrl = resolveAppAuthRedirect(ctx, "afterLogout");
       ctx.bpHeaders?.remove("Authorization");
       ctx.bpHeaders?.remove("X-BP-Refresh");
       if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
       return {
         status: "ok" as const,
         message: "Signed out.",
-        loggedOut: true,
-        nextUrl
+        loggedOut: true
       };
     }
 
     // Valid token already on the request - no point rendering a login form.
     // Management bootstrap still wins until its durable completion marker exists.
     if (ctx.user && !requiresFirstAdmin) {
-      const next = resolveAppAuthRedirect(ctx, "afterLogin", (ctx.query as { next?: string }).next);
       return {
         status: "ok" as const,
         message: "Already signed in.",
@@ -114,26 +101,13 @@ export const handleGet = createHandler(
           email: ctx.user.email,
           name: ctx.user.name
         },
-        logoutUrl: ctx.routeUrl?.("login.index", { query: { action: "logout" } }) ?? "/login?action=logout",
-        nextUrl: next
       };
     }
 
-    let firstAdminUrl: string | undefined;
-    if (requiresFirstAdmin) {
-      const next = (ctx.query as { next?: string }).next;
-      const query = next ? { next } : undefined;
-      firstAdminUrl = ctx.routeUrl?.("register.index", { absolute: true, query })
-        ?? ctx.routeUrl?.("register.index", { query })
-        ?? undefined;
-    }
     return {
       status: "ok" as const,
       message: "Submit username + password via POST to authenticate.",
-      socialUrl: ctx.routeUrl?.("social.index", { absolute: true }) ?? "/social",
       requiresFirstAdmin,
-      accountUrl: ctx.routeUrl?.("account.index", { absolute: true }) ?? "/account",
-      ...(firstAdminUrl ? { firstAdminUrl } : {})
     };
   }
 );
@@ -168,7 +142,7 @@ export const handlePost = createHandler(
       const event = ctx.rawEvent as { req: Request; url: URL };
       const prepared = await runtime.factors.prepare(user, event.req.headers.get("origin") ?? event.url.origin, !hasFactors);
       const ticket = await runtime.identity.challenge(scope, "login", { version: user.refreshVersion, factor: prepared.private }, user.id);
-      return { status: "ok" as const, accountUrl: ctx.routeUrl?.("account.index", { absolute: true }) ?? "/account", challenge: { ...ticket, ...prepared.public } as any, message: hasFactors ? "Verify your identity." : "Set up multi-factor authentication to finish signing in." };
+      return { status: "ok" as const, challenge: { ...ticket, ...prepared.public } as any, message: hasFactors ? "Verify your identity." : "Set up multi-factor authentication to finish signing in." };
     }
     const issued = await runtime.identity.issueSession(scope, policy, user, runtime.tokenIssuer, runtime.refreshTokenSeconds);
     if (!issued.refreshToken) {

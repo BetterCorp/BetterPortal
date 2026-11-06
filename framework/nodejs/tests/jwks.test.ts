@@ -53,3 +53,18 @@ test("refreshes cached JWKS when a rotated kid is unknown", async (t) => {
   assert.equal(await getSigningKeyForKid(options, second.kid), second.publicKeyPem);
   assert.equal(fetches, 2);
 });
+
+test("JWKS lookup rejects oversized streamed provider responses", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const key = generateKeyPair({ kid: "bounded" });
+  const payload = new TextEncoder().encode(JSON.stringify({
+    keys: [publicKeyToJwk(key.publicKeyPem, key.kid)], padding: "x".repeat(512 * 1024)
+  }));
+  globalThis.fetch = async () => new Response(new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(payload); controller.close(); }
+  }), { headers: { "content-type": "application/json" } });
+  t.after(() => { globalThis.fetch = originalFetch; clearJwksCache(); });
+  await assert.rejects(getSigningKeyForKid({
+    issuer: "https://oversized.example", jwksUri: "https://oversized.example/jwks"
+  }, key.kid), /JWKS response too large/);
+});

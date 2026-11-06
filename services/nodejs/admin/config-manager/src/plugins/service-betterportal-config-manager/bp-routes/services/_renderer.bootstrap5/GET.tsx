@@ -1,7 +1,16 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../GET.js";
+
+const TICKET_ONLY_THEME_SERVICES = new Set([
+  "org.betterportal.theme.bootstrap1",
+  "org.betterportal.theme.bootstrap2"
+]);
+
+function scriptJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
 
 function configureAttrs(
   service: ResponseData["services"][number],
@@ -18,7 +27,7 @@ function configureAttrs(
     ...(appId ? { appId } : {})
   }).toString();
 
-  if (service.supportsCustomUi && service.customUiPath && appId) {
+  if (service.supportsCustomUi && service.customUiPath && appId && !TICKET_ONLY_THEME_SERVICES.has(service.serviceId ?? "")) {
     const target = `${service.hostname.replace(/\/+$/, "")}${service.customUiPath}?tenantId=${encodeURIComponent(service.tenantId ?? "")}&appId=${encodeURIComponent(appId)}&adminApiBase=${encodeURIComponent(adminApiBase)}`;
     const push = `${service.pushBase}?tenantId=${encodeURIComponent(service.tenantId ?? "")}&appId=${encodeURIComponent(appId)}`;
     return {
@@ -113,6 +122,8 @@ function renderServiceCard(
                   type="button"
                   data-bp-change-hostname=""
                   data-bp-service-id={service.id}
+                  data-bp-service-plugin-id={service.serviceId ?? ""}
+                  data-bp-tenant-id={service.tenantId ?? ""}
                   data-bp-service-url={normalizeUrl(service.hostname)}
                   data-bs-toggle="offcanvas"
                   data-bs-target="#bp-change-hostname-panel"
@@ -129,6 +140,8 @@ function renderServiceCard(
                     data-bp-service-plugin-id={service.serviceId}
                     data-bp-service-url={normalizeUrl(service.hostname)}
                     data-bp-tenant-id={service.tenantId ?? ""}
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#bp-change-hostname-panel"
                   >
                     Reconnect
                   </button>
@@ -251,6 +264,7 @@ function renderCatalogCard(
                 type="button"
                 data-bp-change-hostname=""
                 data-bp-service-id={item.id}
+                data-bp-service-plugin-id={item.serviceId ?? item.id}
                 data-bp-service-url={normalizeUrl(item.baseUrl)}
                 data-bs-toggle="offcanvas"
                 data-bs-target="#bp-change-hostname-panel"
@@ -372,7 +386,7 @@ export function render(data: ResponseData): HtmlRenderable {
   const serviceBaseUrl = data.serviceBaseUrl ?? "";
 
   return (
-    <div class="container-fluid px-0">
+    <div class="container-fluid px-0" id="bp-services-page">
       <div class="d-flex justify-content-between align-items-center mb-4 gap-3">
         <div>
           <h2 class="mb-1">{data.title}</h2>
@@ -548,13 +562,20 @@ export function render(data: ResponseData): HtmlRenderable {
         <div class="offcanvas-body">
           <form id="bp-change-hostname-form" data-bp-config="rewrite=false">
             <input type="hidden" name="instanceId" />
+            <input type="hidden" name="pluginId" />
+            <input type="hidden" name="tenantId" />
             <div class="mb-3">
               <label class="form-label">New service URL</label>
               <input class="form-control" type="url" name="baseUrl" placeholder="https://service.example.com" required />
             </div>
             <div class="alert alert-info small">
-              The new URL must be this exact installed instance. BetterPortal verifies it with the instance's existing API key.
+              Installed services verify their existing API key. If the service was reset, set it up again to keep its existing registration and app bindings.
             </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="reconfigure" id="bp-reinstall-service" />
+              <label class="form-check-label" for="bp-reinstall-service">Set up a reset service at this URL</label>
+            </div>
+            <div id="bp-change-hostname-status" class="alert alert-secondary small" role="status" aria-live="polite">Enter the service URL to verify or reconnect it.</div>
             <button type="submit" class="btn btn-primary w-100">Verify and change URL</button>
           </form>
         </div>
@@ -583,33 +604,52 @@ export function render(data: ResponseData): HtmlRenderable {
                 <option value="3p">Third party</option>
               </select>
             </div>
-            <div class="alert alert-secondary small" id="bp-shared-service-preview">Manifest details are loaded from the service before it is added.</div>
+            <div class="alert alert-secondary small" id="bp-shared-service-preview" role="status" aria-live="polite">Manifest details are loaded from the service before it is added.</div>
             <button type="submit" class="btn btn-primary w-100">Add Shared Service</button>
           </form>
-          <script>
+        </div>
+      </div>
+      <script>
             {js(`
 (() => {
-  const tenantForm = document.getElementById("bp-tenant-service-form");
-  const sharedForm = document.getElementById("bp-shared-service-form");
-  const hostnameForm = document.getElementById("bp-change-hostname-form");
-  const alerts = document.getElementById("bp-services-alerts");
-  const tenantPreview = document.getElementById("bp-tenant-service-preview");
-  const sharedPreview = document.getElementById("bp-shared-service-preview");
-  const serviceBaseUrl = ${JSON.stringify(serviceBaseUrl)}.replace(/\\/+$/, "");
-  const adminApiBase = serviceBaseUrl + ${JSON.stringify(adminApiBase)};
-  const selectedServicesPath = ${JSON.stringify(selectedServicesPath)};
+  const root = document.currentScript?.closest("#bp-services-page") || document.getElementById("bp-services-page");
+  // HTMX copies HTML attributes from the previous page while settling a swap.
+  if (!root || root.__bpServicesReady) return;
+  root.__bpServicesReady = true;
+  const tenantForm = root.querySelector("#bp-tenant-service-form");
+  const sharedForm = root.querySelector("#bp-shared-service-form");
+  const hostnameForm = root.querySelector("#bp-change-hostname-form");
+  const tenantPreview = root.querySelector("#bp-tenant-service-preview");
+  const sharedPreview = root.querySelector("#bp-shared-service-preview");
+  const hostnameStatus = root.querySelector("#bp-change-hostname-status");
+  const serviceBaseUrl = ${scriptJson(serviceBaseUrl)}.replace(/\\/+$/, "");
+  const adminApiBase = serviceBaseUrl + ${scriptJson(adminApiBase)};
+  const selectedServicesPath = ${scriptJson(selectedServicesPath)};
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (ch) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[ch]);
   const setAlert = (kind, message) => {
+    const alerts = document.getElementById("bp-services-alerts");
     if (!alerts) return;
     alerts.innerHTML = '<div class="alert alert-' + kind + '">' + escapeHtml(message) + '</div>';
   };
-  const setTenantStatus = (kind, message) => {
-    if (!tenantPreview) return;
-    tenantPreview.className = "alert alert-" + kind + " small";
-    tenantPreview.textContent = message;
+  const setStatus = (node, kind, message) => {
+    if (!node) return;
+    node.className = "alert alert-" + kind + " small";
+    node.textContent = message;
   };
+  const setTenantStatus = (kind, message) => setStatus(tenantPreview, kind, message);
+  const setSharedStatus = (kind, message) => setStatus(sharedPreview, kind, message);
+  const setHostnameStatus = (kind, message) => {
+    setStatus(hostnameStatus, kind, message);
+    const submit = hostnameForm?.querySelector('button[type="submit"]');
+    if (submit) submit.textContent = hostnameForm.elements.reconfigure.checked ? "Set up and update URL" : "Verify and change URL";
+  };
+  hostnameForm?.elements.reconfigure.addEventListener("change", () => {
+    setHostnameStatus("secondary", hostnameForm.elements.reconfigure.checked
+      ? "The service must be reset and its plugin must match the existing registration."
+      : "The installed service will verify its existing API key.");
+  });
   const showToast = (message) => {
     let container = document.getElementById("bp-toast-container");
     if (!container) {
@@ -659,14 +699,12 @@ export function render(data: ResponseData): HtmlRenderable {
   };
   const refreshServices = async () => {
     const url = (serviceBaseUrl || "") + selectedServicesPath;
-    if (window.htmx) {
-      window.htmx.ajax("GET", url, { target: "#bp-main", swap: "innerHTML" });
-      return;
-    }
     const response = await managementFetch(url, { headers: { Accept: "text/html" }, cache: "no-store" });
     const html = await response.text();
     const main = document.getElementById("bp-main");
-    if (response.ok && main) main.innerHTML = html;
+    if (!response.ok) throw new Error("Could not refresh the services list. Reload the page to see the latest state.");
+    if (main && window.htmx) await window.htmx.swap({ text: html, sourceElement: main, target: main, swap: "innerHTML" });
+    else if (main) main.innerHTML = html;
   };
   const loadManifest = async (baseUrl) => {
     const response = await fetch(baseUrl + "/.well-known/bp/manifest", {
@@ -700,8 +738,20 @@ export function render(data: ResponseData): HtmlRenderable {
     } catch { /* manifest-only fallback */ }
     return { manifest, routes: [] };
   };
-  const installShared = async (id, baseUrl) => {
-    setAlert("secondary", "Installing shared service...");
+  const finishAction = async (panel, message) => {
+    showToast(message);
+    const instance = panel && window.bootstrap?.Offcanvas?.getInstance(panel);
+    if (instance && panel.matches(".show, .showing, .hiding")) {
+      await new Promise((resolve) => {
+        panel.addEventListener("hidden.bs.offcanvas", resolve, { once: true });
+        instance.hide();
+      });
+    } else instance?.hide();
+    try { if (root.isConnected) await refreshServices(); }
+    catch (error) { setAlert("warning", message + " " + (error instanceof Error ? error.message : String(error))); }
+  };
+  const installShared = async (id, baseUrl, status = setAlert, panel) => {
+    status("secondary", "Installing shared service...");
     const install = await postJson(adminApiBase + "/services/begin-install", {
       serviceUrl: baseUrl,
       sharedServiceId: id
@@ -710,8 +760,8 @@ export function render(data: ResponseData): HtmlRenderable {
       setupToken: install.setupToken,
       cpUrl: install.cpUrl
     });
-    setAlert("success", "Shared service installed. Waiting for sync...");
-    await refreshServices();
+    status("success", "Shared service installed. Waiting for sync...");
+    await finishAction(panel, "Shared service installed successfully.");
   };
   const installTenant = async (registered) => {
     setTenantStatus("secondary", "Installing service...");
@@ -725,11 +775,6 @@ export function render(data: ResponseData): HtmlRenderable {
         setupToken: install.setupToken,
         cpUrl: install.cpUrl
       });
-      setTenantStatus("success", "Service installed. Refreshing services...");
-      const panel = document.getElementById("bp-add-service-panel");
-      window.bootstrap?.Offcanvas?.getInstance(panel)?.hide();
-      showToast((registered.title || "Service") + " registered successfully.");
-      await refreshServices();
     } catch (error) {
       try {
         await postJson(adminApiBase + "/wizard/cleanup-provisional-service", {
@@ -739,27 +784,10 @@ export function render(data: ResponseData): HtmlRenderable {
       } catch { /* cleanup best effort */ }
       throw error;
     }
+    setTenantStatus("success", "Service installed. Refreshing services...");
+    await finishAction(tenantForm.closest(".offcanvas"), (registered.title || "Service") + " registered successfully.");
   };
-  const reconfigureService = async (button) => {
-    const serviceUrl = button.dataset.bpServiceUrl;
-    const instanceId = button.dataset.bpServiceId;
-    const expectedPluginId = button.dataset.bpServicePluginId;
-    const health = await loadHealth(serviceUrl);
-    if (!health || health.setupMode !== true || health.pluginId !== expectedPluginId) {
-      throw new Error("Service is not in setup mode or its plugin id does not match");
-    }
-    const install = await postJson(adminApiBase + "/services/begin-install", {
-      serviceUrl,
-      instanceId,
-      tenantId: button.dataset.bpTenantId || undefined,
-      reconfigure: true
-    });
-    await postJson(serviceUrl + "/.well-known/bp/install", {
-      setupToken: install.setupToken,
-      cpUrl: install.cpUrl
-    });
-  };
-  document.querySelectorAll("[data-bp-reconfigure-service]").forEach(async (button) => {
+  root.querySelectorAll("[data-bp-reconfigure-service]").forEach(async (button) => {
     try {
       const health = await loadHealth(button.dataset.bpServiceUrl);
       const needsReconnect = health?.setupMode === true && health.pluginId === button.dataset.bpServicePluginId;
@@ -771,62 +799,69 @@ export function render(data: ResponseData): HtmlRenderable {
       }
     } catch { button.hidden = true; }
   });
-  document.addEventListener("click", async (event) => {
-    const hostnameButton = event.target?.closest?.("[data-bp-change-hostname]");
+  root.addEventListener("click", async (event) => {
+    const hostnameButton = event.target?.closest?.("[data-bp-change-hostname], [data-bp-reconfigure-service]");
     if (hostnameButton && hostnameForm) {
       hostnameForm.elements.instanceId.value = hostnameButton.dataset.bpServiceId || "";
       hostnameForm.elements.baseUrl.value = hostnameButton.dataset.bpServiceUrl || "";
-      return;
-    }
-    const reconfigureButton = event.target?.closest?.("[data-bp-reconfigure-service]");
-    if (reconfigureButton) {
-      event.preventDefault();
-      if (!window.confirm("Reconnect this service to BetterPortal?")) return;
-      reconfigureButton.disabled = true;
-      try {
-        setAlert("secondary", "Reconnecting service...");
-        await reconfigureService(reconfigureButton);
-        setAlert("success", "Service reconnected. Refreshing services...");
-        await refreshServices();
-      } catch (error) {
-        setAlert("danger", error instanceof Error ? error.message : String(error));
-        reconfigureButton.disabled = false;
-      }
+      hostnameForm.elements.pluginId.value = hostnameButton.dataset.bpServicePluginId || "";
+      hostnameForm.elements.tenantId.value = hostnameButton.dataset.bpTenantId || "";
+      hostnameForm.elements.reconfigure.checked = hostnameButton.hasAttribute("data-bp-reconfigure-service");
+      setHostnameStatus("secondary", "Enter the service URL to verify or reconnect it.");
       return;
     }
     const button = event.target?.closest?.("[data-bp-install-shared]");
     if (!button) return;
     event.preventDefault();
+    if (button.disabled) return;
+    button.disabled = true;
     try {
       await installShared(button.dataset.bpInstallShared, button.dataset.bpInstallUrl);
     } catch (error) {
       setAlert("danger", error instanceof Error ? error.message : String(error));
-    }
+    } finally { button.disabled = false; }
   });
   hostnameForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const submit = hostnameForm.querySelector('button[type="submit"]');
+    if (submit?.disabled) return;
     const fd = new FormData(hostnameForm);
     const instanceId = String(fd.get("instanceId") || "").trim();
     const baseUrl = String(fd.get("baseUrl") || "").trim().replace(/\\/+$/, "");
     if (!instanceId || !baseUrl) {
-      setAlert("danger", "Service instance and URL are required");
+      setHostnameStatus("danger", "Service instance and URL are required");
       return;
     }
     if (submit) submit.disabled = true;
     try {
-      setAlert("secondary", "Verifying exact installed service instance...");
-      const change = await postJson(adminApiBase + "/services/begin-hostname-change", {
-        instanceId,
-        serviceUrl: baseUrl
-      });
-      await postJson(baseUrl + "/.well-known/bp/hostname-change", {
-        changeToken: change.changeToken
-      });
-      setAlert("success", "Service URL changed and verified.");
-      await refreshServices();
+      setHostnameStatus("secondary", "Checking service...");
+      const health = await loadHealth(baseUrl);
+      const reconfigure = hostnameForm.elements.reconfigure;
+      if (health?.setupMode === true && !reconfigure.checked) {
+        reconfigure.checked = true;
+        setHostnameStatus("warning", "This service has been reset. Submit again to set it up at this URL and keep its existing registration and app bindings.");
+        return;
+      }
+      if (reconfigure.checked) {
+        const expectedPluginId = String(fd.get("pluginId") || "");
+        if (!expectedPluginId || health?.setupMode !== true || health.pluginId !== expectedPluginId) {
+          throw new Error("The service must be in setup mode and its plugin must match the existing registration.");
+        }
+        setHostnameStatus("secondary", "Setting up service...");
+        const install = await postJson(adminApiBase + "/services/begin-install", {
+          instanceId, serviceUrl: baseUrl, tenantId: String(fd.get("tenantId") || "") || undefined, reconfigure: true
+        });
+        await postJson(baseUrl + "/.well-known/bp/install", { setupToken: install.setupToken, cpUrl: install.cpUrl });
+      } else {
+        setHostnameStatus("secondary", "Verifying exact installed service instance...");
+        const change = await postJson(adminApiBase + "/services/begin-hostname-change", { instanceId, serviceUrl: baseUrl });
+        await postJson(baseUrl + "/.well-known/bp/hostname-change", { changeToken: change.changeToken });
+      }
+      const message = reconfigure.checked ? "Service set up and URL updated." : "Service URL changed and verified.";
+      setHostnameStatus("success", message);
+      await finishAction(hostnameForm.closest(".offcanvas"), message);
     } catch (error) {
-      setAlert("danger", error instanceof Error ? error.message : String(error));
+      setHostnameStatus("danger", error instanceof Error ? error.message : String(error));
     } finally {
       if (submit) submit.disabled = false;
     }
@@ -834,6 +869,7 @@ export function render(data: ResponseData): HtmlRenderable {
   tenantForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const submit = tenantForm.querySelector('button[type="submit"]');
+    if (submit?.disabled) return;
     const fd = new FormData(tenantForm);
     const tenantId = String(fd.get("tenantId") || "").trim();
     const baseUrl = String(fd.get("baseUrl") || "").trim().replace(/\\/+$/, "");
@@ -870,18 +906,19 @@ export function render(data: ResponseData): HtmlRenderable {
   sharedForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const submit = sharedForm.querySelector('button[type="submit"]');
+    if (submit?.disabled) return;
     const fd = new FormData(sharedForm);
     const baseUrl = String(fd.get("baseUrl") || "").trim().replace(/\\/+$/, "");
     if (!baseUrl) {
-      setAlert("danger", "Base URL is required");
+      setSharedStatus("danger", "Base URL is required");
       return;
     }
     if (submit) submit.disabled = true;
     try {
-      setAlert("secondary", "Loading service manifest...");
+      setSharedStatus("secondary", "Loading service manifest...");
       const manifest = await loadManifest(baseUrl);
       setPreview(sharedPreview, manifest);
-      setAlert("secondary", "Creating shared service...");
+      setSharedStatus("secondary", "Creating shared service...");
       const createBody = {
         baseUrl,
         owner: String(fd.get("owner") || "bp"),
@@ -889,18 +926,16 @@ export function render(data: ResponseData): HtmlRenderable {
         manifest
       };
       const created = await postJson(adminApiBase + "/shared-services", createBody);
-      await installShared(created.id || manifest.pluginId, baseUrl);
+      await installShared(created.id || manifest.pluginId, baseUrl, setSharedStatus, sharedForm.closest(".offcanvas"));
     } catch (error) {
-      setAlert("danger", error instanceof Error ? error.message : String(error));
+      setSharedStatus("danger", error instanceof Error ? error.message : String(error));
     } finally {
       if (submit) submit.disabled = false;
     }
   });
 })();
             `)}
-          </script>
-        </div>
-      </div>
+      </script>
     </div>
   );
 }

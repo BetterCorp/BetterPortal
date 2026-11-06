@@ -9,3 +9,29 @@ This package demonstrates:
 - metadata representation
 - schema-first validation
 - support for the `bootstrap1` and `embedded` themes
+
+The API examples return domain data and stream items. They do not generate internal URL fields for the view. Renderers receive `ViewRenderContext` as their second argument and resolve navigation, actions and pagination locally with `ctx.route(input?)`; see the `hello` showcase renderer for cursor-based fragment pagination. Select `uiPath` for page navigation, `absoluteViewPath` for HTML/HTMX requests and `absoluteApiPath` for JSON actions. Specify the action method; omit the target to resolve self. See the [routing contract and paired API/view example](../../../../docs/building/routes-and-views.md).
+
+For collections, return domain items, IDs and cursors from the API, then resolve links in the renderer. `ctx.route()` preserves repeated query values such as `?tag=a&tag=b`; a scalar override replaces the complete key and null removes it. Embedded values such as `/items?q=what?x&next=/a?b` retain their complete content before encoding and overrides.
+
+Select renderers with the explicit `component` or `fragment` option. Reserved `_c`/`_f` query keys in input paths or the current request are removed; only view destinations receive an explicit selector. Service base metadata preserves non-root prefixes and omits a root trailing slash.
+
+The fatal prebuild check includes NodeNext `.mts`/`.cts` files and covers configured route/shell folders outside `src` plus source helpers under `src/lib` and `src/dist`, and follows statically traceable response helpers and object methods, aliases, array bindings/destructuring assignments with statically named computed keys, callbacks, promise constructors/combinators and string/collection transformations, including property descriptor factories/mutations and returned array mutations, reversible URI encoding, element selection, removed splice values and replacement values on dynamically initialized strings. Avoid returning internal destinations through these returned or yielded response paths. Public links, scalar counts/characters and domain-client results remain valid. Import BP handler factories from `@betterportal/framework` or the generated `.bp-generated/route-runtime.js`; unrelated provider helpers retain their own semantics.
+
+`sse: true` requires a known registered GET subscriber feed or finite-stream endpoint on the current service. Unsupported ordinary routes, non-GET methods and dependency mounts with unknown streaming capability return null.
+
+Dependency mounts require a resolved service path to identify an endpoint; missing service paths return null.
+
+Selecting a domain field from a known object remains valid even when another field holds an internal destination. The authoring check follows the selected field through aliases.
+
+BP `ctx.response()` bodies participate in the same checks as `Response` and JSON response helpers; public links and domain data remain valid.
+
+The authoring gate follows explicitly rejected promise reasons into recovery callbacks and local response factories invoked through `call`, `apply` and `bind`. Recovery that returns domain data and factories that consume destinations without returning them remain valid. This source check covers recognized static patterns; it is not a proof of arbitrary JavaScript data flow.
+
+Bound callback arguments precede caller-supplied promise/collection inputs during source checks. Explicit rejection reasons also follow local recovery parameters, preserving safe recovery without overlooking returned destinations.
+
+Statically known spread arguments are expanded before call/apply/bind parameter mapping, including bound callbacks stored in known object fields.
+
+Rejection provenance passes through `then` calls without rejection handlers and through `finally`, stopping when a rejection handler recovers.
+
+Rest parameters retain the remaining argument array. Explicit rethrows and rejections retain their reason until recovery; native promise operations ignore extra callback arguments.

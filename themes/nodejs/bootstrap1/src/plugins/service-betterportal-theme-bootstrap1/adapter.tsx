@@ -11,13 +11,28 @@ export const Bootstrap1AdapterSource = js(() => {
       const title = element.getAttribute('data-bp-sidebar-title') || '';
       const position = element.getAttribute('data-bp-sidebar-position') || 'end';
       const width = element.getAttribute('data-bp-sidebar-width');
-      const content = element.innerHTML;
       element.id = id;
       element.setAttribute('data-bp-sidebar-ready', '');
       element.className = ('offcanvas offcanvas-' + position + ' ' + element.className).trim();
       element.setAttribute('tabindex', '-1');
       if (width) element.style.width = width;
-      element.innerHTML = '<div class="offcanvas-header">' + (title ? '<h5 class="offcanvas-title">' + title + '</h5>' : '<span></span>') + '<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div><div class="offcanvas-body">' + content + '</div>';
+      const header = document.createElement('div');
+      header.className = 'offcanvas-header';
+      const heading = document.createElement(title ? 'h5' : 'span');
+      if (title) {
+        heading.className = 'offcanvas-title';
+        heading.textContent = title;
+      }
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'btn-close';
+      close.setAttribute('data-bs-dismiss', 'offcanvas');
+      close.setAttribute('aria-label', 'Close');
+      header.append(heading, close);
+      const body = document.createElement('div');
+      body.className = 'offcanvas-body';
+      while (element.firstChild) body.appendChild(element.firstChild);
+      element.append(header, body);
     });
     root.querySelectorAll<HTMLElement>('[data-bp-sidebar-open]:not([data-bp-trigger-ready])').forEach((button) => {
       button.setAttribute('data-bp-trigger-ready', '');

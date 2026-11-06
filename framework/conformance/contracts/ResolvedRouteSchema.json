@@ -1,0 +1,50 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "apiPath": {
+        "kind": "string"
+      },
+      "viewPath": {
+        "kind": "string"
+      },
+      "uiPath": {
+        "kind": "nullable",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "absoluteApiPath": {
+        "kind": "nullable",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "absoluteViewPath": {
+        "kind": "nullable",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "absoluteUiPath": {
+        "kind": "nullable",
+        "inner": {
+          "kind": "string"
+        }
+      }
+    },
+    "required": [
+      "apiPath",
+      "viewPath",
+      "uiPath",
+      "absoluteApiPath",
+      "absoluteViewPath",
+      "absoluteUiPath"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

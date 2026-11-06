@@ -32,7 +32,7 @@ public sealed class Operation
     }
     public async ValueTask<RawResponse?> RenderError(RenderContext context, string message)
     {
-        var route = context.Route; var kind = route.Kind.ToString().ToLowerInvariant();
+        var route = context.RouteInfo; var kind = route.Kind.ToString().ToLowerInvariant();
         var identity = (route.Renderer, kind, route.Key.HasValue ? route.Key.Value : null, (int)route.Status);
         var renderer = ErrorRenderers.FirstOrDefault(item => item.Identity == identity);
         if (renderer is null && !Handler.Renderers.Any(item => (item.Identity.Renderer, item.Identity.Kind, item.Identity.Key) == (identity.Renderer, kind, identity.Item3))) return null;
@@ -40,7 +40,12 @@ public sealed class Operation
         var mode = kind == "page" ? route.Mode.ToString().ToLowerInvariant() : "fragment";
         return new RawResponse(System.Text.Encoding.UTF8.GetBytes(html), (int)route.Status, new Dictionary<string, string> { ["content-type"] = HtmlContentType(mode) });
     }
-    public string HtmlContentType(string mode) => Renderer.ContentType(mode, declaration.GetValueOrDefault("chrome"));
+    public string HtmlContentType(string mode, ResponseState? response = null)
+    {
+        var chrome = new Node((Node?)declaration.GetValueOrDefault("chrome") ?? []);
+        if (response is not null) foreach (var (key, value) in response.PageChrome) chrome[key] = value;
+        return Renderer.ContentType(mode, chrome);
+    }
     internal static Node Export(Schema schema) => (Node)Json.Read(Json.Write(V.Export(schema)))!;
     internal Node Metadata(string viewId, IReadOnlyDictionary<string, string> aliases, string pluginId)
     {

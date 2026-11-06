@@ -2,9 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, PublicJwks, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, signSetupToken } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, readBoundedJsonBody, signSetupToken, verifySetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import type { PostgresStorage } from "./storage/postgres.js";
+import { readPublicJsonBody } from "./publicJsonBody.js";
 
 interface PendingSetup {
   serviceUrl: string;
@@ -42,6 +43,8 @@ export function registerSetupEndpoints(input: {
 }): void {
   const pending = new Map<string, PendingSetup>();
   const pendingHostnameChanges = new Map<string, PendingHostnameChange>();
+  const readRegistrationConfig = () => input.postgres
+    ? input.postgres.loadConfig({ readOnly: true }) : input.storage.loadConfig();
 
   function sweep(): void {
     const now = Date.now();
@@ -55,12 +58,14 @@ export function registerSetupEndpoints(input: {
 
   input.app.post("/.well-known/bp/admin/services/begin-hostname-change", async (event) => {
     sweep();
-    const body = await event.req.json().catch(() => null) as { instanceId?: string; serviceUrl?: string } | null;
+    const parsedBody = await readBoundedJsonBody(event.req, 128 * 1024);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody as { instanceId?: string; serviceUrl?: string } | null;
     const instanceId = typeof body?.instanceId === "string" ? body.instanceId.trim() : "";
     const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
     if (!instanceId || !serviceUrl) return jsonResponse({ error: "A service instance and valid URL origin are required" }, 400);
 
-    const config = await input.storage.loadConfig();
+    const config = await readRegistrationConfig();
     const service = findServiceInstance(config, instanceId);
     if (!service) return jsonResponse({ error: "Service instance not found" }, 404);
     if (!service.enabled || !service.apiKeyHash) return jsonResponse({ error: "Only an installed, enabled service can change URL" }, 409);
@@ -86,7 +91,9 @@ export function registerSetupEndpoints(input: {
   input.app.post("/.well-known/bp/services/confirm-hostname-change", async (event) => {
     const owner = uuidv7();
     sweep();
-    const body = await event.req.json().catch(() => null) as { changeToken?: string; serviceUrl?: string } | null;
+    const parsed = await readPublicJsonBody(event);
+    if (parsed instanceof Response) return parsed;
+    const body = parsed as { changeToken?: string; serviceUrl?: string };
     const changeToken = typeof body?.changeToken === "string" ? body.changeToken : "";
     const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
     const actionKey = hashSecret(changeToken);
@@ -146,7 +153,9 @@ export function registerSetupEndpoints(input: {
   // otherwise mint one here.
   input.app.post("/.well-known/bp/admin/services/begin-install", async (event) => {
     sweep();
-    const body = await event.req.json().catch(() => null) as {
+    const parsedBody = await readBoundedJsonBody(event.req, 128 * 1024);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody as {
       serviceUrl?: string;
       tenantId?: string;
       appId?: string;
@@ -159,26 +168,28 @@ export function registerSetupEndpoints(input: {
     }
     let serviceUrl = body.serviceUrl.replace(/\/+$/, "");
     let tenantScope = body.tenantId ? { tenantId: body.tenantId, appId: body.appId } : undefined;
-    const sharedServiceId = typeof body.sharedServiceId === "string" && body.sharedServiceId.length > 0
+    let sharedServiceId = typeof body.sharedServiceId === "string" && body.sharedServiceId.length > 0
       ? body.sharedServiceId
       : undefined;
-    const instanceId = (typeof body.instanceId === "string" && body.instanceId.length > 0)
+    let instanceId = (typeof body.instanceId === "string" && body.instanceId.length > 0)
       ? body.instanceId : uuidv7();
     let expectedPluginId: string | undefined;
 
     if (body.reconfigure === true) {
-      const config = await input.storage.loadConfig();
+      const config = await readRegistrationConfig();
       const tenant = config.tenants.find((candidate) => candidate.services.some((service) => service.id === instanceId));
+      const shared = config.sharedServiceCatalog.find((service) => service.id === instanceId);
       const existing = tenant?.services.find((service) => service.id === instanceId)
-        ?? config.platformServices.find((service) => service.id === instanceId);
-      if (!existing) return jsonResponse({ error: "Only an existing non-shared service can be reconfigured" }, 404);
+        ?? config.platformServices.find((service) => service.id === instanceId) ?? shared;
+      if (!existing) return jsonResponse({ error: "Service instance not found" }, 404);
       if (!existing.serviceId) return jsonResponse({ error: "The existing service has no plugin id to verify" }, 409);
       const requestedOrigin = normalizeServiceOrigin(serviceUrl);
-      if (!requestedOrigin || requestedOrigin !== normalizeServiceOrigin(existing.hostname)) {
-        return jsonResponse({ error: "Reconfiguration must use the service's registered URL" }, 409);
-      }
+      if (!requestedOrigin) return jsonResponse({ error: "A valid service URL origin is required" }, 400);
       serviceUrl = requestedOrigin;
       tenantScope = tenant ? { tenantId: tenant.id, appId: undefined } : undefined;
+      sharedServiceId = shared?.id;
+      // Shared catalogs retain their opaque ID; the install token still uses a UUID instance claim.
+      if (shared) instanceId = uuidv7();
       expectedPluginId = existing.serviceId;
     }
 
@@ -233,7 +244,9 @@ export function registerSetupEndpoints(input: {
   input.app.post("/.well-known/bp/services/redeem", async (event) => {
     const owner = uuidv7();
     sweep();
-    const body = await event.req.json().catch(() => null) as {
+    const parsed = await readPublicJsonBody(event);
+    if (parsed instanceof Response) return parsed;
+    const body = parsed as {
       setupToken?: string;
       pluginId?: string;
       serviceUrl?: string;
@@ -241,13 +254,25 @@ export function registerSetupEndpoints(input: {
       publicKeyPem?: string;
       keyId?: string;
       jwks?: unknown;
-    } | null;
+    };
     if (!body || typeof body.setupToken !== "string" || typeof body.pluginId !== "string") {
       return jsonResponse({ error: "Missing setupToken or pluginId" }, 400);
     }
 
-    const jti = readJti(body.setupToken);
-    if (!jti) return jsonResponse({ error: "Setup token malformed" }, 400);
+    let jti: string;
+    try {
+      if (body.setupToken.length > 8192) throw new Error("Setup token too large");
+      const claims = await verifySetupToken(body.setupToken, {
+        expectedIssuer: input.cpState.issuer,
+        keyResolver: async kid => {
+          if (kid !== input.cpState.keyPair.kid) throw new Error("Unknown setup signing key");
+          return input.cpState.keyPair.publicKeyPem;
+        }
+      });
+      jti = claims.jti;
+    } catch {
+      return jsonResponse({ error: "Invalid setup token" }, 401);
+    }
     const claim = input.postgres ? await input.postgres.claimPendingAction({
       kind: "setup",
       key: jti,

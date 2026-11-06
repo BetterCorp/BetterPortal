@@ -1,13 +1,13 @@
 {
   "name": "betterportal",
-  "version": "10.6.35",
+  "version": "11.0.6",
   "description": "BetterPortal v10 workspace",
   "private": true,
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "node scripts/run-workspace-scripts.mjs . build",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
-    "test": "node --test tests/lint.test.mjs tests/security.test.mjs && npm run test --workspaces --if-present"
+    "test": "node --test tests/lint.test.mjs tests/security.test.mjs tests/automations.test.mjs tests/workspaceRunner.test.mjs && node scripts/run-workspace-scripts.mjs"
   },
   "keywords": [],
   "author": "",
@@ -39,6 +39,8 @@
     "typescript-eslint": "^8.69.0"
   },
   "overrides": {
+    "glob": "^14.0.3",
+    "minimatch": "^11.0.4",
     "@istanbuljs/load-nyc-config": {
       "js-yaml": "^4.3.2"
     }

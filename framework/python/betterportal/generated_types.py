@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 0758edd262e4511099d41c5cc8a966717827c5932f300f9951f65d7741b4194b
+# Generated from AnyVali documents; do not edit. SHA256: 5565dd36d587bc9dc7f6927d3a7de036e506b71cce200afc1a80a0bf0f75375c
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -253,27 +253,27 @@ AuthressProviderConfigInput = TypedDict('AuthressProviderConfigInput', {
     'pictureClaimPath': NotRequired['str'],
 })
 
-BPElementReference = TypedDict('BPElementReference', {
+BPRouteReference = TypedDict('BPRouteReference', {
     'service': Required['str'],
     'path': NotRequired['str'],
     'fragment': Required['str'],
-    'args': Required['BPElementReferenceArgs'],
+    'args': Required['BPRouteReferenceArgs'],
 })
 
-BPElementReferenceArgs = TypedDict('BPElementReferenceArgs', {
-    'params': Required['dict[str, UrlScalar]'],
+BPRouteReferenceArgs = TypedDict('BPRouteReferenceArgs', {
+    'params': Required['dict[str, Union[UrlScalar, None]]'],
     'query': Required['dict[str, Union[UrlScalar, None]]'],
 })
 
-BPElementReferenceInput = TypedDict('BPElementReferenceInput', {
+BPRouteReferenceInput = TypedDict('BPRouteReferenceInput', {
     'service': Required['str'],
     'path': NotRequired['str'],
     'fragment': Required['str'],
-    'args': NotRequired['BPElementReferenceInputArgs'],
+    'args': NotRequired['BPRouteReferenceInputArgs'],
 })
 
-BPElementReferenceInputArgs = TypedDict('BPElementReferenceInputArgs', {
-    'params': NotRequired['dict[str, UrlScalarInput]'],
+BPRouteReferenceInputArgs = TypedDict('BPRouteReferenceInputArgs', {
+    'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
     'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
 })
 
@@ -1423,9 +1423,9 @@ BetterPortalResource: TypeAlias = 'dict[str, BetterPortalRouteChromeValue]'
 
 BetterPortalResourceInput: TypeAlias = 'dict[str, BetterPortalRouteChromeValueInput]'
 
-BetterPortalRouteChrome: TypeAlias = 'dict[str, BetterPortalRouteChromeValue]'
+BetterPortalRouteChrome: TypeAlias = 'dict[str, Union[BetterPortalRouteChromeValue, list[str]]]'
 
-BetterPortalRouteChromeInput: TypeAlias = 'dict[str, BetterPortalRouteChromeValueInput]'
+BetterPortalRouteChromeInput: TypeAlias = 'dict[str, Union[BetterPortalRouteChromeValueInput, list[str]]]'
 
 BetterPortalRouteChromeValue: TypeAlias = 'Union[str, float, bool]'
 
@@ -2917,16 +2917,34 @@ RendererDeclarationInput = TypedDict('RendererDeclarationInput', {
     'status': NotRequired['int'],
 })
 
-ResolvedBPElementReference = TypedDict('ResolvedBPElementReference', {
+ResolvedBPRouteReference = TypedDict('ResolvedBPRouteReference', {
     'url': NotRequired['str'],
     'serviceId': NotRequired['str'],
     'unavailable': NotRequired['str'],
 })
 
-ResolvedBPElementReferenceInput = TypedDict('ResolvedBPElementReferenceInput', {
+ResolvedBPRouteReferenceInput = TypedDict('ResolvedBPRouteReferenceInput', {
     'url': NotRequired['str'],
     'serviceId': NotRequired['str'],
     'unavailable': NotRequired['str'],
+})
+
+ResolvedRoute = TypedDict('ResolvedRoute', {
+    'apiPath': Required['str'],
+    'viewPath': Required['str'],
+    'uiPath': Required['Union[str, None]'],
+    'absoluteApiPath': Required['Union[str, None]'],
+    'absoluteViewPath': Required['Union[str, None]'],
+    'absoluteUiPath': Required['Union[str, None]'],
+})
+
+ResolvedRouteInput = TypedDict('ResolvedRouteInput', {
+    'apiPath': Required['str'],
+    'viewPath': Required['str'],
+    'uiPath': Required['Union[str, None]'],
+    'absoluteApiPath': Required['Union[str, None]'],
+    'absoluteViewPath': Required['Union[str, None]'],
+    'absoluteUiPath': Required['Union[str, None]'],
 })
 
 RouteDeclaration = TypedDict('RouteDeclaration', {
@@ -2941,53 +2959,27 @@ RouteDeclarationInput = TypedDict('RouteDeclarationInput', {
     'description': NotRequired['str'],
 })
 
-RouteUiOptions = TypedDict('RouteUiOptions', {
+RouteOptions = TypedDict('RouteOptions', {
     'serviceId': NotRequired['str'],
+    'path': NotRequired['str'],
+    'viewId': NotRequired['str'],
+    'method': NotRequired['HttpMethod'],
+    'mountId': NotRequired['str'],
     'params': Required['dict[str, Union[UrlScalar, None]]'],
     'query': Required['dict[str, Union[UrlScalar, None]]'],
-    'absolute': Required['bool'],
-    'origin': NotRequired['str'],
-    'component': NotRequired['str'],
-    'fragment': NotRequired['str'],
-    'sse': Required['bool'],
-    'method': Required["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
-    'target': NotRequired['str'],
-    'swap': NotRequired['str'],
-    'push': NotRequired['Union[str, bool]'],
-})
-
-RouteUiOptionsInput = TypedDict('RouteUiOptionsInput', {
-    'serviceId': NotRequired['str'],
-    'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
-    'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
-    'absolute': NotRequired['bool'],
-    'origin': NotRequired['str'],
-    'component': NotRequired['str'],
-    'fragment': NotRequired['str'],
-    'sse': NotRequired['bool'],
-    'method': NotRequired["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
-    'target': NotRequired['str'],
-    'swap': NotRequired['str'],
-    'push': NotRequired['Union[str, bool]'],
-})
-
-RouteUrlOptions = TypedDict('RouteUrlOptions', {
-    'serviceId': NotRequired['str'],
-    'params': Required['dict[str, Union[UrlScalar, None]]'],
-    'query': Required['dict[str, Union[UrlScalar, None]]'],
-    'absolute': Required['bool'],
-    'origin': NotRequired['str'],
     'component': NotRequired['str'],
     'fragment': NotRequired['str'],
     'sse': Required['bool'],
 })
 
-RouteUrlOptionsInput = TypedDict('RouteUrlOptionsInput', {
+RouteOptionsInput = TypedDict('RouteOptionsInput', {
     'serviceId': NotRequired['str'],
+    'path': NotRequired['str'],
+    'viewId': NotRequired['str'],
+    'method': NotRequired['HttpMethodInput'],
+    'mountId': NotRequired['str'],
     'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
     'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
-    'absolute': NotRequired['bool'],
-    'origin': NotRequired['str'],
     'component': NotRequired['str'],
     'fragment': NotRequired['str'],
     'sse': NotRequired['bool'],
@@ -3631,7 +3623,7 @@ ScopedAppInputRoutesItem = TypedDict('ScopedAppInputRoutesItem', {
     'enablement': NotRequired["Literal['auto', 'enabled', 'disabled']"],
     'operations': Required['list[str]'],
     'menu': NotRequired['bool'],
-    'chrome': NotRequired['dict[str, BetterPortalRouteChromeValueInput]'],
+    'chrome': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, list[str]]]'],
 })
 
 ScopedAppInputRoutesItemRobotsItem = TypedDict('ScopedAppInputRoutesItemRobotsItem', {
@@ -4203,7 +4195,7 @@ ScopedAppRoutesItem = TypedDict('ScopedAppRoutesItem', {
     'enablement': NotRequired["Literal['auto', 'enabled', 'disabled']"],
     'operations': Required['list[str]'],
     'menu': NotRequired['bool'],
-    'chrome': NotRequired['dict[str, BetterPortalRouteChromeValue]'],
+    'chrome': NotRequired['dict[str, Union[BetterPortalRouteChromeValue, list[str]]]'],
 })
 
 ScopedAppRoutesItemRobotsItem = TypedDict('ScopedAppRoutesItemRobotsItem', {
@@ -4422,7 +4414,6 @@ ScopedTenantService = TypedDict('ScopedTenantService', {
     'hostname': Required['str'],
     'publicKeyPem': NotRequired['str'],
     'keyId': NotRequired['str'],
-    'serviceId': NotRequired['str'],
     'authProvider': NotRequired['ScopedTenantServiceAuthprovider'],
     'capabilities': Required['list[str]'],
     'title': NotRequired['str'],
@@ -4432,6 +4423,7 @@ ScopedTenantService = TypedDict('ScopedTenantService', {
     'lastSeenAt': NotRequired['str'],
     'lastSyncAt': NotRequired['str'],
     'enabled': Required['bool'],
+    'serviceId': NotRequired['str'],
     'source': NotRequired["Literal['tenant', 'platform', 'shared']"],
     'sharedServiceId': NotRequired['str'],
     'baseUrl': NotRequired['str'],
@@ -4452,7 +4444,6 @@ ScopedTenantServiceInput = TypedDict('ScopedTenantServiceInput', {
     'hostname': Required['str'],
     'publicKeyPem': NotRequired['str'],
     'keyId': NotRequired['str'],
-    'serviceId': NotRequired['str'],
     'authProvider': NotRequired['ScopedTenantServiceInputAuthprovider'],
     'capabilities': NotRequired['list[str]'],
     'title': NotRequired['str'],
@@ -4462,6 +4453,7 @@ ScopedTenantServiceInput = TypedDict('ScopedTenantServiceInput', {
     'lastSeenAt': NotRequired['str'],
     'lastSyncAt': NotRequired['str'],
     'enabled': NotRequired['bool'],
+    'serviceId': NotRequired['str'],
     'source': NotRequired["Literal['tenant', 'platform', 'shared']"],
     'sharedServiceId': NotRequired['str'],
     'baseUrl': NotRequired['str'],
@@ -5127,6 +5119,7 @@ ViewAppContextAuth = TypedDict('ViewAppContextAuth', {
     'serviceId': Required['str'],
     'loginViewId': NotRequired['str'],
     'logoutViewId': NotRequired['str'],
+    'redirects': NotRequired['ScopedAppAuthRedirects'],
 })
 
 ViewAppContextInput = TypedDict('ViewAppContextInput', {
@@ -5143,6 +5136,7 @@ ViewAppContextInputAuth = TypedDict('ViewAppContextInputAuth', {
     'serviceId': Required['str'],
     'loginViewId': NotRequired['str'],
     'logoutViewId': NotRequired['str'],
+    'redirects': NotRequired['ScopedAppInputAuthRedirects'],
 })
 
 ViewDemoScenario = TypedDict('ViewDemoScenario', {

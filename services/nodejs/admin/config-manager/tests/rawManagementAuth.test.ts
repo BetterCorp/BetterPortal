@@ -78,7 +78,7 @@ function fixture() {
     app.fetch(new Request(`https://config.example${path}`, {
       method: "POST", headers: { Authorization: `Bearer ${authorization}` }, body: new URLSearchParams(fields)
     }));
-  return { appId, tenantId, otherAppId, otherTenantId, storage, cpState, token, send, sendForm };
+  return { app, appId, tenantId, otherAppId, otherTenantId, storage, cpState, token, send, sendForm };
 }
 
 test("anonymous raw admin API cannot disclose config or mint platform service keys", async () => {
@@ -161,7 +161,7 @@ test("bootstrap capability permits only first-install and admin role creation", 
 test("service-authenticated self-mutation keeps its own credential check", async () => {
   const { send } = fixture();
   const response = await send("/.well-known/bp/admin/services/self-mutation", "PUT", {});
-  assert.equal(response.status, 400);
+  assert.equal(response.status, 401);
 });
 
 
@@ -191,4 +191,122 @@ test("service creators cannot reconfigure or replace registered service credenti
   assert.equal(redeemed.status, 200, await redeemed.clone().text());
   assert.notEqual(storage.config.tenants[0].services[0].apiKeyHash, "existing-key-hash");
   assert.equal(storage.config.sharedServiceCatalog[0].apiKeyHash, "existing-shared-key-hash");
+});
+
+test("a forged setup token with a real token ID cannot redeem service credentials", async () => {
+  const { send, storage, appId, tenantId, token } = fixture();
+  const issued = await send("/.well-known/bp/admin/services/begin-install", "POST", {
+    serviceUrl: "https://service.example", tenantId
+  }, token(appId, tenantId));
+  assert.equal(issued.status, 200, await issued.clone().text());
+  const { setupToken } = await issued.json() as { setupToken: string };
+  const [header, payload, signature] = setupToken.split(".");
+  const forged = `${header}.${payload}.${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+  const rejected = await send("/.well-known/bp/services/redeem", "POST", {
+    setupToken: forged, pluginId: "org.example.service"
+  });
+  assert.equal(rejected.status, 401);
+  assert.equal(storage.config.tenants[0].services.some(service => service.hostname === "https://service.example"), false);
+  const valid = await send("/.well-known/bp/services/redeem", "POST", {
+    setupToken, pluginId: "org.example.service"
+  });
+  assert.equal(valid.status, 200, await valid.clone().text());
+});
+
+test("re-setup at a new URL preserves registration and app bindings and verifies the stored plugin", async () => {
+  const { send, storage, appId, tenantId, token } = fixture();
+  const service = storage.config.tenants[0].services[0];
+  const originalId = service.id, originalUrl = service.hostname;
+  service.apiKeyHash = "old-installation-key";
+  const apps = structuredClone(storage.config.apps);
+  const credential = token(appId, tenantId);
+  const begin = (serviceUrl: string) => send("/.well-known/bp/admin/services/begin-install", "POST", {
+    instanceId: originalId, tenantId: "ignored-caller-scope", serviceUrl, reconfigure: true
+  }, credential);
+  for (const invalid of ["https://new.example/path", "https://new.example?key=value", "https://user:pass@new.example"]) {
+    assert.equal((await begin(invalid)).status, 400);
+  }
+  const issued = await begin("https://replacement.example");
+  assert.equal(issued.status, 200, await issued.clone().text());
+  assert.equal(service.hostname, originalUrl, "issuing a setup token does not move the registration");
+  const { setupToken } = await issued.json() as { setupToken: string };
+  const redeem = (pluginId: string) => send("/.well-known/bp/services/redeem", "POST", { setupToken, pluginId });
+  assert.equal((await redeem("org.example.wrong-service")).status, 409);
+  assert.equal(service.apiKeyHash, "old-installation-key");
+  assert.equal((await redeem(service.serviceId!)).status, 200);
+  const updated = storage.config.tenants[0].services;
+  assert.equal(updated.length, 1);
+  assert.equal(updated[0].id, originalId);
+  assert.equal(updated[0].hostname, "https://replacement.example");
+  assert.notEqual(updated[0].apiKeyHash, "old-installation-key");
+  assert.deepEqual(storage.config.apps, apps);
+});
+
+test("shared service re-setup moves the catalog entry and preserves its tenant activations", async () => {
+  const { send, storage, appId, tenantId, token } = fixture();
+  const shared = storage.config.sharedServiceCatalog[0];
+  const activations = structuredClone(storage.config.sharedServiceActivations);
+  shared.apiKeyHash = "old-shared-key";
+  const issued = await send("/.well-known/bp/admin/services/begin-install", "POST", {
+    instanceId: shared.id, serviceUrl: "https://new-shared.example", reconfigure: true
+  }, token(appId, tenantId));
+  assert.equal(issued.status, 200, await issued.clone().text());
+  const { setupToken } = await issued.json() as { setupToken: string };
+  const redeemed = await send("/.well-known/bp/services/redeem", "POST", { setupToken, pluginId: shared.serviceId });
+  assert.equal(redeemed.status, 200, await redeemed.clone().text());
+  assert.equal(storage.config.sharedServiceCatalog.length, 1);
+  assert.equal(storage.config.sharedServiceCatalog[0].baseUrl, "https://new-shared.example");
+  assert.notEqual(storage.config.sharedServiceCatalog[0].apiKeyHash, "old-shared-key");
+  assert.deepEqual(storage.config.sharedServiceActivations, activations);
+  assert.equal(storage.config.platformServices.length, 0, "shared setup must not create a platform registration");
+});
+
+test("public setup redemption rejects oversized JSON without a Content-Length", async () => {
+  const { app } = fixture();
+  const oversized = new TextEncoder().encode(JSON.stringify({ setupToken: "x".repeat(256 * 1024), pluginId: "org.example.service" }));
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let offset = 0; offset < oversized.length; offset += 4096) controller.enqueue(oversized.subarray(offset, offset + 4096));
+      controller.close();
+    }
+  });
+  const request = new Request("https://config.example/.well-known/bp/services/redeem", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body, duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("Content-Length"), null);
+  const response = await app.fetch(request);
+  assert.equal(response.status, 413);
+});
+
+test("delegated installation authorization rejects oversized streamed JSON before cloning it", async () => {
+  const { app, storage, appId, tenantId, token } = fixture();
+  const serviceId = storage.config.tenants[0].services[0].id;
+  storage.config.apps[0].auth!.roles.push({
+    id: "installer", title: "Installer",
+    permissions: [{ serviceId, viewId: "services.index", permissions: ["create"] }]
+  });
+  const payload = new TextEncoder().encode(JSON.stringify({
+    serviceUrl: "https://new.example", tenantId, padding: "x".repeat(256 * 1024)
+  }));
+  const request = new Request("https://config.example/.well-known/bp/admin/services/begin-install", {
+    method: "POST", headers: { authorization: `Bearer ${token(appId, tenantId, ["installer"])}` },
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(payload); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("content-length"), null);
+  assert.equal((await app.fetch(request)).status, 413);
+  assert.equal(storage.saves, 0);
+});
+
+test("raw administrator routes reject oversized streamed bodies before form or JSON parsing", async () => {
+  const { app, storage, appId, tenantId, token } = fixture();
+  const payload = new TextEncoder().encode(JSON.stringify({ hostname: "https://service.example", padding: "x".repeat(2 * 1024 * 1024) }));
+  const request = new Request("https://config.example/.well-known/bp/admin/platform-services", {
+    method: "POST", headers: { authorization: `Bearer ${token(appId, tenantId)}`, "content-type": "application/json" },
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(payload); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("content-length"), null);
+  assert.equal((await app.fetch(request)).status, 413);
+  assert.equal(storage.saves, 0);
 });

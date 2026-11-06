@@ -177,7 +177,7 @@ internal sealed class TypeGenerator
         var kind = Kind(node);
         if (kind == "object")
         {
-            lines.Add($"public sealed record {name}\n{{");
+            lines.Add($"public sealed {(name == "ResolvedRoute" ? "partial " : "")}record {name}\n{{");
             var properties = (Node)node["properties"]!;
             var required = node.TryGetValue("required", out var fields) ? ((IEnumerable<object?>)fields!).Cast<string>().ToHashSet() : properties.Keys.ToHashSet();
             var members = new HashSet<string> { name, "EqualityContract", "Clone", "Equals", "GetHashCode", "ToString", "PrintMembers", "Deconstruct" };

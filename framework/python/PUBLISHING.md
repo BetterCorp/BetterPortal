@@ -42,8 +42,8 @@ job can request the short-lived publishing identity. Uploads include attestation
    `https://pypi.org/project/betterportal/X.Y.Z/`. Install the release in a fresh
    environment with `python -m pip install 'betterportal[asgi]==X.Y.Z'`.
 
-The setup PR aligns Python with the current 10.6.35 workspace. Do not move the
-existing v10.6.35 tag: the first release after this workflow merges should use the
+The setup PR aligns Python with the current 11.0.6 workspace. Do not move the
+existing v11.0.6 tag: the first release after this workflow merges should use the
 next normal release version and a new signed tag. Tags from before this workflow
 existed cannot run it.
 

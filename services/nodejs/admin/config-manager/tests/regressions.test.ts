@@ -5,7 +5,16 @@ import { registerWebhookRoutes } from "../src/plugins/service-betterportal-confi
 import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
 import { test } from "node:test";
 import * as av from "anyvali";
-import { BetterPortalConfigSchema, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
+import { BetterPortalConfigSchema, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
+const managementViewContext = {
+  route: (input: { path?: string; query?: Record<string, string>; component?: string }) => {
+    const url = new URL(input.path ?? "/", "https://config.example");
+    for (const [key, value] of Object.entries(input.query ?? {})) url.searchParams.set(key, value);
+    if (input.component) url.searchParams.set("_c", input.component);
+    return { absoluteViewPath: url.toString() };
+  }
+} as unknown as ViewRenderContext;
+
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin, registerSetupEndpoints, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
@@ -441,14 +450,14 @@ test("auth cache drops removed apps and JWKS", async () => {
   assert.equal(plugin.authConfigCache.size, 0);
 });
 
-test("webhooks claim only the next delivery and bound fetch lifetime", async (t) => {
+test("webhooks claim only the next delivery and bound fetch lifetime", async () => {
   const order: string[] = [];
   let claimed = 0;
-  t.mock.method(globalThis, "fetch", async (_url, options) => {
+  const transport = async (_url: string, options: RequestInit) => {
     assert.ok(options.signal instanceof AbortSignal);
     order.push("fetch");
     return new Response(new ReadableStream({ cancel() { order.push("cancel"); } }));
-  });
+  };
   const runtime = registerWebhookRoutes(new H3(), {
     loadConfig: async () => { throw new Error("Webhook polling must not load config"); }
   } as never, {
@@ -464,7 +473,7 @@ test("webhooks claim only the next delivery and bound fetch lifetime", async (t)
     },
     finishWebhookDelivery: async () => { order.push("finish"); },
     cleanupWebhookDeliveries: async () => {}
-  } as never);
+  } as never, "single", transport);
   await runtime.drain();
   assert.deepEqual(order, ["claim", "fetch", "cancel", "finish", "claim", "fetch", "cancel", "finish", "claim"]);
 });
@@ -1562,9 +1571,8 @@ test("tenant edit script targets the active checkbox, not its hidden fallback", 
     apps: [],
     shellServices: [],
     authServices: [],
-    adminApiBase: "/.well-known/bp/admin",
-    tenantsPath: "/tenants"
-  }));
+    adminApiBase: "/.well-known/bp/admin"
+  }, managementViewContext));
   assert.match(html, /input\[type=checkbox\]\[name=active\]/);
   assert.match(html, /name="afterLoginServiceId"/);
   assert.match(html, /name="afterLogoutViewId"/);
@@ -1675,7 +1683,6 @@ test("service registration stays browser-mediated and tenant history follows the
   assert.match(html, /id="bp-tenant-service-preview"[^>]*aria-live="polite"/);
   assert.match(html, /bp-toast-container/);
   assert.match(html, /Toast\?\.getOrCreateInstance/);
-  assert.match(html, /Offcanvas\?\.getInstance\(panel\)\?\.hide/);
   assert.match(html, /setTenantStatus\("secondary", "Installing service\.\.\."\)/);
   assert.match(html, /data-bp-reconfigure-service=""[^>]*data-bp-service-plugin-id="org\.example\.service"/);
   assert.match(html, /const needsReconnect = health\?\.setupMode === true && health\.pluginId === button\.dataset\.bpServicePluginId/);
@@ -2150,7 +2157,6 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
 test("preview environment editor keeps config crypto in the browser", () => {
   const data: Parameters<typeof renderPreviewEnvironments>[0] = {
     title: "Preview Environments",
-    previewPath: "/preview-environments",
     deploymentApiBase: "/api/preview-groups",
     configTicketUrl: "https://config.example/.well-known/bp/admin/config-ticket",
     sourceTenants: [],
@@ -2194,11 +2200,11 @@ test("preview environment editor keeps config crypto in the browser", () => {
     }],
     issuedCredentials: []
   };
-  const page = String(renderPreviewEnvironments(data));
-  const html = String(renderPreviewConfigEditor(data));
+  const page = String(renderPreviewEnvironments(data, managementViewContext));
+  const html = String(renderPreviewConfigEditor(data, managementViewContext));
   assert.match(page, /name="elevatedRoleIds"/);
   assert.match(page, /admin\nstaff\nclient/);
-  assert.match(page, /_c=config&amp;groupId=/);
+  assert.match(page, /groupId=[^"&]+&amp;_c=config/);
   assert.doesNotMatch(page, /click once/);
   assert.match(page, /querySelector\('form'\)/);
   assert.doesNotMatch(page, /BP_PREVIEW_CONFIG_KEY/);

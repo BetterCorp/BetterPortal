@@ -17,7 +17,7 @@
     "moduleResolution": "nodenext",
     "resolveJsonModule": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "jsx-htmx"
+    "jsxImportSource": "@betterportal/framework"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "lib", "tests", "**/*.test.ts"]

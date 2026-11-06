@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: fd3e4cee05640f9a5cbe508145a852ac97f31f4fbcec6ecabe502ef1710db105
+// Generated from AnyVali documents; do not edit. SHA256: 81e3cb86dffc23172ebde94d39d2939343e492f8388b4c6849397a414aeed70f
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -586,7 +586,7 @@ public enum AuthressProviderConfigKind
     AuthressIo,
 }
 
-public sealed record BPElementReference
+public sealed record BPRouteReference
 {
     [JsonPropertyName("service")]
     public required string Service { get; init; }
@@ -596,18 +596,18 @@ public sealed record BPElementReference
     [JsonPropertyName("fragment")]
     public required string Fragment { get; init; }
     [JsonPropertyName("args")]
-    public required BPElementReferenceArgs Args { get; init; }
+    public required BPRouteReferenceArgs Args { get; init; }
 }
 
-public sealed record BPElementReferenceArgs
+public sealed record BPRouteReferenceArgs
 {
     [JsonPropertyName("params")]
-    public required IReadOnlyDictionary<string, UrlScalar> Params { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar?> Params { get; init; }
     [JsonPropertyName("query")]
     public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
 }
 
-public sealed record BPElementReferenceInput
+public sealed record BPRouteReferenceInput
 {
     [JsonPropertyName("service")]
     public required string Service { get; init; }
@@ -618,14 +618,14 @@ public sealed record BPElementReferenceInput
     public required string Fragment { get; init; }
     [JsonPropertyName("args")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<BPElementReferenceInputArgs> Args { get; init; }
+    public Optional<BPRouteReferenceInputArgs> Args { get; init; }
 }
 
-public sealed record BPElementReferenceInputArgs
+public sealed record BPRouteReferenceInputArgs
 {
     [JsonPropertyName("params")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, UrlScalarInput>> Params { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Params { get; init; }
     [JsonPropertyName("query")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }
@@ -3541,6 +3541,12 @@ public sealed record BetterPortalRouteChromeFields
     [JsonPropertyName("fullScreen")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> FullScreen { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("parents")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
 }
@@ -3567,6 +3573,12 @@ public sealed record BetterPortalRouteChromeInputFields
     [JsonPropertyName("fullScreen")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> FullScreen { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("parents")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
 }
@@ -7457,7 +7469,7 @@ public enum RendererDeclarationKind
     Component,
 }
 
-public sealed record ResolvedBPElementReference
+public sealed record ResolvedBPRouteReference
 {
     [JsonPropertyName("url")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -7470,7 +7482,7 @@ public sealed record ResolvedBPElementReference
     public Optional<string> Unavailable { get; init; }
 }
 
-public sealed record ResolvedBPElementReferenceInput
+public sealed record ResolvedBPRouteReferenceInput
 {
     [JsonPropertyName("url")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -7481,6 +7493,38 @@ public sealed record ResolvedBPElementReferenceInput
     [JsonPropertyName("unavailable")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Unavailable { get; init; }
+}
+
+public sealed partial record ResolvedRoute
+{
+    [JsonPropertyName("apiPath")]
+    public required string ApiPath { get; init; }
+    [JsonPropertyName("viewPath")]
+    public required string ViewPath { get; init; }
+    [JsonPropertyName("uiPath")]
+    public required string? UiPath { get; init; }
+    [JsonPropertyName("absoluteApiPath")]
+    public required string? AbsoluteApiPath { get; init; }
+    [JsonPropertyName("absoluteViewPath")]
+    public required string? AbsoluteViewPath { get; init; }
+    [JsonPropertyName("absoluteUiPath")]
+    public required string? AbsoluteUiPath { get; init; }
+}
+
+public sealed record ResolvedRouteInput
+{
+    [JsonPropertyName("apiPath")]
+    public required string ApiPath { get; init; }
+    [JsonPropertyName("viewPath")]
+    public required string ViewPath { get; init; }
+    [JsonPropertyName("uiPath")]
+    public required string? UiPath { get; init; }
+    [JsonPropertyName("absoluteApiPath")]
+    public required string? AbsoluteApiPath { get; init; }
+    [JsonPropertyName("absoluteViewPath")]
+    public required string? AbsoluteViewPath { get; init; }
+    [JsonPropertyName("absoluteUiPath")]
+    public required string? AbsoluteUiPath { get; init; }
 }
 
 public sealed record RouteDeclaration
@@ -7509,129 +7553,27 @@ public sealed record RouteDeclarationInput
     public Optional<string> Description { get; init; }
 }
 
-public sealed record RouteUiOptions
+public sealed record RouteOptions
 {
     [JsonPropertyName("serviceId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ServiceId { get; init; }
+    [JsonPropertyName("path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Path { get; init; }
+    [JsonPropertyName("viewId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ViewId { get; init; }
+    [JsonPropertyName("method")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<HttpMethod> Method { get; init; }
+    [JsonPropertyName("mountId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> MountId { get; init; }
     [JsonPropertyName("params")]
     public required IReadOnlyDictionary<string, UrlScalar?> Params { get; init; }
     [JsonPropertyName("query")]
     public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
-    [JsonPropertyName("absolute")]
-    public required bool Absolute { get; init; }
-    [JsonPropertyName("origin")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Origin { get; init; }
-    [JsonPropertyName("component")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Component { get; init; }
-    [JsonPropertyName("fragment")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Fragment { get; init; }
-    [JsonPropertyName("sse")]
-    public required bool Sse { get; init; }
-    [JsonPropertyName("method")]
-    public required RouteUiOptionsMethod Method { get; init; }
-    [JsonPropertyName("target")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Target { get; init; }
-    [JsonPropertyName("swap")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Swap { get; init; }
-    [JsonPropertyName("push")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Variant<string, bool>> Push { get; init; }
-}
-
-public sealed record RouteUiOptionsInput
-{
-    [JsonPropertyName("serviceId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ServiceId { get; init; }
-    [JsonPropertyName("params")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Params { get; init; }
-    [JsonPropertyName("query")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }
-    [JsonPropertyName("absolute")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Absolute { get; init; }
-    [JsonPropertyName("origin")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Origin { get; init; }
-    [JsonPropertyName("component")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Component { get; init; }
-    [JsonPropertyName("fragment")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Fragment { get; init; }
-    [JsonPropertyName("sse")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Sse { get; init; }
-    [JsonPropertyName("method")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<RouteUiOptionsInputMethod> Method { get; init; }
-    [JsonPropertyName("target")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Target { get; init; }
-    [JsonPropertyName("swap")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Swap { get; init; }
-    [JsonPropertyName("push")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Variant<string, bool>> Push { get; init; }
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<RouteUiOptionsInputMethod>))]
-public enum RouteUiOptionsInputMethod
-{
-    [JsonStringEnumMemberName("GET")]
-    GET,
-    [JsonStringEnumMemberName("POST")]
-    POST,
-    [JsonStringEnumMemberName("PUT")]
-    PUT,
-    [JsonStringEnumMemberName("PATCH")]
-    PATCH,
-    [JsonStringEnumMemberName("DELETE")]
-    DELETE,
-    [JsonStringEnumMemberName("OPTIONS")]
-    OPTIONS,
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<RouteUiOptionsMethod>))]
-public enum RouteUiOptionsMethod
-{
-    [JsonStringEnumMemberName("GET")]
-    GET,
-    [JsonStringEnumMemberName("POST")]
-    POST,
-    [JsonStringEnumMemberName("PUT")]
-    PUT,
-    [JsonStringEnumMemberName("PATCH")]
-    PATCH,
-    [JsonStringEnumMemberName("DELETE")]
-    DELETE,
-    [JsonStringEnumMemberName("OPTIONS")]
-    OPTIONS,
-}
-
-public sealed record RouteUrlOptions
-{
-    [JsonPropertyName("serviceId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ServiceId { get; init; }
-    [JsonPropertyName("params")]
-    public required IReadOnlyDictionary<string, UrlScalar?> Params { get; init; }
-    [JsonPropertyName("query")]
-    public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
-    [JsonPropertyName("absolute")]
-    public required bool Absolute { get; init; }
-    [JsonPropertyName("origin")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Origin { get; init; }
     [JsonPropertyName("component")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Component { get; init; }
@@ -7642,23 +7584,29 @@ public sealed record RouteUrlOptions
     public required bool Sse { get; init; }
 }
 
-public sealed record RouteUrlOptionsInput
+public sealed record RouteOptionsInput
 {
     [JsonPropertyName("serviceId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ServiceId { get; init; }
+    [JsonPropertyName("path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Path { get; init; }
+    [JsonPropertyName("viewId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ViewId { get; init; }
+    [JsonPropertyName("method")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<HttpMethodInput> Method { get; init; }
+    [JsonPropertyName("mountId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> MountId { get; init; }
     [JsonPropertyName("params")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Params { get; init; }
     [JsonPropertyName("query")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }
-    [JsonPropertyName("absolute")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Absolute { get; init; }
-    [JsonPropertyName("origin")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Origin { get; init; }
     [JsonPropertyName("component")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Component { get; init; }
@@ -9338,6 +9286,12 @@ public sealed record ScopedAppInputRoutesItemChromeFields
     [JsonPropertyName("fullScreen")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> FullScreen { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("parents")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
 }
@@ -10659,6 +10613,12 @@ public sealed record ScopedAppRoutesItemChromeFields
     [JsonPropertyName("fullScreen")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> FullScreen { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("parents")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
 }
@@ -11104,9 +11064,6 @@ public sealed record ScopedTenantService
     [JsonPropertyName("keyId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> KeyId { get; init; }
-    [JsonPropertyName("serviceId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("authProvider")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedTenantServiceAuthProvider> AuthProvider { get; init; }
@@ -11130,6 +11087,9 @@ public sealed record ScopedTenantService
     public Optional<string> LastSyncAt { get; init; }
     [JsonPropertyName("enabled")]
     public required bool Enabled { get; init; }
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedTenantServiceSource> Source { get; init; }
@@ -11190,9 +11150,6 @@ public sealed record ScopedTenantServiceInput
     [JsonPropertyName("keyId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> KeyId { get; init; }
-    [JsonPropertyName("serviceId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("authProvider")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedTenantServiceInputAuthProvider> AuthProvider { get; init; }
@@ -11219,6 +11176,9 @@ public sealed record ScopedTenantServiceInput
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Enabled { get; init; }
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedTenantServiceInputSource> Source { get; init; }
@@ -12839,6 +12799,9 @@ public sealed record ViewAppContextAuth
     [JsonPropertyName("logoutViewId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> LogoutViewId { get; init; }
+    [JsonPropertyName("redirects")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedAppAuthRedirects> Redirects { get; init; }
 }
 
 public sealed record ViewAppContextInput
@@ -12872,6 +12835,9 @@ public sealed record ViewAppContextInputAuth
     [JsonPropertyName("logoutViewId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> LogoutViewId { get; init; }
+    [JsonPropertyName("redirects")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedAppInputAuthRedirects> Redirects { get; init; }
 }
 
 public sealed record ViewDemoScenario

@@ -1,4 +1,4 @@
-import { PluginManifestSchema, ServiceManifestCacheEntrySchema } from "@betterportal/framework";
+import { PluginManifestSchema, ServiceManifestCacheEntrySchema, ScopedServiceConfigSchema, uuidv7 } from "@betterportal/framework";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
@@ -16,6 +16,53 @@ function serviceFixture() {
   return service;
 }
 const obs = { log: { info() {}, warn() {} } };
+
+test("shared catalog service IDs pass client sanity checks and permit sync readiness", async t => {
+  const service = serviceFixture();
+  t.after(() => service.dispose());
+  const id = "org.betterportal.auth.default";
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    if (init.method === "POST") return Response.json({ managementOrigins: [], tenants: [], apps: [],
+      serviceIdentity: { id }, m2m: { localServiceIds: [id], services: [{ id, hostname: "https://service.example" }], bindings: [], grants: [] } });
+    return new Response(new ReadableStream({ start(controller) {
+      init.signal?.addEventListener("abort", () => controller.error(new DOMException("Disposed", "AbortError")), { once: true });
+    } }));
+  });
+  assert.equal(await service.connectToControlPlane(obs), true);
+  assert.equal(service.scopedConfig.serviceIdentity.id, id);
+  assert.deepEqual(service.scopedConfig.m2m.localServiceIds, [id]);
+  assert.equal(service.renderHealth().status, 200);
+});
+
+test("authoritative mounts recognize the authenticated catalog alias and reject unrelated or disabled services", () => {
+  const service = serviceFixture();
+  const tenantId = uuidv7(), appId = uuidv7(), activationId = uuidv7();
+  const catalogId = "shared-auth-primary";
+  const config = ScopedServiceConfigSchema.parse({
+    serviceIdentity: { id: catalogId }, managementOrigins: [],
+    tenants: [{ id: tenantId, slug: "tenant", title: "Tenant", services: [{
+      id: activationId, hostname: "https://auth.test", createdAt: new Date().toISOString(),
+      serviceId: catalogId, sharedServiceId: catalogId, source: "shared"
+    }] }],
+    apps: [{ id: appId, tenantId, slug: "app", title: "App", hostnames: ["app.test"],
+      auth: { serviceId: activationId, expectedIssuer: "https://auth.test", expectedAudience: "app", jwksUri: "https://auth.test/jwks" },
+      shell: { serviceId: activationId, service: "shell", renderer: "bootstrap5" }
+    }]
+  });
+  service.scopedConfig = config;
+  for (const kind of ["auth", "shell"]) assert.equal(service.isAuthoritativeService(tenantId, appId, kind), true);
+  config.serviceIdentity!.id = "another-catalog-entry";
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), false);
+  delete config.serviceIdentity;
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), false);
+  config.serviceIdentity = { id: activationId };
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), true);
+  config.tenants[0].services[0].enabled = false;
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), false);
+  config.tenants[0].services[0].enabled = true;
+  config.apps[0].auth!.serviceId = uuidv7();
+  assert.equal(service.isAuthoritativeService(tenantId, appId, "auth"), false);
+});
 
 test("control-plane credentials require HTTPS or exact HTTP loopback and reject unsafe URLs before fetch", async t => {
   const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("unexpected request"); });
@@ -84,6 +131,62 @@ test("disposal while a manifest submission is pending cannot open a stream", asy
   assert.equal(service.scopedConfig, undefined);
 });
 
+test("reconnect revalidates registration, sanity-checks config, and syncs grants and revocations before opening SSE", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const service = serviceFixture();
+  t.after(() => service.dispose());
+  const serviceId = uuidv7();
+  const current = ScopedServiceConfigSchema.parse({ managementOrigins: [], tenants: [], apps: [{
+    id: uuidv7(), tenantId: uuidv7(), slug: "app", title: "App", hostnames: ["app.test"], routes: [],
+    auth: { serviceId, expectedIssuer: "https://auth.test", expectedAudience: "app", jwksUri: "https://auth.test/jwks",
+      roles: [{ id: "admin", title: "Admin", permissions: [] }] }
+  }] });
+  const calls: string[] = [];
+  const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+  let invalid = false;
+  let revoked = false;
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    assert.equal(new Headers(init.headers).get("authorization"), "Bearer test-key");
+    if (init.method === "POST") {
+      assert.equal(url, "https://config.test/.well-known/bp/sync/poll");
+      assert.deepEqual(JSON.parse(String(init.body)).viewIndex, {});
+      calls.push("poll");
+      return revoked ? new Response("Invalid API key", { status: 403 }) : Response.json(invalid ? { apps: "invalid" } : current);
+    }
+    calls.push("stream");
+    assert.deepEqual(service.scopedConfig.apps[0].auth.roles, current.apps[0].auth!.roles, "apply fresh config before opening SSE");
+    return new Response(new ReadableStream<Uint8Array>({ start(controller) {
+      streams.push(controller);
+      init.signal?.addEventListener("abort", () => controller.error(new DOMException("Disposed", "AbortError")), { once: true });
+    } }));
+  });
+  const reconnect = async () => {
+    streams.at(-1)!.close();
+    await setImmediate();
+    t.mock.timers.tick(5000);
+    await setImmediate();
+  };
+  assert.equal(await service.connectToControlPlane(obs), true);
+  invalid = true;
+  await reconnect();
+  assert.equal(streams.length, 1);
+  assert.equal(service.manifestSync.state, "retrying");
+  assert.deepEqual(service.scopedConfig.apps[0].auth.roles[0].permissions, []);
+  invalid = false;
+  current.apps[0].auth!.roles[0].permissions = [{ serviceId, viewId: "frame.layouts", permissions: ["read", "update"] }];
+  t.mock.timers.tick(5000);
+  await setImmediate();
+  assert.deepEqual(service.scopedConfig.apps[0].auth.roles[0].permissions, current.apps[0].auth!.roles[0].permissions);
+  current.apps[0].auth!.roles[0].permissions = [];
+  await reconnect();
+  assert.deepEqual(service.scopedConfig.apps[0].auth.roles[0].permissions, []);
+  assert.deepEqual(calls, ["poll", "stream", "poll", "poll", "stream", "poll", "stream"]);
+  revoked = true;
+  await reconnect();
+  assert.equal(streams.length, 3, "revoked registration cannot open a new stream");
+  assert.equal(service.manifestSync.state, "retrying");
+});
+
 test("poll submission preserves false, true, and omitted operation menu policy", async t => {
   const service = serviceFixture();
   t.after(() => service.dispose());
@@ -105,4 +208,37 @@ test("poll submission preserves false, true, and omitted operation menu policy",
   assert.equal(await service.connectToControlPlane(obs), true);
   assert.deepEqual(payload.viewIndex.menu.operations.map((operation: { menu?: boolean }) => operation.menu), [false, true, undefined]);
   assert.equal(Object.hasOwn(payload.viewIndex.menu.operations[2], "menu"), false);
+});
+
+test("invalid streamed configuration cancels the stream and repeats the registration and sync handshake", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const service = serviceFixture();
+  t.after(() => service.dispose());
+  let posts = 0;
+  let cancelled = 0;
+  const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    if (init.method === "POST") {
+      posts++;
+      return Response.json({ tenants: [], apps: [], managementOrigins: [] });
+    }
+    return new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        streams.push(controller);
+        init.signal?.addEventListener("abort", () => controller.error(new DOMException("Disposed", "AbortError")), { once: true });
+      },
+      cancel() { cancelled++; }
+    }));
+  });
+  assert.equal(await service.connectToControlPlane(obs), true);
+  const accepted = service.scopedConfig;
+  streams[0].enqueue(new TextEncoder().encode('event: config\ndata: {"apps":"invalid"}\n\n'));
+  await setImmediate();
+  assert.equal(cancelled, 1);
+  assert.equal(service.scopedConfig, accepted, "invalid data cannot replace the last accepted configuration");
+  t.mock.timers.tick(5000);
+  await setImmediate();
+  assert.equal(posts, 2);
+  assert.equal(streams.length, 2);
+  assert.equal(service.manifestSync.state, "synced");
 });

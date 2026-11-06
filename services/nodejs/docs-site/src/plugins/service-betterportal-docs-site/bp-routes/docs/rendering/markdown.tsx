@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import type { HtmlRenderable } from "@betterportal/framework";
 
 function inlineText(text: string): HtmlRenderable {

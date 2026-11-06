@@ -1,3 +1,4 @@
+import { isPageOperation } from "./routeMounts.js";
 import { eventObservability } from "@betterportal/framework";
 import { editAppRows, readApp, readRequestConfig, type AppDatabase, type AppEditorData } from "./appQueries.js";
 import { isMenuRouteExcluded } from "./routeMounts.js";
@@ -14,6 +15,7 @@ import {
   eventHeaders,
   htmlResponse,
   jsonResponse,
+  readBoundedJsonBody,
   resolveEmbeddedRequestContext,
   signServiceConfigTicket,
   uuidv7,
@@ -23,7 +25,7 @@ import {
 import type { TenantServiceRegistration, PlatformService, BetterPortalThemeConfig, BetterPortalConfig, BetterPortalApp, BetterPortalMenuItem, BetterPortalRouteMount, DeploymentMode } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { generateApiKey, hashApiKey } from "./storage/index.js";
-import { getManifestCache } from "./syncApi.js";
+import { getCachedManifestForService, getManifestCache, reconcileCachedServiceRoutes } from "./syncApi.js";
 import { apiRoutePath, appRoutePatternKey, isApiRoute, pageRoutePath } from "./routeMounts.js";
 import {
   M2MConnectionError,
@@ -67,6 +69,10 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
+function inlineScriptJson(value: unknown): string {
+  return JSON.stringify(value ?? null).replace(/</g, "\\u003c");
+}
+
 async function readJsonBody(event: BetterPortalEvent): Promise<Record<string, unknown>> {
   const parsed = await event.req.json().catch(() => null);
   return (parsed && typeof parsed === "object" && !Array.isArray(parsed))
@@ -107,7 +113,7 @@ async function editApp(
   store: PlatformConfigStore,
   appId: string,
   action: (config: AppEditorData) => Promise<Response>,
-  database?: AppDatabase, event?: BetterPortalEvent
+  database?: AppDatabase, event?: BetterPortalEvent, includeManifests = false
 ): Promise<Response> {
   const apply = async (config: BetterPortalConfig) => {
     const response = await action(config);
@@ -115,7 +121,7 @@ async function editApp(
     return response;
   };
   try {
-    if (database) return await editAppRows(database, appId, event ? eventObservability(event) : undefined, action);
+    if (database) return await editAppRows(database, appId, event ? eventObservability(event) : undefined, action, includeManifests);
     if (store.mutateApp) return await store.mutateApp(appId, apply);
     const config = await store.loadConfig();
     const response = await apply(config);
@@ -436,18 +442,20 @@ export function renderAutomationLlmsApi(catalog: ReturnType<typeof automationSer
   }
   return lines.join("\n");
 }
-function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<BetterPortalRouteMount, "id">; error?: string } {
+function parseRouteCreateBody(body: Record<string, unknown>, config: AppEditorData): { route?: Omit<BetterPortalRouteMount, "id">; error?: string } {
   const serviceId = requiredRouteString(body, "serviceId", "Service");
   if (serviceId.error) return { error: serviceId.error };
   const viewId = requiredRouteString(body, "viewId", "View");
   if (viewId.error) return { error: viewId.error };
   const operationId = requiredRouteString(body, "operationId", "Operation");
   if (operationId.error) return { error: operationId.error };
-  const manifestView = getManifestCache().get(serviceId.value!)?.viewIndex[viewId.value!];
+  const manifest = getCachedManifestForService(config, serviceId.value!);
+  if (!manifest) return { error: "Service manifest is not synced yet. Wait for service manifest sync before adding a route." };
+  const manifestView = manifest.viewIndex[viewId.value!];
+  if (!manifestView) return { error: "Selected view is not available in the synced service manifest." };
   const manifestOperation = manifestView?.operations.find((operation) => operation.operationId === operationId.value);
   if (manifestView && !manifestOperation) return { error: "Selected operation is not available for this view." };
-  const renderable = manifestOperation?.method === "GET" && manifestOperation.renderModes.includes("page");
-  const manifest = getManifestCache().get(serviceId.value!);
+  const renderable = manifestOperation ? isPageOperation(manifestOperation) : false;
   const servicePathVariant = trimmedString(body, "servicePathVariant") ?? manifestView?.path ?? `/${viewId.value!}`;
   if (manifestView && ![manifestView.path, ...manifestView.pathVariants].includes(servicePathVariant)) {
     return { error: "Selected service path is not available for this view." };
@@ -542,8 +550,8 @@ function cleanupProvisionalTenantService(config: BetterPortalConfig, tenantId: s
   return { removed: true };
 }
 
-function addRouteDependencies(appDef: BetterPortalApp, route: BetterPortalRouteMount): void {
-  const manifest = getManifestCache().get(route.serviceId);
+function addRouteDependencies(config: AppEditorData, appDef: BetterPortalApp, route: BetterPortalRouteMount): void {
+  const manifest = getCachedManifestForService(config, route.serviceId);
   const view = manifest?.viewIndex[route.viewId];
   if (!manifest || !view) return;
 
@@ -558,7 +566,11 @@ function addRouteDependencies(appDef: BetterPortalApp, route: BetterPortalRouteM
     const dependency = operations.get(requirement.operationId);
     if (dependency?.operation.method !== requirement.method) continue;
     if (!dependency) continue;
-    if (appDef.routes.some((candidate) => candidate.serviceId === route.serviceId && candidate.operations.includes(requirement.operationId))) continue;
+    const existing = appDef.routes.find((candidate) => candidate.serviceId === route.serviceId && candidate.operations.includes(requirement.operationId));
+    if (existing) {
+      if (existing.enablement !== "disabled") existing.enabled = true;
+      continue;
+    }
     appDef.routes.push({
       id: uuidv7(),
       kind: "api",
@@ -1213,6 +1225,7 @@ export function registerAdminApiRoutes(
     let activation = config.sharedServiceActivations.find((entry) =>
       entry.sharedServiceId === sharedServiceId && entry.tenantId === appDef.tenantId && entry.appId === appDef.id
     );
+    const wasEnabled = activation?.enabled === true;
     if (!activation) {
       activation = {
         id: uuidv7(),
@@ -1223,8 +1236,12 @@ export function registerAdminApiRoutes(
         enabled: true
       };
       config.sharedServiceActivations.push(activation);
-      await store.saveConfig(config);
+    } else if (!activation.enabled) {
+      activation.enabled = true;
+      activation.activatedAt = new Date().toISOString();
     }
+    const routesChanged = reconcileCachedServiceRoutes(config, [activation.id]);
+    if (!wasEnabled || routesChanged) await store.saveConfig(config);
     return jsonResponse({ ok: true, activation } as JsonValue, 201);
   });
 
@@ -1238,11 +1255,11 @@ export function registerAdminApiRoutes(
     const { appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     const body = await readFormOrJsonBody(event);
-    const parsed = parseRouteCreateBody(body);
-    if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route");
     return editApp(store, appDef.id, async data => {
       const current = data.apps.find(app => app.id === appDef.id);
       if (!current || isPreviewApp(data, current.id)) return jsonResponse({ error: "App not found" }, 404);
+      const parsed = parseRouteCreateBody(body, data);
+      if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route");
       const serviceError = validateRegisteredRouteService(data, current, parsed.route!.serviceId);
       if (serviceError) return validationError(event, serviceError);
       if (current.routes.some(candidate => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
@@ -1250,9 +1267,9 @@ export function registerAdminApiRoutes(
       }
       const route = { id: uuidv7(), ...parsed.route! };
       current.routes.push(route);
-      addRouteDependencies(current, route);
+      addRouteDependencies(data, current, route);
       return jsonResponse({ ok: true } as JsonValue, 201);
-    }, database, event);
+    }, database, event, true);
   });
 
   app.get("/.well-known/bp/manage/fragments", async (event) => {
@@ -1443,12 +1460,13 @@ export function registerAdminApiRoutes(
       && activation.tenantId === tenantId
       && activation.appId === appId
     );
+    const activationId = existing?.id ?? uuidv7();
     if (existing) {
       existing.enabled = true;
       existing.activatedAt = new Date().toISOString();
     } else {
       config.sharedServiceActivations.push({
-        id: uuidv7(),
+        id: activationId,
         tenantId,
         appId,
         sharedServiceId,
@@ -1456,6 +1474,7 @@ export function registerAdminApiRoutes(
         enabled: true
       });
     }
+    reconcileCachedServiceRoutes(config, [activationId]);
     await store.saveConfig(config);
     if (wantsHtmx(event)) return htmxReload(`/services?tenantId=${encodeURIComponent(tenantId)}`);
     return jsonResponse({ ok: true });
@@ -1577,6 +1596,7 @@ export function registerAdminApiRoutes(
     };
 
     tenant.services.push(service);
+    reconcileCachedServiceRoutes(config, [service.id]);
     await store.saveConfig(config);
     return jsonResponse({ id: service.id, hostname: service.hostname, serviceId: service.serviceId, apiKey } as JsonValue, 201);
   });
@@ -1706,10 +1726,12 @@ export function registerAdminApiRoutes(
     const tenant = config.tenants.find((t) => t.id === tenantId);
     if (!tenant) return jsonResponse({ error: "Tenant not found" }, 404);
 
-    if (!tenant.activatedPlatformServices.includes(psId)) {
+    const wasActivated = tenant.activatedPlatformServices.includes(psId);
+    if (!wasActivated) {
       tenant.activatedPlatformServices.push(psId);
-      await store.saveConfig(config);
     }
+    const routesChanged = reconcileCachedServiceRoutes(config, [psId]);
+    if (!wasActivated || routesChanged) await store.saveConfig(config);
     return jsonResponse({ ok: true });
   });
 
@@ -1979,11 +2001,13 @@ export function registerAdminApiRoutes(
   app.put(`${API_BASE}/apps/:appId/auth/roles/sync`, async (event) => {
     const appId = getParam(event, "appId");
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
-    const body = await readJsonBody(event);
-    const roles = Array.isArray(body.roles) ? body.roles : undefined;
-    if (!roles) return jsonResponse({ error: "roles array required" }, 400);
     const identity = await readServiceIdentity(event);
     if (identity instanceof Response) return identity;
+    const parsedBody = await readBoundedJsonBody(event.req, 1024 * 1024);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody) ? parsedBody as Record<string, unknown> : {};
+    const roles = Array.isArray(body.roles) ? body.roles : undefined;
+    if (!roles) return jsonResponse({ error: "roles array required" }, 400);
 
     return editApp(store, appId, async (config) => {
       const appDef = config.apps.find(app => app.id === appId);
@@ -2002,11 +2026,13 @@ export function registerAdminApiRoutes(
   });
 
   app.put(`${API_BASE}/services/self-mutation`, async (event) => {
-    const parsed = SelfMutationRequestSchema.safeParse(await readJsonBody(event));
-    if (!parsed.success) return jsonResponse({ error: "Invalid self-mutation request", issues: parsed.issues as unknown as JsonValue }, 400);
-    const { tenantId, appId, type, mutation } = parsed.data;
     const identity = await readServiceIdentity(event);
     if (identity instanceof Response) return identity;
+    const body = await readBoundedJsonBody(event.req, 1024 * 1024);
+    if (body instanceof Response) return body;
+    const parsed = SelfMutationRequestSchema.safeParse(body);
+    if (!parsed.success) return jsonResponse({ error: "Invalid self-mutation request", issues: parsed.issues as unknown as JsonValue }, 400);
+    const { tenantId, appId, type, mutation } = parsed.data;
 
     if (type === "theme") {
       const { config, appDef } = await getAppOr404(appId);
@@ -2197,7 +2223,7 @@ export function registerAdminApiRoutes(
       if (isPreviewApp(config, appId)) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
       const appDef = config.apps.find((a) => a.id === appId);
       if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
-      const parsed = parseRouteCreateBody(body);
+      const parsed = parseRouteCreateBody(body, config);
       if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route.");
       if (parsed.route.kind === "api") return validationError(event, "Service/API routes are created by service manifest sync.");
       const serviceError = validateRegisteredRouteService(config, appDef, parsed.route.serviceId);
@@ -2207,10 +2233,10 @@ export function registerAdminApiRoutes(
       }
       const route: BetterPortalRouteMount = { ...parsed.route, id: uuidv7() };
       appDef.routes.push(route);
-      addRouteDependencies(appDef, route);
+      addRouteDependencies(config, appDef, route);
       if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId));
       return jsonResponse({ ok: true, id: route.id } as unknown as JsonValue, 201);
-    }, database, event);
+    }, database, event, true);
   });
 
   app.put(`${API_BASE}/apps/:appId/routes/:routeId`, async (event) => {
@@ -2255,7 +2281,7 @@ export function registerAdminApiRoutes(
         if (!operationId) return validationError(event, "Operation is required.");
         route.operations = [operationId];
       }
-      const manifest = getManifestCache().get(route.serviceId);
+      const manifest = getCachedManifestForService(config, route.serviceId);
       const manifestView = manifest?.viewIndex[route.viewId];
       if (manifestView) {
         const manifestOperation = manifestView.operations.find((operation) => route.operations.includes(operation.operationId));
@@ -2270,7 +2296,7 @@ export function registerAdminApiRoutes(
         const servicePathError = validateCanonicalRoutePath(requestedServicePath, "Service path");
         if (servicePathError) return validationError(event, servicePathError);
         const submittedFixed = fixedParamsFromBody(body);
-        const pageRenderable = manifestOperation.method === "GET" && manifestOperation.renderModes.includes("page");
+        const pageRenderable = isPageOperation(manifestOperation);
         const mappedAppPath = !pageRenderable
           ? apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath)
           : route.path;
@@ -2302,7 +2328,7 @@ export function registerAdminApiRoutes(
       if (body.query !== undefined) {
         const query = trimmedString(body, "query");
         const renderable = manifestView?.operations.some((operation) =>
-          route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
+          route.operations.includes(operation.operationId) && isPageOperation(operation)
         );
         if (isApiRoute(route, renderable)) delete route.query;
         else if (query) route.query = query.replace(/^\?+/, "");
@@ -2312,7 +2338,7 @@ export function registerAdminApiRoutes(
         const title = trimmedString(body, "title");
         if (!title) return validationError(event, "Display title is required.");
         const renderable = manifestView?.operations.some((operation) =>
-          route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
+          route.operations.includes(operation.operationId) && isPageOperation(operation)
         );
         if (!isApiRoute(route, renderable)) route.title = title;
       }
@@ -2327,7 +2353,7 @@ export function registerAdminApiRoutes(
 
       if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId, route.kind === "api" ? route.serviceId : undefined));
       return jsonResponse({ ok: true });
-    }, database, event);
+    }, database, event, true);
   });
 
   app.delete(`${API_BASE}/apps/:appId/routes/:routeId`, async (event) => {
@@ -2807,7 +2833,7 @@ function renderWizardStep1(
 </div>`;
 }
 
-function renderWizardStep2(d: { tenantId: string; hostname: string; pluginId: string; version: string; viewCount: number; title: string; schema: string; adminApiBase: string }): string {
+export function renderWizardStep2(d: { tenantId: string; hostname: string; pluginId: string; version: string; viewCount: number; title: string; schema: string; adminApiBase: string }): string {
   return `<div id="bp-wizard-step">
   <div class="mb-3 text-secondary small">Step 2 of 3</div>
   <div class="alert alert-success mb-3">
@@ -2862,7 +2888,7 @@ function renderWizardStep2(d: { tenantId: string; hostname: string; pluginId: st
     back.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
-      const url = ${JSON.stringify(d.adminApiBase)} + "/wizard/step1?tenantId=" + encodeURIComponent(${JSON.stringify(d.tenantId)}) + "&hostname=" + encodeURIComponent(${JSON.stringify(d.hostname)});
+      const url = ${inlineScriptJson(d.adminApiBase)} + "/wizard/step1?tenantId=" + encodeURIComponent(${inlineScriptJson(d.tenantId)}) + "&hostname=" + encodeURIComponent(${inlineScriptJson(d.hostname)});
       const response = await fetch(url, { headers: { Accept: "text/html" } });
       const html = await response.text();
       if (step) step.outerHTML = html;
@@ -2873,7 +2899,7 @@ function renderWizardStep2(d: { tenantId: string; hostname: string; pluginId: st
 </div>`;
 }
 
-function renderWizardStep3(d: { apiKey: string; deploymentMode: string; title: string; tenantId?: string; serviceInstanceId?: string; serviceUrl?: string; adminApiBase?: string }): string {
+export function renderWizardStep3(d: { apiKey: string; deploymentMode: string; title: string; tenantId?: string; serviceInstanceId?: string; serviceUrl?: string; adminApiBase?: string }): string {
   if (d.tenantId && d.serviceInstanceId && d.serviceUrl) {
     return `<div id="bp-wizard-step">
   <div class="mb-3 text-secondary small">Step 3 of 3</div>
@@ -2889,7 +2915,13 @@ function renderWizardStep3(d: { apiKey: string; deploymentMode: string; title: s
   const setStatus = (kind, heading, message) => {
     if (!status) return;
     status.className = "alert alert-" + kind;
-    status.innerHTML = '<h6 class="alert-heading">' + heading + '</h6><p class="mb-0 small">' + message + '</p>';
+    const title = document.createElement("h6");
+    title.className = "alert-heading";
+    title.textContent = heading;
+    const detail = document.createElement("p");
+    detail.className = "mb-0 small";
+    detail.textContent = message;
+    status.replaceChildren(title, detail);
   };
   const postJson = async (url, body) => {
     const response = await fetch(url, {
@@ -2903,12 +2935,12 @@ function renderWizardStep3(d: { apiKey: string; deploymentMode: string; title: s
   };
   (async () => {
     try {
-      const install = await postJson(${JSON.stringify((d.adminApiBase ?? API_BASE).replace(/\/+$/, ""))} + "/services/begin-install", {
-        serviceUrl: ${JSON.stringify(d.serviceUrl)},
-        tenantId: ${JSON.stringify(d.tenantId)},
-        instanceId: ${JSON.stringify(d.serviceInstanceId)}
+      const install = await postJson(${inlineScriptJson((d.adminApiBase ?? API_BASE).replace(/\/+$/, ""))} + "/services/begin-install", {
+        serviceUrl: ${inlineScriptJson(d.serviceUrl)},
+        tenantId: ${inlineScriptJson(d.tenantId)},
+        instanceId: ${inlineScriptJson(d.serviceInstanceId)}
       });
-      await postJson(${JSON.stringify(d.serviceUrl)} + "/.well-known/bp/install", {
+      await postJson(${inlineScriptJson(d.serviceUrl)} + "/.well-known/bp/install", {
         setupToken: install.setupToken,
         cpUrl: install.cpUrl
       });
@@ -2916,9 +2948,9 @@ function renderWizardStep3(d: { apiKey: string; deploymentMode: string; title: s
       if (done) done.disabled = false;
     } catch (error) {
       try {
-        await postJson(${JSON.stringify((d.adminApiBase ?? API_BASE).replace(/\/+$/, ""))} + "/wizard/cleanup-provisional-service", {
-          tenantId: ${JSON.stringify(d.tenantId)},
-          serviceInstanceId: ${JSON.stringify(d.serviceInstanceId)}
+        await postJson(${inlineScriptJson((d.adminApiBase ?? API_BASE).replace(/\/+$/, ""))} + "/wizard/cleanup-provisional-service", {
+          tenantId: ${inlineScriptJson(d.tenantId)},
+          serviceInstanceId: ${inlineScriptJson(d.serviceInstanceId)}
         });
       } catch { /* cleanup best effort */ }
       setStatus("danger", "Install Failed", error instanceof Error ? error.message : String(error));

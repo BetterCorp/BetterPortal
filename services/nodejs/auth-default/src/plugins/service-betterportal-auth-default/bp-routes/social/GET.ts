@@ -13,7 +13,7 @@ export const ResponseSchema = JsonObjectSchema;
 export default createHandler({ response: ResponseSchema, query: QuerySchema }, (ctx): JsonObject => {
   ctx.responseHeaders?.set("Cache-Control", "no-store"); ctx.responseHeaders?.set("Referrer-Policy", "no-referrer");
   try {
-    return { status: "ok", endpoint: ctx.routeUrl?.("social.index", { absolute: true }) ?? "/social", signedIn: !!ctx.user, code: String(ctx.query.code ?? ""), state: String(ctx.query.state ?? ""), error: String(ctx.query.error ?? ""), connections: socialConnections(ctx.plugin.runtime, { tenantId: ctx.tenant.id, appId: ctx.app.id }).map(c => ({ id: c.id, title: c.kind })) };
+    return { status: "ok", signedIn: !!ctx.user, code: String(ctx.query.code ?? ""), state: String(ctx.query.state ?? ""), error: String(ctx.query.error ?? ""), connections: socialConnections(ctx.plugin.runtime, { tenantId: ctx.tenant.id, appId: ctx.app.id }).map(c => ({ id: c.id, title: c.kind })) };
   } catch (error) {
     if (!(error instanceof AuthError)) throw error;
     ctx.setStatus?.(error.status);

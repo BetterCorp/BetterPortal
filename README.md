@@ -5,7 +5,7 @@
 
 A multi-tenant portal platform composed of independent services unified by a single theme. API-first, HTMX-first, schema-validated.
 
-**BetterPortal is a protocol first, a Node SDK second.** The wire protocol (HTTP + HTMX + JSON) is specified in [`spec/`](spec/README.md) so services and themes can be implemented in any language. The reference Node services use [BSB (Better Service Base)](https://github.com/BetterCorp/bsb-base). Standalone .NET and Python SDKs are in development and remain incomplete and unpublished. See [route authoring](docs/building/route-authoring.md) for the three runtime workflows.
+**BetterPortal is a protocol first, a Node SDK second.** The wire protocol (HTTP + HTMX + JSON) is specified in [`spec/`](spec/README.md) so services and themes can be implemented in any language. The reference Node services use [BSB (Better Service Base)](https://github.com/BetterCorp/better-service-base). Standalone .NET and Python SDKs are in development and remain incomplete and unpublished. See [route authoring](docs/building/route-authoring.md) for the three runtime workflows.
 
 ## What it is
 

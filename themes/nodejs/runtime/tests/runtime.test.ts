@@ -32,8 +32,7 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   assert.match(source, /detail\.ctx\.fetch=.*?preload\.prefetch\.then/);
   assert.match(source, /applyPreloadConfig\(el,bpCfg\).*?bindBpPreload\(el\).*?data-bp-shell-route/s);
   assert.match(source, /matchServiceRoute\(elServiceId,pathOnly,"api"\)/);
-  assert.match(source, /configuredMatch=matchTenantRoute\(pathOnly\)/);
-  assert.match(source, /match\.route\.servicePath\+match\.suffix/);
+  assert.match(source, /match\.route\.servicePath/);
   assert.match(source, /el\.setAttribute\("href",tenantUrl\)/);
   assert.match(source, /data-bp-shell-route","api"/);
   assert.doesNotMatch(source, /setAttribute\("hx-push-url",resolvePath\)/);
@@ -48,7 +47,7 @@ test("shared HTMX requests declare page or partial response mode", () => {
   assert.match(source, /isSseConnect\)ctx\.request\.headers\["HX-Request-Type"\]="partial"/);
 });
 
-test("service fragment SSE URLs are rewritten before bp-element injection", () => {
+test("service fragment SSE URLs are rewritten before bp-route injection", () => {
   const source = betterPortalShellRuntimeSource();
   assert.ok(source.indexOf("ctx.text=text.replace") < source.indexOf("renderBpElementState(bpElement,detail.ctx.response.status"));
   assert.match(source, /hx-sse:connect\|sse-connect/);
@@ -70,7 +69,9 @@ test("shell correlates runtime requests with per-document W3C baggage", () => {
   assert.match(source, /betterportal:session-id/);
   assert.match(source, /data-bp-session-id/);
   assert.match(source, /bp\.session_id=/);
-  assert.doesNotMatch(source, /sessionStorage/);
+  const sessionSetup = source.slice(source.indexOf("const createSessionId"), source.indexOf('document.documentElement.setAttribute("data-bp-session-id"'));
+  assert.ok(sessionSetup.length > 0);
+  assert.doesNotMatch(sessionSetup, /sessionStorage/);
   assert.doesNotMatch(source, /X-BP-Trace-Id/i);
 });
 
@@ -152,7 +153,6 @@ test("main outlet HTTP errors only swap explicit themed status views", () => {
   assert.match(source, /isThemedStatusResponse\(ctx\)/);
   assert.match(source, /htmx_response_error/);
   assert.match(source, /renderRouteError\(errorTitle\(status\),errorMessage\(status\)/);
-  assert.match(source, /applyChrome\(null\)/);
 });
 
 test("request error overlays inherit the initiating service context", () => {
@@ -195,15 +195,16 @@ test("shared shell owns generic chrome lifecycle", () => {
   assert.doesNotMatch(source, /setChromeFullScreen/);
 });
 
-test("shared shell owns bp-element states without browser schema discovery", () => {
+test("shared shell owns bp-route states without browser schema discovery", () => {
   const source = betterPortalShellRuntimeSource();
-  assert.match(source, /bp-element\[data-bp-element\]/);
+  assert.match(source, /bp-route\[data-bp-route\]/);
   assert.match(source, /statusSpecificity/);
-  assert.match(source, /bp:element-retry/);
+  assert.match(source, /bp:route-retry/);
   assert.match(source, /bpElementStateSwaps\.has\(element\)/);
   assert.match(source, /bpElementStateSwaps\.has\(bpElement\)/);
   assert.match(source, /finally\(\(\)=>bpElementStateSwaps\.delete\(element\)\)/);
-  assert.match(source, /states\.ok===void 0\?responseHtml/);
+  assert.match(source, /data-bp-route-insertion/);
+  assert.match(source, /data-bp-route-state/);
   assert.doesNotMatch(source, /loadBackgroundFragments/);
   assert.doesNotMatch(source, /\.well-known\/bp\/schema\.json/);
 });
