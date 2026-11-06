@@ -740,6 +740,24 @@ pgTest("read-only page snapshots stay fresh and cannot be submitted as writable 
   assert.equal(original.apps[0].auth!.roles.length, 0);
 });
 
+pgTest("scoped sync reads see grants and revocations committed by another replica without mutating earlier snapshots", async t => {
+  const { makeStore, config } = await database(t);
+  const reader = makeStore(), writer = makeStore();
+  const tenantId = config.tenants[0].id, serviceId = config.tenants[0].services[0].id, appId = config.apps[0].id;
+  const read = () => reader.getScopedConfig(serviceId, "tenant", tenantId);
+  const original = await read();
+  await writer.mutateApp(appId, async current => {
+    current.apps[0].auth!.roles.push({ id: "reader", title: "Reader", permissions: [{ serviceId, viewId: "home", permissions: ["read"] }] });
+  });
+  const granted = await read();
+  assert.deepEqual(granted.apps.find(app => app.id === appId)!.auth!.roles[0].permissions[0].permissions, ["read"]);
+  await writer.mutateApp(appId, async current => { current.apps[0].auth!.roles = []; });
+  const revoked = await read();
+  assert.deepEqual(revoked.apps.find(app => app.id === appId)!.auth!.roles, []);
+  assert.deepEqual(original.apps.find(app => app.id === appId)!.auth!.roles, []);
+  assert.equal(granted.apps.find(app => app.id === appId)!.auth!.roles.length, 1);
+});
+
 pgTest("direct app operations isolate rows, roll back invalid references and never load a platform snapshot", async t => {
   const { pool, makeStore, config } = await database(t);
   const databaseOwner = makeStore();

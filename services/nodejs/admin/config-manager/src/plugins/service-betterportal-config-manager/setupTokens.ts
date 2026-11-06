@@ -43,6 +43,8 @@ export function registerSetupEndpoints(input: {
 }): void {
   const pending = new Map<string, PendingSetup>();
   const pendingHostnameChanges = new Map<string, PendingHostnameChange>();
+  const readRegistrationConfig = () => input.postgres
+    ? input.postgres.loadConfig({ readOnly: true }) : input.storage.loadConfig();
 
   function sweep(): void {
     const now = Date.now();
@@ -63,7 +65,7 @@ export function registerSetupEndpoints(input: {
     const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
     if (!instanceId || !serviceUrl) return jsonResponse({ error: "A service instance and valid URL origin are required" }, 400);
 
-    const config = await input.storage.loadConfig();
+    const config = await readRegistrationConfig();
     const service = findServiceInstance(config, instanceId);
     if (!service) return jsonResponse({ error: "Service instance not found" }, 404);
     if (!service.enabled || !service.apiKeyHash) return jsonResponse({ error: "Only an installed, enabled service can change URL" }, 409);
@@ -166,26 +168,28 @@ export function registerSetupEndpoints(input: {
     }
     let serviceUrl = body.serviceUrl.replace(/\/+$/, "");
     let tenantScope = body.tenantId ? { tenantId: body.tenantId, appId: body.appId } : undefined;
-    const sharedServiceId = typeof body.sharedServiceId === "string" && body.sharedServiceId.length > 0
+    let sharedServiceId = typeof body.sharedServiceId === "string" && body.sharedServiceId.length > 0
       ? body.sharedServiceId
       : undefined;
-    const instanceId = (typeof body.instanceId === "string" && body.instanceId.length > 0)
+    let instanceId = (typeof body.instanceId === "string" && body.instanceId.length > 0)
       ? body.instanceId : uuidv7();
     let expectedPluginId: string | undefined;
 
     if (body.reconfigure === true) {
-      const config = await input.storage.loadConfig();
+      const config = await readRegistrationConfig();
       const tenant = config.tenants.find((candidate) => candidate.services.some((service) => service.id === instanceId));
+      const shared = config.sharedServiceCatalog.find((service) => service.id === instanceId);
       const existing = tenant?.services.find((service) => service.id === instanceId)
-        ?? config.platformServices.find((service) => service.id === instanceId);
-      if (!existing) return jsonResponse({ error: "Only an existing non-shared service can be reconfigured" }, 404);
+        ?? config.platformServices.find((service) => service.id === instanceId) ?? shared;
+      if (!existing) return jsonResponse({ error: "Service instance not found" }, 404);
       if (!existing.serviceId) return jsonResponse({ error: "The existing service has no plugin id to verify" }, 409);
       const requestedOrigin = normalizeServiceOrigin(serviceUrl);
-      if (!requestedOrigin || requestedOrigin !== normalizeServiceOrigin(existing.hostname)) {
-        return jsonResponse({ error: "Reconfiguration must use the service's registered URL" }, 409);
-      }
+      if (!requestedOrigin) return jsonResponse({ error: "A valid service URL origin is required" }, 400);
       serviceUrl = requestedOrigin;
       tenantScope = tenant ? { tenantId: tenant.id, appId: undefined } : undefined;
+      sharedServiceId = shared?.id;
+      // Shared catalogs retain their opaque ID; the install token still uses a UUID instance claim.
+      if (shared) instanceId = uuidv7();
       expectedPluginId = existing.serviceId;
     }
 

@@ -355,7 +355,7 @@ export function applyServicePublicKey(
 export abstract class BaseStorage implements PlatformConfigStore {
   protected listeners: Set<() => void> = new Set();
 
-  abstract loadConfig(): Promise<BetterPortalConfig>;
+  abstract loadConfig(options?: { readOnly?: boolean }): Promise<BetterPortalConfig>;
   abstract saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void>;
 
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
@@ -694,7 +694,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
     scope: "tenant" | "platform",
     tenantId?: string
   ): Promise<ScopedServiceConfig> {
-    const config = await this.loadConfig();
+    const config = await this.loadConfig({ readOnly: true });
     // Shell services need an unfiltered app view to resolve route URLs and
     // render full nav. Detect by app.shell.serviceId pointing at the caller.
     const sharedActivationIdsForCaller = new Set(

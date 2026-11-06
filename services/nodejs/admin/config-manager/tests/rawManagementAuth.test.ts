@@ -213,6 +213,54 @@ test("a forged setup token with a real token ID cannot redeem service credential
   assert.equal(valid.status, 200, await valid.clone().text());
 });
 
+test("re-setup at a new URL preserves registration and app bindings and verifies the stored plugin", async () => {
+  const { send, storage, appId, tenantId, token } = fixture();
+  const service = storage.config.tenants[0].services[0];
+  const originalId = service.id, originalUrl = service.hostname;
+  service.apiKeyHash = "old-installation-key";
+  const apps = structuredClone(storage.config.apps);
+  const credential = token(appId, tenantId);
+  const begin = (serviceUrl: string) => send("/.well-known/bp/admin/services/begin-install", "POST", {
+    instanceId: originalId, tenantId: "ignored-caller-scope", serviceUrl, reconfigure: true
+  }, credential);
+  for (const invalid of ["https://new.example/path", "https://new.example?key=value", "https://user:pass@new.example"]) {
+    assert.equal((await begin(invalid)).status, 400);
+  }
+  const issued = await begin("https://replacement.example");
+  assert.equal(issued.status, 200, await issued.clone().text());
+  assert.equal(service.hostname, originalUrl, "issuing a setup token does not move the registration");
+  const { setupToken } = await issued.json() as { setupToken: string };
+  const redeem = (pluginId: string) => send("/.well-known/bp/services/redeem", "POST", { setupToken, pluginId });
+  assert.equal((await redeem("org.example.wrong-service")).status, 409);
+  assert.equal(service.apiKeyHash, "old-installation-key");
+  assert.equal((await redeem(service.serviceId!)).status, 200);
+  const updated = storage.config.tenants[0].services;
+  assert.equal(updated.length, 1);
+  assert.equal(updated[0].id, originalId);
+  assert.equal(updated[0].hostname, "https://replacement.example");
+  assert.notEqual(updated[0].apiKeyHash, "old-installation-key");
+  assert.deepEqual(storage.config.apps, apps);
+});
+
+test("shared service re-setup moves the catalog entry and preserves its tenant activations", async () => {
+  const { send, storage, appId, tenantId, token } = fixture();
+  const shared = storage.config.sharedServiceCatalog[0];
+  const activations = structuredClone(storage.config.sharedServiceActivations);
+  shared.apiKeyHash = "old-shared-key";
+  const issued = await send("/.well-known/bp/admin/services/begin-install", "POST", {
+    instanceId: shared.id, serviceUrl: "https://new-shared.example", reconfigure: true
+  }, token(appId, tenantId));
+  assert.equal(issued.status, 200, await issued.clone().text());
+  const { setupToken } = await issued.json() as { setupToken: string };
+  const redeemed = await send("/.well-known/bp/services/redeem", "POST", { setupToken, pluginId: shared.serviceId });
+  assert.equal(redeemed.status, 200, await redeemed.clone().text());
+  assert.equal(storage.config.sharedServiceCatalog.length, 1);
+  assert.equal(storage.config.sharedServiceCatalog[0].baseUrl, "https://new-shared.example");
+  assert.notEqual(storage.config.sharedServiceCatalog[0].apiKeyHash, "old-shared-key");
+  assert.deepEqual(storage.config.sharedServiceActivations, activations);
+  assert.equal(storage.config.platformServices.length, 0, "shared setup must not create a platform registration");
+});
+
 test("public setup redemption rejects oversized JSON without a Content-Length", async () => {
   const { app } = fixture();
   const oversized = new TextEncoder().encode(JSON.stringify({ setupToken: "x".repeat(256 * 1024), pluginId: "org.example.service" }));

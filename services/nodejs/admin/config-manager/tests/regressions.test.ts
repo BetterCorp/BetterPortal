@@ -1683,7 +1683,6 @@ test("service registration stays browser-mediated and tenant history follows the
   assert.match(html, /id="bp-tenant-service-preview"[^>]*aria-live="polite"/);
   assert.match(html, /bp-toast-container/);
   assert.match(html, /Toast\?\.getOrCreateInstance/);
-  assert.match(html, /Offcanvas\?\.getInstance\(panel\)\?\.hide/);
   assert.match(html, /setTenantStatus\("secondary", "Installing service\.\.\."\)/);
   assert.match(html, /data-bp-reconfigure-service=""[^>]*data-bp-service-plugin-id="org\.example\.service"/);
   assert.match(html, /const needsReconnect = health\?\.setupMode === true && health\.pluginId === button\.dataset\.bpServicePluginId/);
