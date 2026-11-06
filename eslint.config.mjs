@@ -25,5 +25,19 @@ export default defineConfig(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_", ignoreRestSiblings: true }]
     }
   },
+  {
+    files: ["plugins/nodejs/**/src/**/*.{ts,tsx}", "framework/nodejs/src/**/*.{ts,tsx}",
+      "services/nodejs/**/src/**/*.{ts,tsx}", "themes/nodejs/**/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": ["error", {
+        selector: "MemberExpression[object.name='process'][property.name='env'], MemberExpression[object.name='process'][property.value='env'], MemberExpression[object.property.name='process'][property.name='env'], VariableDeclarator[init.name='process'] > ObjectPattern > Property[key.name='env']",
+        message: "Read runtime settings through BSB configuration. Environment access belongs to the BSB configuration manager."
+      }],
+      "no-restricted-imports": ["error", { paths: [
+        { name: "node:process", message: "Use BSB configuration for runtime settings and the global process object for lifecycle operations." },
+        { name: "process", message: "Use BSB configuration for runtime settings and the global process object for lifecycle operations." }
+      ] }]
+    }
+  },
   { files: ["**/tests/**", "tests/**"], rules: { "betterportal/routing-contract": "off" } }
 );

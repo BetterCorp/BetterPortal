@@ -61,7 +61,7 @@ Repeating a request for the same deployment key must retain all existing service
 
 When an added BP plugin exists in the source app, its newly available shell, slots, fragments, auth references and configured routes are mapped into the preview. Existing preview settings and occupied slots are preserved; copied routes remain disabled until the added service syncs its manifest. This uses the source app's current bindings at the time of addition, without recloning the running preview app.
 
-On first creation, copy each returned `BP_CONTROL_PLANE_URL` and `BP_SERVICE_API_KEY` into the matching service deployment. `DELETE` on the same URL removes the preview immediately and is safe to repeat. Expired previews are deleted automatically.
+On first creation, apply the returned credentials to the matching service through its BSB configuration: map `BP_CONTROL_PLANE_URL` to `betterportal.controlPlaneUrl` and `BP_SERVICE_API_KEY` to `betterportal.serviceApiKey`. These response field names are deployment metadata; BSB services do not read them from the environment. `DELETE` on the same URL removes the preview immediately and is safe to repeat. Expired previews are deleted automatically.
 
 ## GitHub Actions
 
@@ -178,7 +178,7 @@ The same job may request a separate OIDC token for GCP Workload Identity Federat
 
 Provision resources with stable URLs before calling BetterPortal. On a new preview, apply the returned credentials and start or redeploy the services. On later pushes with unchanged URLs, BetterPortal returns an empty credential list and resets the existing expiry. If a URL changes, only that service's credential is rotated and returned.
 
-The action masks returned `BP_SERVICE_API_KEY` values before exposing `credentials-json`. Do not print that output. Store the group-level `BP_PREVIEW_CONFIG_KEY` in the deployment platform's secret manager; BetterPortal deliberately cannot recover it.
+The action masks returned `BP_SERVICE_API_KEY` values before exposing `credentials-json`. Do not print that output. Store the group-level key as `betterportal.previewConfigKey` in the BSB configuration platform; BetterPortal deliberately cannot recover it.
 
 Fork pull requests are excluded in the example because they execute untrusted code. Use a protected GitHub environment with approval if fork previews are required.
 
@@ -204,7 +204,7 @@ Fork pull requests are excluded in the example because they execute untrusted co
 
 ## Encrypted preview config
 
-The admin browser generates a 32-byte key formatted as `bp_pck_{base64url}`. Store it in the preview services as `BP_PREVIEW_CONFIG_KEY`. The key is never submitted to or stored by BetterPortal.
+The admin browser generates a 32-byte key formatted as `bp_pck_{base64url}`. Store it in each preview service as `betterportal.previewConfigKey` through BSB configuration. The key is never submitted to or stored by BetterPortal.
 
 Sensitive AnyVali fields use this language-neutral envelope:
 

@@ -45,6 +45,42 @@ def run_installation(urls, labels):
     def brief(outcomes): return [{"status": row["status"], "body": row.get("body", "")[:250], "ready": row["ready"]} for row in outcomes]
     def cp_state(control): return post(node, {"action": "sync-peer", "id": control["id"], "command": "state"})
     for url, label in zip(urls, labels):
+        def first_pair():
+            with peer() as control, peer() as other:
+                install = issue(control)
+                foreign = issue(other)
+                before = cp_state(other)["calls"]
+                steps = invoke(url, control, [{}, install, {"kind": "restart"}, foreign, {}], unpaired=True)
+                assert [row["status"] for row in steps] == [200 if label == "node" else 503, 200, 200, 403, 200], brief(steps)
+                assert "cpUrl" not in steps[0]["bootstrap"] and all(row["ready"] for row in steps[1:]), brief(steps)
+                assert steps[1]["apiKeyHash"] == steps[2]["apiKeyHash"] == steps[4]["apiKeyHash"]
+                assert cp_state(other)["calls"] == before, "paired service contacted a foreign control plane"
+        check(label, "first-pair-without-configured-control-plane", first_pair)
+        def failed_first_pair():
+            with peer() as control, peer() as other:
+                invalid = issue(other)
+                invalid["body"]["setupToken"] = "invalid"
+                steps = invoke(url, control, [invalid, {}, issue(control), {"kind": "restart"}], unpaired=True)
+                assert steps[0]["status"] in (400, 401), brief(steps)
+                assert steps[1]["status"] == (200 if label == "node" else 503), brief(steps)
+                assert "cpUrl" not in steps[0]["bootstrap"] and "apiKey" not in steps[0]["bootstrap"]
+                assert all(row["status"] == 200 and row["ready"] for row in steps[2:]), brief(steps)
+        check(label, "failed-first-pair-does-not-pin-control-plane", failed_first_pair)
+        def invalid_first_pair_url():
+            with peer() as control:
+                invalid = [{"method": "POST", "path": "/.well-known/bp/install", "body": {
+                    "setupToken": "invalid", "cpUrl": value}} for value in ("not-a-url", "http://remote.test", "https://user:password@control.test")]
+                steps = invoke(url, control, [*invalid, issue(control)], unpaired=True)
+                assert [row["status"] for row in steps] == [400, 400, 400, 200], brief(steps)
+                assert all("cpUrl" not in row["bootstrap"] for row in steps[:-1])
+        check(label, "invalid-first-pair-url-is-a-client-error", invalid_first_pair_url)
+        def receiver_binding():
+            with peer() as control:
+                steps = invoke(url, control, [issue(control)], unpaired=True, serviceUrl="https://other-service.test")
+                assert steps[0]["status"] in (400, 401), brief(steps)
+                assert "apiKey" not in steps[0]["bootstrap"] and "cpUrl" not in steps[0]["bootstrap"]
+                assert all(call["path"] != "/.well-known/bp/services/redeem" for call in cp_state(control)["calls"])
+        check(label, "first-pair-token-is-bound-to-the-receiving-service", receiver_binding)
         if label == "node":
             def node_install():
                 with peer() as control:
@@ -60,6 +96,36 @@ def run_installation(urls, labels):
                     assert not actual["loggedCredential"], "Node installer logged its control-plane API key"
             check(label, "install-restart-from-control-plane", node_install)
             continue
+        def competing_candidate():
+            with peer() as control, transport_peer() as (base, routes, counts, barriers):
+                path = "/.well-known/jwks.json"
+                barriers[path] = threading.Event(), threading.Event()
+                routes[path] = [{"barrier": True, "body": {"keys": signer_keys}}]
+                claims = {**fixtures()["setup"], "iss": base, "cpUrl": base, "cpJwksUri": base + path,
+                          "instanceId": TARGET, "serviceUrl": "https://service.test", "scope": {"tenantId": TENANT}}
+                token = post(url, {"action": "jwt-raw", "purpose": "setup", "claims": claims})["token"]
+                steps = invoke(url, control, [{"kind": "competing-install", "barrier": base + path,
+                    "body": {"setupToken": token, "cpUrl": base}, "secondBody": issue(control)["body"]}, {}], unpaired=True)
+                assert steps[0]["statuses"] == [403, 200] and all(row["ready"] for row in steps), brief(steps)
+                assert counts.get("/.well-known/bp/services/redeem", 0) == 0
+        check(label, "slow-unverified-candidate-cannot-block-first-pair", competing_candidate)
+        for failure in ("jwks", "redemption", "cancel"):
+            def first_pair_transport_failure():
+                with peer() as control, transport_peer() as (base, routes, counts, barriers):
+                    path = "/.well-known/jwks.json"
+                    routes[path] = [{"status": 404}] if failure == "jwks" else [{"body": {"keys": signer_keys}, "barrier": failure == "cancel"}]
+                    routes["/.well-known/bp/services/redeem"] = [{"status": 500}]
+                    barriers[path] = threading.Event(), threading.Event()
+                    claims = {**fixtures()["setup"], "iss": base, "cpUrl": base, "cpJwksUri": base + path,
+                              "instanceId": TARGET, "serviceUrl": "https://service.test", "scope": {"tenantId": TENANT}}
+                    token = post(url, {"action": "jwt-raw", "purpose": "setup", "claims": claims})["token"]
+                    failed = {"method": "POST", "path": "/.well-known/bp/install", "body": {"setupToken": token, "cpUrl": base}}
+                    if failure == "cancel": failed.update(kind="cancel", barrier=base + path)
+                    steps = invoke(url, control, [failed, issue(control)], unpaired=True)
+                    assert steps[0]["status"] == {"jwks": 401, "redemption": 502, "cancel": 0}[failure], brief(steps)
+                    assert "cpUrl" not in steps[0]["bootstrap"] and "apiKey" not in steps[0]["bootstrap"]
+                    assert steps[1]["status"] == 200 and steps[1]["ready"], brief(steps)
+            check(label, "first-pair-rollback-after-" + failure, first_pair_transport_failure)
         def lifecycle():
             with peer() as control:
                 install = issue(control)
@@ -99,7 +165,7 @@ def run_installation(urls, labels):
         def failed_persistence():
             with peer() as control:
                 install = issue(control)
-                steps = invoke(url, control, [{}, {**install, "mode": "fail"}, {}])
+                steps = invoke(url, control, [{}, {**install, "mode": "fail"}, {}], unpaired=True)
                 assert [row["status"] for row in steps] == [503, 500, 503], brief(steps)
                 assert steps[0]["stored"] == steps[1]["stored"] == steps[2]["stored"] and "apiKey" not in steps[2]["bootstrap"]
                 assert not cp_state(control)["config"]["manifestCache"]
@@ -109,7 +175,7 @@ def run_installation(urls, labels):
                 with peer() as control:
                     install = issue(control)
                     steps = invoke(url, control, [{}, {"kind": kind, "body": install["body"]},
-                        install if kind == "cancel-after-save" else {"kind": "state"}])
+                        install if kind == "cancel-after-save" else {"kind": "state"}], unpaired=True)
                     if kind == "parallel-install":
                         assert steps[1]["statuses"] == [200, 200] and steps[1]["ready"], brief(steps)
                     else:

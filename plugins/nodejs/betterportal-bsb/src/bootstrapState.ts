@@ -1,3 +1,4 @@
+import type { SetupTokenClaims } from "@betterportal/framework";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
@@ -22,6 +23,7 @@ export interface BootstrapStateFile {
   configEncryptionKey?: string;
   tenantLock?: string;
   installedAt?: string;
+  installation?: Pick<SetupTokenClaims, "instanceId" | "serviceUrl" | "cpUrl" | "scope" | "jti"> & { cpJwksUri: string };
 }
 
 const ALGO = "aes-256-gcm";

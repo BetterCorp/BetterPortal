@@ -149,7 +149,7 @@ with tempfile.TemporaryDirectory(prefix="bp-scaffold-", dir=root / ".tmp-run") a
             runtime = [dotnet, str(assembly)]
             generated_key = run([*runtime, "--new-bootstrap-key"], directory).strip()
             assert generated_key.startswith("bp_bsk_") and len(base64.urlsafe_b64decode(generated_key[7:] + "=")) == 32
-            host = lambda port, url: [*runtime, "--urls", url, "--Logging:LogLevel:Default", "Warning"]
+            host = lambda port, url: [*runtime, "--contentRoot", str(project), "--urls", url, "--Logging:LogLevel:Default", "Warning"]
             contract_path = project / "bp-contract.json"
         run(export, directory, env=env)
         run([*export, "--check"], directory, env=env)
@@ -175,9 +175,14 @@ with tempfile.TemporaryDirectory(prefix="bp-scaffold-", dir=root / ".tmp-run") a
                 "shell": {"service": "bootstrap1", "renderer": "bootstrap5", "fragments": []}}]
             control = post(peer, {"action": "sync-peer", "command": "start", "config": config, "setup": True, "jwks": [signer]})
             try:
-                env.update(BP_CP_URL=control["url"], BP_PUBLIC_ORIGIN="https://service.test",
+                env.update(BP_PUBLIC_ORIGIN="https://service.test",
                     BP_BOOTSTRAP_MASTER_KEY="bp_bsk_" + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("="),
                     BP_STATE_DIRECTORY=str(project / ".bp-state"))
+                if language == "dotnet":
+                    key_path = project / "bootstrap-key"
+                    key_path.write_text(env["BP_BOOTSTRAP_MASTER_KEY"])
+                    (project / "bp-host.json").write_text(json.dumps({"publicOrigin": "https://service.test",
+                        "bootstrapMasterKeyFile": str(key_path), "stateDirectory": str(project / ".bp-state")}))
                 with server(host, directory, env) as address:
                     assert request(address, "/.well-known/bp/health", 503) == {"ok": False}
                     assert request(address, "/.well-known/bp/manifest", 200)["pluginId"] == "com.example.service"

@@ -17,17 +17,18 @@ async function contractInputs(input: string): Promise<Array<{ name: string; cont
   return files.map((file) => ({ name: file, contract: readContract(file) }));
 }
 
-export async function publishContracts(input = "lib/bp-contracts"): Promise<string[]> {
+export async function publishContracts(input = "lib/bp-contracts", options: { token?: string; registryUrl?: string } = {}): Promise<string[]> {
   const packageDir = path.dirname(findPackageJson());
   const config = readProjectConfig(packageDir);
   if (!config.registryRef) throw new Error("betterportal.json must define registryRef before publishing");
   const [namespace, name] = registryRefParts(config.registryRef);
-  const token = process.env.BP_REGISTRY_TOKEN;
-  if (!token) throw new Error("BP_REGISTRY_TOKEN is required");
+  const token = options.token;
+  if (!token) throw new Error("An explicit registry token is required (--token-file)");
   const published: string[] = [];
   for (const item of await contractInputs(input)) {
-    const response = await fetch(`${normalizeRegistryUrl()}/v1/packages/${namespace}/${name}`, {
+    const response = await fetch(`${normalizeRegistryUrl(options.registryUrl)}/v1/packages/${namespace}/${name}`, {
       method: "POST",
+      redirect: "error",
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${token}`,

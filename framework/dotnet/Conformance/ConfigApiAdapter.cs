@@ -17,15 +17,10 @@ internal static class ConfigApiAdapter
             var store = new FaultStore(directory, Convert.ToInt32(body.GetValueOrDefault("maxBytes", 16 * 1024 * 1024)));
             var descriptors = ((List<object?>)body["descriptors"]!).Select(value => Contracts.Parse<ConfigSchemaDescriptorInput>("ConfigSchemaDescriptorSchema", value)).ToArray();
             var settings = body.GetValueOrDefault("unsupported") is true ? null : new ServiceSettings(new SettingsSchema(descriptors), new ConfigCipher((string)body["key"]!), store);
-            var previous = Environment.GetEnvironmentVariable("BP_ALLOW_DEV_CONFIG_TOKEN"); ConfigApi api;
-            try
-            {
-                Environment.SetEnvironmentVariable("BP_ALLOW_DEV_CONFIG_TOKEN", body.GetValueOrDefault("enableDevToken") is true ? "true" : "false");
-                api = new ConfigApi(settings, body.GetValueOrDefault("issuer") as string, body.GetValueOrDefault("jwksUri") as string,
-                    body.TryGetValue("mode", out var mode) ? Contracts.Parse<ServiceConfigManagementMode>("ServiceConfigManagementModeSchema", mode) : null,
-                    body.GetValueOrDefault("customUiPath") as string, body.GetValueOrDefault("writable") is not false, body.GetValueOrDefault("devToken") as string);
-            }
-            finally { Environment.SetEnvironmentVariable("BP_ALLOW_DEV_CONFIG_TOKEN", previous); }
+            var api = new ConfigApi(settings, body.GetValueOrDefault("issuer") as string, body.GetValueOrDefault("jwksUri") as string,
+                body.TryGetValue("mode", out var mode) ? Contracts.Parse<ServiceConfigManagementMode>("ServiceConfigManagementModeSchema", mode) : null,
+                body.GetValueOrDefault("customUiPath") as string, body.GetValueOrDefault("writable") is not false, body.GetValueOrDefault("devToken") as string,
+                allowDevConfigToken: body.GetValueOrDefault("enableDevToken") is true);
             var route = new BetterPortal.Route("check", "/check/:key", [new Operation(new Handler<object?, object?, object?, object?, object?>(Contracts.Get("JsonObjectSchema"),
                 context => ValueTask.FromResult<object?>(context.RequestContext.Config)), new OperationDeclarationInput {
                     OperationId = "check.get", Method = HttpMethodInput.GET, Title = "Check", Description = "Check", Auth = new ApiAuthRequirementInput() })]);

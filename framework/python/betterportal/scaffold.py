@@ -91,8 +91,9 @@ Install the matching native BP packages into a Python 3.10+ environment, then ru
 For unpublished packages, add --find-links /path/to/local/packages to pip install.
 No Node or BSB installation is needed by this service.
 
-Configure BP_CP_URL (trusted config manager), BP_PUBLIC_ORIGIN (this service's
-public origin), and BP_BOOTSTRAP_MASTER_KEY through your host's protected secrets.
+Configure BP_PUBLIC_ORIGIN (this service's public origin) and BP_BOOTSTRAP_MASTER_KEY
+through your host's protected secrets. A new service waits for first pairing;
+optionally set BP_CP_URL to pin the config manager before pairing.
 Generate a master key once and retain it across restarts:
 
     python -c "from betterportal.bootstrap import BootstrapCipher; print(BootstrapCipher.generate_key())"

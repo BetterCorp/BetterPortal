@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from typing import Any
 from urllib.parse import quote
 
@@ -12,11 +11,12 @@ import httpx
 from .contracts import parse
 from .jsoncodec import loads
 from .keys import secure_endpoint
+from .environment import read_environment
 
 
 class RegistryClient:
     def __init__(self, url: str | None = None):
-        self.url = secure_endpoint(url if url is not None else os.environ.get("BP_REGISTRY_URL", "https://io.betterportal.org")).rstrip("/")
+        self.url = secure_endpoint(url if url is not None else read_environment().get("BP_REGISTRY_URL", "https://io.betterportal.org")).rstrip("/")
 
     async def _request(self, path: str, data: bytes | None = None, token: str | None = None) -> tuple[bytes, httpx.Headers]:
         async def send() -> tuple[bytes, httpx.Headers]:

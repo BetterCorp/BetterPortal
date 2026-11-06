@@ -10,11 +10,13 @@ namespace BetterPortal.Tool;
 internal sealed class Project
 {
     private readonly string directory;
+    private readonly string[] devPaths;
     private readonly Node config, locked;
     private static readonly UTF8Encoding Utf8 = new(false, true);
-    public Project(string directory)
+    public Project(string directory, string[]? devPaths = null)
     {
         this.directory = Path.GetFullPath(directory);
+        this.devPaths = devPaths ?? [];
         config = Load("betterportal.json", "BetterPortalProjectConfigSchema");
         locked = Load("betterportal.lock.json", "BetterPortalLockSchema");
         Aliases((Node)config.GetValueOrDefault("dependencies", new Node())!);
@@ -136,7 +138,7 @@ internal sealed class Project
         }
         roots.Add(Path.Combine(directory, "node_modules"));
         roots.AddRange(Children(Path.GetDirectoryName(root) ?? root));
-        roots.AddRange((Environment.GetEnvironmentVariable("BP_DEV_PATHS") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries).Select(path => Path.GetFullPath(path, directory)));
+        roots.AddRange(devPaths.Select(path => Path.GetFullPath(path, directory)));
         return Select(roots.Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
             .SelectMany(PackageRoots).SelectMany(path => LocalCandidates(selector, path, false)).ToList());
     }
@@ -166,11 +168,10 @@ internal sealed class Project
         var (reference, data, contract) = await new RegistryClient(url).Lookup(selector.Kind, selector.Identity, selector.Version, cancellation);
         return Install(selector, null, reference, data, contract, alias);
     }
-    public Task<Node> Publish(string file, string? url, CancellationToken cancellation)
+    public Task<Node> Publish(string file, string? url, CancellationToken cancellation, string? token = null)
     {
         if (config.GetValueOrDefault("registryRef") is not string reference) throw new ArgumentException("betterportal.json must define registryRef before publishing");
-        var token = Environment.GetEnvironmentVariable("BP_REGISTRY_TOKEN");
-        if (string.IsNullOrEmpty(token)) throw new ArgumentException("BP_REGISTRY_TOKEN is required");
+        if (string.IsNullOrEmpty(token)) throw new ArgumentException("An explicit registry token is required (--token-file)");
         return new RegistryClient(url).Publish(reference, Json.Read(Utf8.GetString(Read(Path.GetFullPath(file, directory)))), token, cancellation);
     }
     private Node Install((string Kind, string Identity, string? Version) selector, string? source, string reference, byte[] data, Node contract, string? alias)
@@ -234,14 +235,14 @@ internal sealed class Project
         {
             var option = args[index];
             if (!add && !publish && option is "--frozen" or "--check") options.Add(option, null);
-            else if ((option == "--project" || (add || publish) && option == "--registry" || add && option is "--path" or "--alias" || publish && option == "--contract") && index + 1 < args.Length) options.Add(option, args[++index]);
+            else if ((option is "--project" or "--dev-paths" || (add || publish) && option == "--registry" || add && option is "--path" or "--alias" || publish && option is "--contract" or "--token-file") && index + 1 < args.Length) options.Add(option, args[++index]);
             else throw new ArgumentException("Unknown or incomplete argument: " + option);
         }
-        var project = new Project(options.GetValueOrDefault("--project") ?? Directory.GetCurrentDirectory());
+        var project = new Project(options.GetValueOrDefault("--project") ?? Directory.GetCurrentDirectory(), options.GetValueOrDefault("--dev-paths")?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
         if (publish)
         {
             if (options.GetValueOrDefault("--contract") is not string file) throw new ArgumentException("A --contract file is required");
-            Console.WriteLine(Json.Write(await project.Publish(file, options.GetValueOrDefault("--registry"), cancellation)));
+            Console.WriteLine(Json.Write(await project.Publish(file, options.GetValueOrDefault("--registry"), cancellation, options.TryGetValue("--token-file", out var tokenFile) ? File.ReadAllText(tokenFile!).Trim() : null)));
         }
         else if (add)
         {

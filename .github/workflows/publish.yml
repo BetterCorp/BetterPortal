@@ -286,4 +286,8 @@ jobs:
             echo "::error::BP_REGISTRY_TOKEN secret is required to publish BetterPortal contracts"
             exit 1
           fi
-          npm run publish:bp -w "${{ matrix.workspace }}"
+          umask 077
+          token_file="$RUNNER_TEMP/bp-registry-token"
+          trap 'rm -f "$token_file"' EXIT
+          printf '%s' "$BP_REGISTRY_TOKEN" > "$token_file"
+          npm run publish:bp -w "${{ matrix.workspace }}" -- --token-file "$token_file"

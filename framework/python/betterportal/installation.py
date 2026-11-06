@@ -26,22 +26,24 @@ from .sync import ControlPlaneSync, build_submission
 
 
 class ServiceInstallation:
-    """One installation owner. Trust and the public service address come from host configuration.
+    """One installation owner. First pairing supplies control-plane trust unless the host pins it.
 
     The host starts/closes this owner before closing its Service. Reconfiguration
     can rotate credentials for the same instance. Changing the configured public
     address pauses activation until the configured CP confirms a hostname token.
     """
-    def __init__(self, service: Service, state: BootstrapStateStore, cp_url: str, service_url: str, *,
+    def __init__(self, service: Service, state: BootstrapStateStore, cp_url: str | None, service_url: str, *,
                  settings_store: StateStore | None = None, cp_jwks_uri: str | None = None,
                  auth_provider: AuthProviderRuntimeMetadataInput | None = None,
                  config_mode: ServiceConfigManagementMode | None = None, custom_ui_path: str | None = None,
                  writable: bool = True, retry_delay: float = 5, request_timeout: float = 30):
         if not service.managed or not service._provisionable: raise ValueError("Installation requires an unprovisioned managed Service")
         self.service, self._store = service, state
-        self._cp = secure_endpoint(cp_url).rstrip("/")
+        self._configured_trust = bool(cp_url)
+        self._cp = secure_endpoint(cp_url).rstrip("/") if cp_url else ""
         self._address = http_origin(secure_endpoint(service_url))
-        self._jwks = secure_endpoint(cp_jwks_uri or self._cp + "/.well-known/jwks.json", allow_query=True)
+        self._jwks = secure_endpoint(cp_jwks_uri or self._cp + "/.well-known/jwks.json", allow_query=True) if self._cp else ""
+        if cp_jwks_uri and not self._cp: raise ValueError("A pinned JWKS URI requires a control-plane URL")
         if any(not math.isfinite(value) or not 0 < value <= 4294967.294 for value in (retry_delay, request_timeout)):
             raise ValueError("Invalid installation timing")
         self._timeout, self._delay = request_timeout, retry_delay
@@ -51,9 +53,10 @@ class ServiceInstallation:
         self._settings_store = settings_store
         self._config_options = {"mode": config_mode, "custom_ui_path": custom_ui_path, "writable": writable}
         self._provider = parse("AuthProviderRuntimeMetadataSchema", auth_provider) if auth_provider is not None else None
-        self._keys = JwksClient(self._cp, self._jwks)
+        self._keys = JwksClient(self._cp, self._jwks) if self._cp else None
         self._client = httpx.AsyncClient(follow_redirects=False, trust_env=False, timeout=request_timeout)
         self._gate = asyncio.Lock()
+        self._install_requests = 0
         self._writers: set[asyncio.Task[Any]] = set()
         self._identity: KeyPair | None = None
         self._sync: ControlPlaneSync | None = None
@@ -73,10 +76,10 @@ class ServiceInstallation:
     def status(self) -> dict[str, Any]:
         return {"installed": self._installed, "closed": self._closed, "sync": self._sync.status if self._sync else None}
 
-    def _binding(self, value: Any, *, check_address: bool = True) -> dict[str, Any]:
+    def _binding(self, value: Any, *, check_address: bool = True, cp_url: str | None = None, jwks_uri: str | None = None) -> dict[str, Any]:
         binding = parse("ServiceInstallationBindingSchema", value)
         origin = http_origin(secure_endpoint(binding["serviceUrl"]))
-        if (binding["cpUrl"].rstrip("/") != self._cp or binding["cpJwksUri"] != self._jwks
+        if (binding["cpUrl"].rstrip("/") != (cp_url or self._cp) or binding["cpJwksUri"] != (jwks_uri or self._jwks)
                 or check_address and origin != self._address):
             raise TokenError("Setup token does not match the configured installation")
         return binding
@@ -121,7 +124,12 @@ class ServiceInstallation:
                 if self._closed or self._started: raise RuntimeError("Installation is closed or already started")
                 self._started = True
                 value = await self._store.read()
-                if "apiKey" in value: self._credentials(value, check_address=False)
+                if "apiKey" in value:
+                    if not self._cp:
+                        self._cp = secure_endpoint(value["cpUrl"]).rstrip("/")
+                        self._jwks = secure_endpoint(value.get("cpJwksUri") or self._cp + "/.well-known/jwks.json", allow_query=True)
+                        self._keys = JwksClient(self._cp, self._jwks)
+                    self._credentials(value, check_address=False)
                 self._identity = await self._store.identity()
                 if "apiKey" not in value: return False
                 self._installed = True
@@ -192,39 +200,68 @@ class ServiceInstallation:
     async def install(self, body: Any) -> tuple[int, dict[str, Any]]:
         try: request = parse("ServiceInstallRequestSchema", body)
         except av.ValidationError: raise RequestError(400, "Invalid installation request") from None
-        if request["cpUrl"].rstrip("/") != self._cp: raise RequestError(403, "Installation control plane does not match configured trust")
+        if self._closed or not self._started: raise RequestError(503, "Installation is not available")
+        try: candidate = secure_endpoint(request["cpUrl"]).rstrip("/")
+        except ValueError: raise RequestError(400, "Invalid installation control-plane URL") from None
+        trusted_cp = self._cp if self._installed or self._configured_trust else ""
+        if trusted_cp and candidate != trusted_cp:
+            raise RequestError(403, "Installation control plane does not match configured trust")
+        if self._install_requests >= 4: raise RequestError(429, "Too many pairing requests")
+        self._install_requests += 1
         task = asyncio.current_task(); assert task is not None
         self._writers.add(task)
+        candidate_jwks = self._jwks if trusted_cp else candidate + "/.well-known/jwks.json"
+        keys = self._keys if trusted_cp else None
+        own_keys = keys is None
         try:
+            keys = keys or JwksClient(candidate, candidate_jwks)
+            try:
+                claims = await verify_token(request["setupToken"], keys.resolve, issuer=candidate, audience=None, purpose=TokenPurpose.SETUP)
+                binding = self._binding({field: claims[field] for field in ("instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti") if field in claims},
+                                        cp_url=candidate, jwks_uri=candidate_jwks)
+            except (TokenError, ValueError): raise RequestError(401, "A valid setup token for this installation is required") from None
             async with self._gate:
                 if self._closed or not self._started: raise RequestError(503, "Installation is not available")
+                if self._cp and candidate != self._cp:
+                    raise RequestError(403, "Installation control plane does not match configured trust")
+                first_pair = not self._cp
+                if first_pair: self._cp, self._jwks, self._keys = candidate, candidate_jwks, keys
                 try:
-                    claims = await verify_token(request["setupToken"], self._keys.resolve, issuer=self._cp, audience=None, purpose=TokenPurpose.SETUP)
-                    binding = self._binding({field: claims[field] for field in ("instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti") if field in claims})
-                except (TokenError, ValueError): raise RequestError(401, "A valid setup token for this installation is required") from None
-                value = await self._store.read()
-                tenant = binding.get("scope", {}).get("tenantId")
-                if tenant is not None and value.get("tenantLock") is not None and tenant != value["tenantLock"]:
-                    raise RequestError(409, "Setup cannot change the installed tenant")
-                if "apiKey" in value:
-                    self._credentials(value, check_address=False)
-                    previous = value.get("installation")
-                    if previous and http_origin(previous["serviceUrl"]) != self._address:
-                        raise RequestError(409, "Confirm the configured hostname before reconfiguration")
-                    expected = previous["instanceId"] if previous else (self.service.snapshot() or {}).get("serviceIdentity", {}).get("id")
-                    if expected != binding["instanceId"]: raise RequestError(409, "Setup cannot replace the installed service instance")
-                    if previous and previous["jti"] == binding["jti"]:
-                        ready = self.service.ready if self._sync is not None else await self._activate(value)
-                        return self._response(ready)
-                try: credentials = await asyncio.wait_for(self._redeem(request["setupToken"]), self._timeout)
-                except Exception: raise RequestError(502, "Control-plane redemption failed") from None
-                value = await self._store.write({**credentials, "cpUrl": self._cp, "installation": binding,
-                    **({"tenantLock": tenant} if tenant is not None else {}),
-                    "configEncryptionKey": value.get("configEncryptionKey") or ConfigCipher.generate_key(),
-                    "installedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")})
-                self._installed = True
-                return self._response(await self._activate(value))
-        finally: self._writers.discard(task)
+                    return await self._install(request, binding)
+                finally:
+                    if first_pair and not self._installed:
+                        self._keys = None
+                        self._cp = self._jwks = ""
+        finally:
+            try:
+                if own_keys and keys is not None and self._keys is not keys: await keys.aclose()
+            finally:
+                self._install_requests -= 1
+                self._writers.discard(task)
+
+    async def _install(self, request: dict[str, Any], binding: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        value = await self._store.read()
+        tenant = binding.get("scope", {}).get("tenantId")
+        if tenant is not None and value.get("tenantLock") is not None and tenant != value["tenantLock"]:
+            raise RequestError(409, "Setup cannot change the installed tenant")
+        if "apiKey" in value:
+            self._credentials(value, check_address=False)
+            previous = value.get("installation")
+            if previous and http_origin(previous["serviceUrl"]) != self._address:
+                raise RequestError(409, "Confirm the configured hostname before reconfiguration")
+            expected = previous["instanceId"] if previous else (self.service.snapshot() or {}).get("serviceIdentity", {}).get("id")
+            if expected != binding["instanceId"]: raise RequestError(409, "Setup cannot replace the installed service instance")
+            if previous and previous["jti"] == binding["jti"]:
+                ready = self.service.ready if self._sync is not None else await self._activate(value)
+                return self._response(ready)
+        try: credentials = await asyncio.wait_for(self._redeem(request["setupToken"]), self._timeout)
+        except Exception: raise RequestError(502, "Control-plane redemption failed") from None
+        value = await self._store.write({**credentials, "cpUrl": self._cp, "installation": binding,
+            **({"tenantLock": tenant} if tenant is not None else {}),
+            "configEncryptionKey": value.get("configEncryptionKey") or ConfigCipher.generate_key(),
+            "installedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")})
+        self._installed = True
+        return self._response(await self._activate(value))
 
     def _response(self, ready: bool) -> tuple[int, dict[str, Any]]:
         if not ready: return 503, {"error": "Installed; awaiting valid control-plane configuration", "installed": True, "pluginId": self.service.manifest["pluginId"]}
@@ -239,7 +276,7 @@ class ServiceInstallation:
         await asyncio.gather(*writers, return_exceptions=True)
         async with self._gate:
             if self._sync is not None: await self._sync.aclose()
-            await self._keys.aclose()
+            if self._keys is not None: await self._keys.aclose()
             await self._client.aclose()
 
     async def __aenter__(self) -> ServiceInstallation:

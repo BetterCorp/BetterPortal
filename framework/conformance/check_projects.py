@@ -146,12 +146,17 @@ with tempfile.TemporaryDirectory(prefix="bp-projects-", dir=root / ".tmp-run") a
 with tempfile.TemporaryDirectory(prefix="bp-discovery-", dir=root / ".tmp-run") as temporary:
     directory = Path(temporary)
     isolated = {**environment, "BP_DEV_PATHS": "", "BP_REGISTRY_URL": "http://127.0.0.1:1"}
-    install_code = "import {installClient} from " + json.dumps(node_module) + "; console.log(JSON.stringify(await installClient(process.argv[1], {alias:'peer'})));"
+    install_code = "import {installClient} from " + json.dumps(node_module) + "; console.log(JSON.stringify(await installClient(process.argv[1], {alias:'peer', ...JSON.parse(process.argv[2])})));"
 
     def install(language, project, selector="example/service@1.0.0", *, valid=True, env=None, options=()):
-        command = (["node", "--input-type=module", "--eval", install_code, selector] if language == "node" else
+        settings = env or isolated
+        dev_paths = settings.get("BP_DEV_PATHS", "")
+        command = (["node", "--input-type=module", "--eval", install_code, selector,
+                    json.dumps({"devPaths": [value for value in dev_paths.split(os.pathsep) if value]})] if language == "node" else
                    [*native[language], "deps", "add", selector, "--alias", "peer", "--project", str(project), *options])
-        return run(command, project if language == "node" else directory, valid, env or isolated)
+        if language == "dotnet":
+            command += ["--dev-paths", dev_paths]
+        return run(command, project if language == "node" else directory, valid, settings)
 
     def provider(path, reference="example/service", value=None):
         write(path / "betterportal.json", {"registryRef": reference})

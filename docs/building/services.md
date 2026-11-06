@@ -77,7 +77,9 @@ Each publishable service has a `betterportal.json`. Its registry reference is a 
 }
 ```
 
-Use `bp client install <pluginId|namespace/name|short-name>` to add another service. Resolution checks an explicit `--path`, this repository's workspaces, installed packages, sibling repositories, and `BP_DEV_PATHS` before `https://io.betterportal.org`. Local contracts are synced again by the BSB build hook, so adjacent services under development immediately regenerate the consumer's types. Use a full registry reference when a short name is ambiguous.
+Node.js and .NET tools use explicit `--dev-paths`, `--registry`, and `--token-file` options in place of `BP_DEV_PATHS`, `BP_REGISTRY_URL`, and `BP_REGISTRY_TOKEN`. Python reads these settings through its centralized, AnyVali-validated environment configuration.
+
+Use `bp client install <pluginId|namespace/name|short-name>` to add another service. Resolution checks an explicit `--path`, this repository's workspaces, installed packages, sibling repositories, and explicit `--dev-paths` before `https://io.betterportal.org`. Local contracts are synced again by the BSB build hook, so adjacent services under development immediately regenerate the consumer's types. Use a full registry reference when a short name is ambiguous.
 
 Generated clients expose one input and response type per `operationId`. Undeclared inputs are omitted, schema-optional inputs remain optional, and inputs with required schema fields are required at the call site. Responses and nested request fields are generated directly from the published AnyVali contracts.
 
@@ -91,7 +93,7 @@ Generated clients expose one input and response type per `operationId`. Undeclar
 }
 ```
 
-BSB plugins continue to publish their BSB package/schema normally and additionally run `bp publish`. Services written in another language can publish the same `/.well-known/bp/schema.json` contract directly to the registry API.
+BSB plugins continue to publish their BSB package/schema normally and additionally run `bp publish --token-file /path/to/registry-token`. Services written in another language can publish the same `/.well-known/bp/schema.json` contract directly to the registry API.
 
 ## BSB lifecycle overrides
 

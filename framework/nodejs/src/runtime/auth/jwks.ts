@@ -49,6 +49,8 @@ async function readJwksText(response: Response): Promise<string> {
 export interface JwksLookupOptions {
   jwksUri: string;
   issuer: string;
+  /** Unpaired candidates must not read or populate the long-lived issuer cache. */
+  cache?: boolean;
 }
 
 function getCacheKey(options: JwksLookupOptions): string {
@@ -103,7 +105,7 @@ async function loadJwksKeys(options: JwksLookupOptions, generation: number): Pro
   }
 
   const client = { keys, jwksUri: options.jwksUri, fetchedAt: now };
-  if (generation === cacheGeneration) {
+  if (options.cache !== false && generation === cacheGeneration) {
     clientCache.set(cacheKey, client);
     nextMissRefreshAt.set(cacheKey, now + MISS_REFRESH_INTERVAL_MS);
   }
@@ -156,6 +158,13 @@ export async function getSigningKeyForKid(
   }
   if (!KID_PATTERN.test(kid)) {
     throw new Error(`Invalid kid: must match ${KID_PATTERN.source}`);
+  }
+
+  if (options.cache === false) {
+    const client = await loadJwksKeys(options, cacheGeneration);
+    const key = client.keys.get(kid);
+    if (!key) throw new Error(`JWKS key not found for kid ${kid}: ${options.jwksUri}`);
+    return key;
   }
 
   const cacheKey = getCacheKey(options);

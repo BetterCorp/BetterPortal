@@ -67,7 +67,7 @@ function candidateFromRoot(root: string): ContractCandidate[] {
   return candidates;
 }
 
-function localRoots(packageDir: string, explicitPath?: string): string[] {
+function localRoots(packageDir: string, explicitPath?: string, devPaths: string[] = []): string[] {
   if (explicitPath) return [path.resolve(packageDir, explicitPath)];
   const root = repoRoot(packageDir);
   const roots = new Set<string>();
@@ -84,7 +84,7 @@ function localRoots(packageDir: string, explicitPath?: string): string[] {
   for (const entry of fs.readdirSync(parent, { withFileTypes: true })) {
     if (entry.isDirectory()) roots.add(path.join(parent, entry.name));
   }
-  for (const extra of (process.env.BP_DEV_PATHS ?? "").split(path.delimiter).filter(Boolean)) {
+  for (const extra of devPaths) {
     roots.add(path.resolve(packageDir, extra));
   }
   return [...roots];
@@ -116,8 +116,8 @@ function matches(candidate: ContractCandidate, selector: DependencySelector): bo
   return true;
 }
 
-function findLocal(packageDir: string, selector: DependencySelector, explicitPath?: string): ContractCandidate | null {
-  const found = localRoots(packageDir, explicitPath)
+function findLocal(packageDir: string, selector: DependencySelector, explicitPath?: string, devPaths: string[] = []): ContractCandidate | null {
+  const found = localRoots(packageDir, explicitPath, devPaths)
     .flatMap(nestedPackageRoots)
     .flatMap(candidateFromRoot)
     .filter((candidate) => matches(candidate, selector));
@@ -128,8 +128,8 @@ function findLocal(packageDir: string, selector: DependencySelector, explicitPat
   return found[0] ?? null;
 }
 
-async function fetchRegistry(selector: DependencySelector): Promise<{ registryRef: string; contract: BpSchemaOutput }> {
-  const base = normalizeRegistryUrl();
+async function fetchRegistry(selector: DependencySelector, registryUrl?: string): Promise<{ registryRef: string; contract: BpSchemaOutput }> {
+  const base = normalizeRegistryUrl(registryUrl);
   const version = encodeURIComponent(selector.version ?? "latest");
   let url: string;
   if (selector.registryRef) {
@@ -140,7 +140,7 @@ async function fetchRegistry(selector: DependencySelector): Promise<{ registryRe
   } else {
     url = `${base}/v1/packages?name=${encodeURIComponent(selector.shortName ?? "")}`;
   }
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const response = await fetch(url, { headers: { Accept: "application/json" }, redirect: "error" });
   if (!response.ok) throw new Error(`Registry lookup failed (${response.status}): ${selector.raw}`);
   const body = await response.json() as unknown;
   if (!selector.registryRef && !selector.pluginId) {
@@ -344,15 +344,15 @@ function cacheContract(packageDir: string, contract: BpSchemaOutput): string {
   return file;
 }
 
-export async function installClient(rawSelector: string, options: { alias?: string; path?: string } = {}): Promise<LockedDependency> {
+export async function installClient(rawSelector: string, options: { alias?: string; path?: string; registryUrl?: string; devPaths?: string[] } = {}): Promise<LockedDependency> {
   const packageJsonFile = findPackageJson();
   const packageDir = path.dirname(packageJsonFile);
   const config = readProjectConfig(packageDir);
   const selector = parseDependencySelector(rawSelector, config.defaultNamespace);
-  const local = findLocal(packageDir, selector, options.path);
+  const local = options.registryUrl && !options.path ? null : findLocal(packageDir, selector, options.path, options.devPaths);
   const resolved = local
     ? { registryRef: local.registryRef ?? selector.registryRef ?? "", contract: local.contract }
-    : await fetchRegistry(selector);
+    : await fetchRegistry(selector, options.registryUrl);
   if (!resolved.registryRef) throw new Error(`Local contract ${resolved.contract.manifest.pluginId} has no registryRef`);
 
   const alias = options.alias ?? selector.shortName ?? resolved.registryRef.split("/")[1];
@@ -382,8 +382,9 @@ export async function installClient(rawSelector: string, options: { alias?: stri
   return locked;
 }
 
-export async function syncClients(options: { registryOnly?: boolean; frozen?: boolean } = {}): Promise<string[]> {
+export async function syncClients(options: { registryOnly?: boolean; frozen?: boolean; registryUrl?: string; devPaths?: string[] } = {}): Promise<string[]> {
   const packageDir = path.dirname(findPackageJson());
+  const registryOnly = options.registryOnly || Boolean(options.registryUrl);
   const config = readProjectConfig(packageDir);
   const lock = readLock(packageDir);
   const localLockFile = path.join(packageDir, ".betterportal", "local-lock.json");
@@ -411,9 +412,9 @@ export async function syncClients(options: { registryOnly?: boolean; frozen?: bo
     }
     localLock ??= fs.existsSync(localLockFile) ? readJsonFile<Record<string, { path?: string }>>(localLockFile) : {};
     const preferredPath = localLock[alias]?.path;
-    const local = options.registryOnly
+    const local = registryOnly
       ? null
-      : findLocal(packageDir, selector, preferredPath) ?? (preferredPath ? findLocal(packageDir, selector) : null);
+      : findLocal(packageDir, selector, preferredPath, options.devPaths) ?? (preferredPath ? findLocal(packageDir, selector, undefined, options.devPaths) : null);
     let contract: BpSchemaOutput;
     if (local) contract = local.contract;
     else {
@@ -422,7 +423,7 @@ export async function syncClients(options: { registryOnly?: boolean; frozen?: bo
       if (cached && fs.existsSync(cached)) contract = readContract(cached);
       else {
         if (options.frozen) throw new Error(`Frozen dependency is not cached: ${alias}`);
-        contract = (await fetchRegistry(selector)).contract;
+        contract = (await fetchRegistry(selector, options.registryUrl)).contract;
         cacheContract(packageDir, contract);
       }
     }

@@ -26,7 +26,7 @@ internal static class Scaffold
         {
             ["betterportal.json"] = Json.Write(config),
             ["betterportal.lock.json"] = Json.Write(Contracts.Parse("BetterPortalLockSchema", new Node())),
-            [".gitignore"] = "bin/\nobj/\n.bp-state/\n.bp-generated/\n.env",
+            [".gitignore"] = "bin/\nobj/\n.bp-state/\n.bp-generated/\nbp-host.json",
             ["BpService.csproj"] = $$"""
                 <Project Sdk="Microsoft.NET.Sdk.Web">
                   <PropertyGroup>
@@ -97,16 +97,14 @@ internal static class Scaffold
                     Console.WriteLine(BootstrapCipher.GenerateKey());
                     return;
                 }
-                static string Required(string name) => Environment.GetEnvironmentVariable(name)
-                    ?? throw new InvalidOperationException("Configure " + name);
                 var builder = WebApplication.CreateBuilder(args);
-                var directory = Environment.GetEnvironmentVariable("BP_STATE_DIRECTORY")
-                    ?? Path.Combine(builder.Environment.ContentRootPath, ".bp-state");
+                var config = DeploymentConfig.Load(Path.Combine(builder.Environment.ContentRootPath, "bp-host.json"));
+                var directory = config.StateDirectory;
                 var service = new Service(Definition.Registry(), Definition.Declaration(), managed: true,
                     stateStore: new FileStateStore(Path.Combine(directory, "snapshot.json")));
                 var installation = new ServiceInstallation(service,
-                    new BootstrapStateStore(new FileStateStore(Path.Combine(directory, "bootstrap.json")), Required("BP_BOOTSTRAP_MASTER_KEY")),
-                    Required("BP_CP_URL"), Required("BP_PUBLIC_ORIGIN"),
+                    new BootstrapStateStore(new FileStateStore(Path.Combine(directory, "bootstrap.json")), config.BootstrapMasterKey),
+                    config.ControlPlaneUrl, config.PublicOrigin,
                     settingsStore: new FileStateStore(Path.Combine(directory, "settings.json")));
                 builder.Services.AddBetterPortal(service, installation: installation);
                 var app = builder.Build();
@@ -127,14 +125,18 @@ internal static class Scaffold
                 use dotnet restore --locked-mode for subsequent builds.
                 No Node or BSB installation is needed by this service.
 
-                Configure BP_CP_URL (trusted config manager), BP_PUBLIC_ORIGIN (this service's
-                public origin), and BP_BOOTSTRAP_MASTER_KEY through your host's protected secrets.
-                Generate a master key once and retain it across restarts:
+                Create bp-host.json in the content root with publicOrigin and bootstrapMasterKeyFile.
+                The key file is a separately mounted secret; generate it once and retain it:
 
                     dotnet run -- --new-bootstrap-key
 
-                BP_STATE_DIRECTORY defaults to .bp-state under the content root; mount persistent
-                storage there in a container. Keep the master key separate from that directory.
+                Example bp-host.json:
+
+                    {"publicOrigin":"https://service.example","bootstrapMasterKeyFile":"/run/secrets/bp-key","stateDirectory":"/data"}
+
+                controlPlaneUrl is optional: a new service waits for first pairing.
+                All settings are validated with AnyVali before runtime resources are created.
+                Keep the key file separate from persistent service state.
                 URLs require HTTPS except the runtime's exact loopback development exceptions.
 
                     dotnet run -- --urls http://127.0.0.1:8000

@@ -367,8 +367,8 @@ function credentials(data: ResponseData): HtmlRenderable | null {
         return (
           <div class="mb-3">
             <div class="fw-semibold">{credential.serviceId}</div>
-            <textarea id={id} class="form-control font-monospace small" rows={2} readonly>{`BP_CONTROL_PLANE_URL=${credential.controlPlaneUrl}\nBP_SERVICE_API_KEY=${credential.apiKey}`}</textarea>
-            <button class="btn btn-sm btn-outline-dark mt-2" type="button" data-bp-copy-target={id}>Copy environment</button>
+            <textarea id={id} class="form-control font-monospace small" rows={6} readonly>{JSON.stringify({ betterportal: { controlPlaneUrl: credential.controlPlaneUrl, serviceApiKey: credential.apiKey } }, null, 2)}</textarea>
+            <button class="btn btn-sm btn-outline-dark mt-2" type="button" data-bp-copy-target={id}>Copy BSB configuration</button>
           </div>
         );
       })}
@@ -434,7 +434,7 @@ export function configEditor(group: ResponseData["groups"][number], path: string
             <button class="btn btn-outline-secondary" type="button" data-bp-generate-key="">Generate</button>
             <button class="btn btn-outline-secondary" type="button" data-bp-copy-target={`bp-preview-key-${group.id}`}>Copy</button>
           </div>
-          <div class="form-text mb-3">Template changes apply to newly created previews. Existing previews keep their own settings. Set this exact value as <code>BP_PREVIEW_CONFIG_KEY</code> on every configured preview service. Keep it outside BetterPortal.</div>
+          <div class="form-text mb-3">Template changes apply to newly created previews. Existing previews keep their own settings. Set this exact value as <code>betterportal.previewConfigKey</code> through BSB configuration on every preview service. Keep it outside BetterPortal.</div>
           <button class="btn btn-sm btn-outline-secondary mb-3" type="button" data-bp-decrypt-config="">Decrypt stored secrets</button>
           {group.services.map((service) => (
             <fieldset class="border rounded p-3 mb-3">

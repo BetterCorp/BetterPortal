@@ -541,7 +541,7 @@ available. Health reflects initialization and managed manifest acknowledgment.
 Protected key persistence and `ServiceInstallation` HTTP provisioning are described below.
 
 `devToken` requires both an explicitly supplied token and
-`BP_ALLOW_DEV_CONFIG_TOKEN=true` at construction. This local-development option
+`allowDevConfigToken: true` at construction. This local-development option
 requires an explicit tenant header and normal scope checks. Without pinned CP trust
 or this opt-in, the API rejects every ticket.
 
@@ -661,8 +661,9 @@ own it.
 
 `ServiceInstallation` supplies the setup-token installation endpoint and public
 JWKS, restores protected credentials, activates ticket-protected settings and owns
-manifest synchronization. CP trust and the public service origin come from host
-configuration. The installer requires a fresh managed `Service`.
+manifest synchronization. Configure the public service origin in the host; the
+control plane may be learned on first pairing or pinned in advance. The installer
+requires a fresh managed `Service`.
 
 ```csharp
 using BetterPortal;
@@ -670,7 +671,7 @@ using BetterPortal.AspNetCore;
 using BetterPortal.Generated;
 using Microsoft.AspNetCore.Builder;
 
-static WebApplication InstallableApp(string cpUrl, string publicOrigin, string masterKey, string stateDirectory)
+static WebApplication InstallableApp(string? cpUrl, string publicOrigin, string masterKey, string stateDirectory)
 {
     var service = new Service(new Registry([]), new ManifestDeclarationInput {
         PluginId = "com.example.service", Title = "Example", Description = "Example", Version = "1.0.0"
@@ -684,11 +685,15 @@ static WebApplication InstallableApp(string cpUrl, string publicOrigin, string m
     app.MapBetterPortal(service, installation: installation);
     return app;
 }
-Func<string, string, string, string, WebApplication> factory = InstallableApp;
+Func<string?, string, string, string, WebApplication> factory = InstallableApp;
 ```
 
 Supply your registry and separately protected master key, then run the returned
-app. Pass the same installer to both hosting helpers. Startup without credentials
+app. Pass the same installer to both hosting helpers. Pass `null` for `cpUrl` to
+wait for first pairing, or supply a URL to pin the control plane in advance.
+First successful pairing persists its control-plane trust and credentials; later
+startups restore them from protected state. Failed pairing does not pin a control
+plane. Startup without credentials
 exposes public keys and health 503. POST `{"setupToken":"...","cpUrl":"https://cp.example"}`
 to `/.well-known/bp/install`. Success returns 200 only after manifest submission and
 scoped snapshot persistence. Failed first sync returns 503 with `installed: true`
@@ -700,6 +705,13 @@ other-tenant operation requests return 426 and config tickets are denied. Platfo
 installation without tenant scope can serve the CP's permitted tenants. Existing
 locks survive restart/reconfiguration. Existing Node bootstrap files can be loaded
 with their master key; reconfiguration requires a synchronized matching instance.
+Generated .NET services load `bp-host.json` from the content root through
+`DeploymentConfig.Load`, which validates settings with AnyVali. Set `publicOrigin`
+and `bootstrapMasterKeyFile`; optionally set `stateDirectory` and `controlPlaneUrl`.
+The key file is a separately mounted secret. Node and .NET frameworks do not read
+environment variables directly. Authoring tools use `--registry`, `--dev-paths`,
+and `--token-file` options.
+
 `cpJwksUri` pins alternate JWKS, `authProvider` supplies provider metadata, and
 `configMode`, `customUiPath`, `writable` configure the existing config API. Config
 descriptors require a settings store. Disposal cancels and drains installation/sync
@@ -891,9 +903,9 @@ digests; Node's CLI supports both formats. Native init commands are documented i
 
 Without `--path` or `--registry`, `deps add` first discovers exported local contracts:
 literal `package.json` workspaces at the nearest Git root, `node_modules` packages
-(including scopes), sibling repositories, then `BP_DEV_PATHS`. Without Git, the
+(including scopes), sibling repositories, then `--dev-paths`. Without Git, the
 consumer directory is the root. Native projects need no `package.json`; siblings
-and `BP_DEV_PATHS` work independently of Node. Development paths are relative to
+and `--dev-paths` work independently of Node. Development paths are relative to
 `--project`, separated by `;` on Windows or `:` on Linux. A development path named
 `node_modules` is expanded into its packages. Workspace glob entries are ignored,
 matching Node's existing discovery; use explicit development paths for those layouts.
@@ -909,10 +921,10 @@ exact version or `--path` to disambiguate. No service code executes during disco
 ```sh
 bp-dotnet deps add example/service@1.0.0 --alias peer
 bp-dotnet deps add com.example.service@1.0.0 --alias peer
-bp-dotnet publish --contract bp-contract.json --project .
+bp-dotnet publish --contract bp-contract.json --project . --token-file /path/to/registry-token
 ```
 
-When no local contract matches, installation uses `BP_REGISTRY_URL` (default
+When no local contract matches, installation uses `--registry URL` (default
 `https://io.betterportal.org`). `--registry URL` selects the registry directly and
 bypasses automatic local discovery. Short names use
 `defaultNamespace` or require a unique registry match. An explicit version is
@@ -920,8 +932,8 @@ fetched after short-name resolution; omitted versions and `latest` resolve the
 registry's current version. Installation pins the exact response bytes and uses
 the same offline frozen-build commands above.
 
-Publishing requires the project's `registryRef` and a `BP_REGISTRY_TOKEN`
-environment variable. It submits an existing exported contract; the registry
+Publishing requires the project's `registryRef` and an explicit `--token-file FILE`
+containing the publisher credential. It submits an existing exported contract; the registry
 enforces publisher prefixes, permanent identity bindings and immutable versions.
 Identical retries return `unchanged: true`. Running `publish` writes to the
 selected registry. These tools do not build or export your service implicitly.
