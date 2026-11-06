@@ -2501,6 +2501,7 @@ export abstract class BPService<
    * Persists credentials and starts CP sync.
    */
   private registerInstallEndpoint(obs: Observable): void {
+    if (this.requireBetterPortalConfigSource === false) return;
     this.app.post("/.well-known/bp/install", async (event) => {
       // CORS already handled by handleWithCors for public discovery paths.
       const body = await readBoundedJsonBody(event.req, 1024 * 1024);
@@ -2699,6 +2700,7 @@ export abstract class BPService<
   }
 
   private registerHostnameChangeEndpoint(obs: Observable): void {
+    if (this.requireBetterPortalConfigSource === false) return;
     this.app.post("/.well-known/bp/hostname-change", async (event) => {
       const parsed = await readBoundedJsonBody(event.req, 1024 * 1024);
       if (parsed instanceof Response) return parsed;

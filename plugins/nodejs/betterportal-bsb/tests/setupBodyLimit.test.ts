@@ -194,3 +194,21 @@ test("unpaired setup bounds concurrent verification and releases capacity after 
   assert.equal((await install(5)).status, 400);
   assert.equal(requests, 5);
 });
+
+
+test("self-hosted control-plane owners do not expose remote installation or hostname changes", async (t) => {
+  const service = Object.assign(Object.create(BPService.prototype), {
+    app: createBetterPortalApp(), requireBetterPortalConfigSource: false, inSetupMode: false, resolvedCpUrl: null
+  });
+  service.registerInstallEndpoint({});
+  service.registerHostnameChangeEndpoint({});
+  let fetches = 0;
+  t.mock.method(globalThis, "fetch", async () => { fetches++; return Response.json({}); });
+  for (const path of ["install", "hostname-change"]) {
+    const response = await service.app.fetch(new Request(`https://control-plane.test/.well-known/bp/${path}`, {
+      method: "POST", body: JSON.stringify({ cpUrl: "https://foreign.test", setupToken: "token", changeToken: "token" })
+    }));
+    assert.equal(response.status, 404, path);
+  }
+  assert.equal(fetches, 0);
+});
