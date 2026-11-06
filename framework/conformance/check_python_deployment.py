@@ -3,6 +3,7 @@ import asyncio
 from copy import deepcopy
 from pathlib import Path
 import sys
+import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'python'))
 import httpx
 from betterportal.asgi import create_app
@@ -21,6 +22,15 @@ async def main():
     assert key not in repr(config)
     unpaired = DeploymentConfig.from_env({'BP_PUBLIC_ORIGIN': 'https://service.test', 'BP_BOOTSTRAP_MASTER_KEY': key})
     assert unpaired.cp_url is None
+    assert DeploymentConfig.from_env({'BP_CP_URL': '', 'BP_PUBLIC_ORIGIN': 'https://service.test',
+        'BP_BOOTSTRAP_MASTER_KEY': key, 'BP_BOOTSTRAP_MASTER_KEY_FILE': ''}).cp_url is None
+    with tempfile.TemporaryDirectory() as key_directory:
+        key_file = Path(key_directory) / 'bootstrap-key'
+        key_file.write_text(key)
+        file_config = DeploymentConfig.from_env({'BP_PUBLIC_ORIGIN': 'https://service.test',
+            'BP_BOOTSTRAP_MASTER_KEY': '', 'BP_BOOTSTRAP_MASTER_KEY_FILE': str(key_file)})
+        assert file_config.bootstrap_master_key == key
+    assert read_environment({'BP_REGISTRY_TOKEN': ''})['BP_REGISTRY_TOKEN'] == ''
     assert DeploymentConfig.from_env({'BP_PUBLIC_ORIGIN': 'https://service.test', 'BP_BOOTSTRAP_MASTER_KEY': key, 'BP_STATE_DIRECTORY': ''}).state_directory == Path('.')
     assert read_environment({"UNRELATED_SECRET": "ignored"}) == {}
     for name, value in (("BP_CP_URL", "http://remote.test"), ("BP_REGISTRY_URL", "not-a-url"),
