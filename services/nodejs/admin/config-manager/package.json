@@ -40,7 +40,7 @@
     "@betterportal/plugin-bsb": "11.0.6",
     "@bsb/base": "^9.7.4",
     "anyvali": "^1.1.6",
-    "jose": "^6.2.12",
+    "jose": "^6.2.15",
     "jsx-htmx": "4.0.100"
   },
   "files": [
