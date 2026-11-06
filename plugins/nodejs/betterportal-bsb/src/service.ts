@@ -2555,6 +2555,16 @@ export abstract class BPService<
           claims = await verifySetupToken(setupToken, {
             jwks: { jwksUri, issuer: normalizedCp, cache: Boolean(this.resolvedCpUrl) }, expectedIssuer: normalizedCp
           });
+          const receivingOrigin = new URL(this.deriveOwnUrl(event)).origin;
+          const tokenAddress = new URL(normalizeControlPlaneUrl(claims.serviceUrl));
+          if (tokenAddress.pathname !== "/" || claims.serviceUrl.includes("?") || claims.serviceUrl.includes("#")
+            || tokenAddress.origin !== receivingOrigin) {
+            throw new Error("Setup token is intended for a different service URL");
+          }
+        } catch {
+          obs.log.warn("Setup token verification failed");
+          return coreJsonResponse({ error: "Setup token verification failed" }, 400,
+            "service.install_token_invalid", "Setup token verification failed");
         } finally { this.setupVerifications--; }
 
         if (claims.cpJwksUri && claims.cpJwksUri !== jwksUri) {

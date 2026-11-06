@@ -267,8 +267,11 @@ appId. Authorize app scope from the snapshot. Actions are schema.read,
 config.read, and config.write. Invalid tickets return 401; an authorized
 credential with denied tenant/app scope returns 403.
 
-The development static-token path requires explicit BP_ALLOW_DEV_CONFIG_TOKEN=true
-and a configured token. Native runtimes capture that opt-in at construction and
+The development static-token path requires an explicit opt-in and a configured
+token: BSB uses `betterportal.allowDevConfigToken: true`; native constructors use
+`allowDevConfigToken: true` (.NET) or `allow_dev_config_token=True` (Python).
+Environment variables do not enable this fallback. Native runtimes capture the
+constructor opt-in and
 require an explicit tenant header. No known default token grants access. Production
 services fail closed before provisioning. Config tickets reject future issuance and
 nonpositive lifetimes, including through Node's shared verifier.

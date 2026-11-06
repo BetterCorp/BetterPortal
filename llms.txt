@@ -607,8 +607,8 @@ default:
           # Dev only: enable the static fallback explicitly through BSB config.
           # CP-synced services verify signed tickets and need neither setting.
           # Never enable this fallback in production.
-          allowDevConfigToken: true
-          configApiToken: bp-dev-config-token
+          allowDevConfigToken: false
+          # For local opt-in only, set a unique configApiToken through BSB config.
 ```
 
 There is no `configEncryptionKey` setting. The service config encryption key is

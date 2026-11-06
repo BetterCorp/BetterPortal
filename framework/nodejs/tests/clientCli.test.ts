@@ -161,3 +161,35 @@ test("generated clients require inferred path parameters", () => {
   assert.match(output, /params: \{ "configId": string \}/);
   assert.match(output, /configRead = \(runtime: BPClientRuntime, input: ConfigReadInput\) =>/);
 });
+
+test("explicit registry installation and sync bypass adjacent local contracts", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "bp-client-registry-"));
+  const consumer = join(root, "consumer");
+  const producer = join(root, "producer");
+  const previousCwd = process.cwd();
+  let fetches = 0;
+  try {
+    mkdirSync(join(consumer, ".git"), { recursive: true });
+    mkdirSync(producer);
+    writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "consumer", version: "1.0.0" }));
+    writeFileSync(join(consumer, "betterportal.json"), JSON.stringify({ defaultNamespace: "betterportal" }));
+    writeFileSync(join(producer, "betterportal.json"), JSON.stringify({ registryRef: "betterportal/config" }));
+    writeFileSync(join(producer, "bp-contract.json"), JSON.stringify(contract("local")));
+    t.mock.method(globalThis, "fetch", async (url) => {
+      assert.equal(new URL(String(url)).origin, "https://chosen-registry.test");
+      fetches++;
+      return Response.json(contract(fetches === 1 ? "registry" : "registryUpdated"));
+    });
+    process.chdir(consumer);
+    await installClient("config", { registryUrl: "https://chosen-registry.test" });
+    const clientFile = join(consumer, "src", ".bp-generated", "clients", "config.ts");
+    assert.match(readFileSync(clientFile, "utf8"), /"registry": string/);
+    await syncClients({ registryUrl: "https://chosen-registry.test" });
+    assert.match(readFileSync(clientFile, "utf8"), /"registry": string/);
+    assert.doesNotMatch(readFileSync(clientFile, "utf8"), /"local": string/);
+    assert.equal(fetches, 1, "sync may reuse its locked registry contract");
+  } finally {
+    process.chdir(previousCwd);
+    rmSync(root, { recursive: true, force: true });
+  }
+});

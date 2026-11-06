@@ -74,6 +74,13 @@ def run_installation(urls, labels):
                 assert [row["status"] for row in steps] == [400, 400, 400, 200], brief(steps)
                 assert all("cpUrl" not in row["bootstrap"] for row in steps[:-1])
         check(label, "invalid-first-pair-url-is-a-client-error", invalid_first_pair_url)
+        def receiver_binding():
+            with peer() as control:
+                steps = invoke(url, control, [issue(control)], unpaired=True, serviceUrl="https://other-service.test")
+                assert steps[0]["status"] in (400, 401), brief(steps)
+                assert "apiKey" not in steps[0]["bootstrap"] and "cpUrl" not in steps[0]["bootstrap"]
+                assert all(call["path"] != "/.well-known/bp/services/redeem" for call in cp_state(control)["calls"])
+        check(label, "first-pair-token-is-bound-to-the-receiving-service", receiver_binding)
         if label == "node":
             def node_install():
                 with peer() as control:

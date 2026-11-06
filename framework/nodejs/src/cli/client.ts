@@ -349,7 +349,7 @@ export async function installClient(rawSelector: string, options: { alias?: stri
   const packageDir = path.dirname(packageJsonFile);
   const config = readProjectConfig(packageDir);
   const selector = parseDependencySelector(rawSelector, config.defaultNamespace);
-  const local = findLocal(packageDir, selector, options.path, options.devPaths);
+  const local = options.registryUrl && !options.path ? null : findLocal(packageDir, selector, options.path, options.devPaths);
   const resolved = local
     ? { registryRef: local.registryRef ?? selector.registryRef ?? "", contract: local.contract }
     : await fetchRegistry(selector, options.registryUrl);
@@ -384,6 +384,7 @@ export async function installClient(rawSelector: string, options: { alias?: stri
 
 export async function syncClients(options: { registryOnly?: boolean; frozen?: boolean; registryUrl?: string; devPaths?: string[] } = {}): Promise<string[]> {
   const packageDir = path.dirname(findPackageJson());
+  const registryOnly = options.registryOnly || Boolean(options.registryUrl);
   const config = readProjectConfig(packageDir);
   const lock = readLock(packageDir);
   const localLockFile = path.join(packageDir, ".betterportal", "local-lock.json");
@@ -411,7 +412,7 @@ export async function syncClients(options: { registryOnly?: boolean; frozen?: bo
     }
     localLock ??= fs.existsSync(localLockFile) ? readJsonFile<Record<string, { path?: string }>>(localLockFile) : {};
     const preferredPath = localLock[alias]?.path;
-    const local = options.registryOnly
+    const local = registryOnly
       ? null
       : findLocal(packageDir, selector, preferredPath, options.devPaths) ?? (preferredPath ? findLocal(packageDir, selector, undefined, options.devPaths) : null);
     let contract: BpSchemaOutput;

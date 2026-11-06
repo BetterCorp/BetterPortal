@@ -152,7 +152,7 @@ with tempfile.TemporaryDirectory(prefix="bp-discovery-", dir=root / ".tmp-run") 
         settings = env or isolated
         dev_paths = settings.get("BP_DEV_PATHS", "")
         command = (["node", "--input-type=module", "--eval", install_code, selector,
-                    json.dumps({"devPaths": [value for value in dev_paths.split(os.pathsep) if value], "registryUrl": settings["BP_REGISTRY_URL"]})] if language == "node" else
+                    json.dumps({"devPaths": [value for value in dev_paths.split(os.pathsep) if value]})] if language == "node" else
                    [*native[language], "deps", "add", selector, "--alias", "peer", "--project", str(project), *options])
         if language == "dotnet":
             command += ["--dev-paths", dev_paths]

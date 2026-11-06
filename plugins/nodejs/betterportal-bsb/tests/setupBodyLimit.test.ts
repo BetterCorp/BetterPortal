@@ -64,11 +64,12 @@ test("unconfigured first installation proceeds to verification without saving fa
   };
   service.app = createBetterPortalApp();
   Object.assign(service, { inSetupMode: true, resolvedCpUrl: null });
-  service.registerInstallEndpoint({ log: { warn() {} } });
+  const warnings: unknown[] = [];
+  service.registerInstallEndpoint({ log: { warn(...args: unknown[]) { warnings.push(args); } } });
   let fetches = 0;
   t.mock.method(globalThis, "fetch", async () => {
     fetches++;
-    return new Response("", { status: 404 });
+    return new Response("private-upstream-detail", { status: 404 });
   });
   const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "foreign" })).toString("base64url");
   const install = () => service.app.fetch(new Request("https://service.test/.well-known/bp/install", {
@@ -78,6 +79,8 @@ test("unconfigured first installation proceeds to verification without saving fa
   }));
   const response = await install();
   assert.equal(response.status, 400);
+  assert.doesNotMatch(await response.text(), /private-upstream-detail/);
+  assert.doesNotMatch(JSON.stringify(warnings), /private-upstream-detail/);
   assert.equal(fetches, 1, "first pairing must reach token verification");
   assert.equal((service as unknown as { resolvedCpUrl: string | null }).resolvedCpUrl, null);
   Object.assign(service, { resolvedCpUrl: "https://foreign.example" });
