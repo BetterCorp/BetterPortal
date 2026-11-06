@@ -66,6 +66,14 @@ def run_installation(urls, labels):
                 assert "cpUrl" not in steps[0]["bootstrap"] and "apiKey" not in steps[0]["bootstrap"]
                 assert all(row["status"] == 200 and row["ready"] for row in steps[2:]), brief(steps)
         check(label, "failed-first-pair-does-not-pin-control-plane", failed_first_pair)
+        def invalid_first_pair_url():
+            with peer() as control:
+                invalid = [{"method": "POST", "path": "/.well-known/bp/install", "body": {
+                    "setupToken": "invalid", "cpUrl": value}} for value in ("not-a-url", "http://remote.test", "https://user:password@control.test")]
+                steps = invoke(url, control, [*invalid, issue(control)], unpaired=True)
+                assert [row["status"] for row in steps] == [400, 400, 400, 200], brief(steps)
+                assert all("cpUrl" not in row["bootstrap"] for row in steps[:-1])
+        check(label, "invalid-first-pair-url-is-a-client-error", invalid_first_pair_url)
         if label == "node":
             def node_install():
                 with peer() as control:

@@ -128,6 +128,8 @@ export interface BPServiceConfig {
   betterportal?: BetterPortalConfig;
   bpConfigPath?: string;
   configApiToken?: string;
+  allowDevConfigToken?: boolean;
+  previewConfigKey?: string;
   controlPlaneUrl?: string;
   serviceApiKey?: string;
   bootstrapStatePath?: string;
@@ -141,6 +143,8 @@ type BPServicePluginConfig = BSBPluginConfig<av.BaseSchema<unknown, BPServiceCon
 export interface BetterPortalConfig {
   bpConfigPath?: string;
   configApiToken?: string;
+  allowDevConfigToken?: boolean;
+  previewConfigKey?: string;
   controlPlaneUrl?: string;
   serviceApiKey?: string;
   bootstrapStatePath?: string;
@@ -159,9 +163,10 @@ export const BetterPortalConfigSchema = av.optional(av.object({
   bpConfigPath: av.optional(av.string().minLength(1)),
   // Optional dev-only shared secret for the static config-token fallback. NOT
   // set by default - production verifies CP-signed tickets via the CP JWKS and
-  // never needs this. The fallback is additionally gated behind
-  // BP_ALLOW_DEV_CONFIG_TOKEN=true (see validateConfigTicket).
+  // never needs this. The fallback requires allowDevConfigToken in BSB config.
   configApiToken: av.optional(av.string().minLength(1)),
+  allowDevConfigToken: av.bool().default(false),
+  previewConfigKey: av.optional(av.string().minLength(1)),
   // NOTE: there is deliberately no operator-supplied config encryption key.
   // The key is generated (256-bit, CSPRNG) at install and persisted in the
   // bootstrap state; see resolveConfigEncryptionKey.
@@ -256,6 +261,8 @@ export abstract class BPService<
     return {
       bpConfigPath: cfg.bpConfigPath,
       configApiToken: cfg.configApiToken,
+      allowDevConfigToken: cfg.allowDevConfigToken,
+      previewConfigKey: cfg.previewConfigKey,
       controlPlaneUrl: cfg.controlPlaneUrl,
       serviceApiKey: cfg.serviceApiKey,
       trustedProxyHeaders: cfg.trustedProxyHeaders,
@@ -1903,8 +1910,8 @@ export abstract class BPService<
   private applyPreviewConfig(scoped: ScopedServiceConfig): void {
     const preview = scoped.previewConfig;
     if (!preview || preview.revision === this.previewConfigRevision) return;
-    const key = process.env.BP_PREVIEW_CONFIG_KEY;
-    if (!key) throw new Error("BP_PREVIEW_CONFIG_KEY is required for encrypted preview config");
+    const key = this.bp.previewConfigKey;
+    if (!key) throw new Error("betterportal.previewConfigKey is required for encrypted preview config");
     const tenant = scoped.tenants[0];
     const app = tenant ? scoped.apps.find((candidate) => candidate.tenantId === tenant.id) : undefined;
     if (!tenant || !app) throw new Error("Encrypted preview config is missing its tenant/app scope");
@@ -1993,11 +2000,8 @@ export abstract class BPService<
   }
 
   /**
-   * Resolve API key + CP URL using the 3-layer chain:
-   *   1. Bootstrap state store (default)
-   *   2. sec-config (this.bp.serviceApiKey + this.bp.controlPlaneUrl)
-   *   3. Process env BP_SERVICE_API_KEY + BP_CONTROL_PLANE_URL (arg layer)
-   * If none yield credentials, enter setup mode.
+   * Resolve credentials from persisted pairing state, then BSB configuration.
+   * Without both credentials, wait in setup mode for browser-driven pairing.
    */
   private resolveCredentials(obs: Observable): void {
     // Self-hosted services (the CP itself - e.g. config-manager) don't poll a
@@ -2010,19 +2014,15 @@ export abstract class BPService<
     }
 
     const stored = this.bootstrapState.read();
-    const envKey = process.env.BP_SERVICE_API_KEY;
-    const envCp = process.env.BP_CONTROL_PLANE_URL;
 
     this.resolvedApiKey =
-      stored.apiKey ?? this.bp.serviceApiKey ?? envKey ?? null;
+      stored.apiKey ?? this.bp.serviceApiKey ?? null;
     this.resolvedCpUrl =
-      stored.cpUrl ?? this.bp.controlPlaneUrl ?? envCp ?? null;
+      stored.cpUrl ?? this.bp.controlPlaneUrl ?? null;
 
     if (this.resolvedApiKey && this.resolvedCpUrl) {
       this.inSetupMode = false;
-      const source = stored.apiKey ? "bootstrap-state"
-        : this.bp.serviceApiKey ? "sec-config"
-        : "env";
+      const source = stored.apiKey ? "bootstrap-state" : "bsb-config";
       obs.log.info("Credentials loaded from {source}; CP={cpUrl}", {
         source,
         cpUrl: this.resolvedCpUrl
@@ -2530,11 +2530,8 @@ export abstract class BPService<
         );
       }
 
-      if (this.installInProgress) {
-        return coreJsonResponse({ error: "Pairing is already in progress" }, 409,
-          "service.install_in_progress", "Pairing is already in progress");
-      }
-      this.installInProgress = true;
+      let ownsInstall = false;
+      let committed = false;
 
       try {
         const normalizedCp = normalizeControlPlaneUrl(cpUrl);
@@ -2561,33 +2558,51 @@ export abstract class BPService<
           );
         }
 
-        // Redeem token at CP - exchanges single-use setup token for the real apiKey.
-        // Also pushes our JWKS (if we're an auth provider) so the CP can verify
-        // JWTs we issue WITHOUT fetching JWKS from us (CM cannot reach services).
-        const redeemResponse = await fetch(`${normalizedCp}/.well-known/bp/services/redeem`, {
-          redirect: "error",
-          method: "POST",
-          headers: { "content-type": "application/json", "accept": "application/json" },
-          body: JSON.stringify({
-            setupToken,
-            pluginId: this.manifest.pluginId,
-            serviceUrl: this.deriveOwnUrl(event),
-            ...(this.publishedAuthProvider ? { authProvider: this.publishedAuthProvider } : {}),
-            ...(this.publishedJwks ? { jwks: this.publishedJwks } : {})
-          })
-        });
-        if (!redeemResponse.ok) {
-          const text = await redeemResponse.text().catch(() => "");
-          obs.log.warn("CP redeem failed: status={status} body={body}", { status: redeemResponse.status, body: text });
-          return coreJsonResponse(
-            { error: "CP rejected redeem", detail: text },
-            502,
-            "service.install_redeem_failed",
-            "Control plane rejected the install token",
-            { "http.response.status_code.upstream": redeemResponse.status }
-          );
+        // Verification may await another host. Recheck trust before committing,
+        // and only hold the install guard for a verified pairing request.
+        if (this.resolvedCpUrl && normalizedCp !== normalizeControlPlaneUrl(this.resolvedCpUrl)) {
+          return coreJsonResponse({ error: "Installation control plane does not match configured trust" }, 403,
+            "service.install_control_plane_mismatch", "Installation control plane does not match configured trust");
         }
-        const redeemBody = await redeemResponse.json() as { apiKey?: string; cpId?: string; cpJwksUri?: string };
+        if (this.installInProgress) {
+          return coreJsonResponse({ error: "Pairing is already in progress" }, 409,
+            "service.install_in_progress", "Pairing is already in progress");
+        }
+        this.installInProgress = ownsInstall = true;
+        const stored = this.bootstrapState.read();
+        const replay = stored.apiKey && stored.cpUrl === normalizedCp
+          && stored.installation?.jti === claims.jti && stored.installation.instanceId === claims.instanceId
+          && stored.installation.serviceUrl === claims.serviceUrl;
+        let redeemBody: { apiKey?: string; cpId?: string; cpJwksUri?: string } = stored;
+        if (!replay) {
+          // Redeem token at CP - exchanges single-use setup token for the real apiKey.
+          // Also pushes our JWKS (if we're an auth provider) so the CP can verify
+          // JWTs we issue WITHOUT fetching JWKS from us (CM cannot reach services).
+          const redeemResponse = await fetch(`${normalizedCp}/.well-known/bp/services/redeem`, {
+            redirect: "error",
+            method: "POST",
+            headers: { "content-type": "application/json", "accept": "application/json" },
+            body: JSON.stringify({
+              setupToken,
+              pluginId: this.manifest.pluginId,
+              serviceUrl: this.deriveOwnUrl(event),
+              ...(this.publishedAuthProvider ? { authProvider: this.publishedAuthProvider } : {}),
+              ...(this.publishedJwks ? { jwks: this.publishedJwks } : {})
+            })
+          });
+          if (!redeemResponse.ok) {
+            const text = await redeemResponse.text().catch(() => "");
+            obs.log.warn("CP redeem failed: status={status} body={body}", { status: redeemResponse.status, body: text });
+            return coreJsonResponse(
+              { error: "CP rejected redeem", detail: text },
+              502,
+              "service.install_redeem_failed",
+              "Control plane rejected the install token",
+              { "http.response.status_code.upstream": redeemResponse.status }
+            );
+          }
+          redeemBody = await redeemResponse.json() as { apiKey?: string; cpId?: string; cpJwksUri?: string };
+        }
         if (typeof redeemBody.apiKey !== "string" || redeemBody.apiKey.length === 0) {
           return coreJsonResponse(
             { error: "CP redeem response missing apiKey" },
@@ -2599,17 +2614,23 @@ export abstract class BPService<
 
         // Persist + log + reconnect to CP.
         const configEncryptionKey = this.resolveConfigEncryptionKey() ?? `bp_cek_${randomBytes(32).toString("base64url")}`;
-        this.bootstrapState.write({
+        if (!replay) this.bootstrapState.write({
           apiKey: redeemBody.apiKey,
           cpUrl: normalizedCp,
           cpId: redeemBody.cpId,
           cpJwksUri: redeemBody.cpJwksUri ?? jwksUri,
           configEncryptionKey,
-          installedAt: new Date().toISOString()
+          installedAt: new Date().toISOString(),
+          installation: { instanceId: claims.instanceId, serviceUrl: claims.serviceUrl,
+            cpUrl: normalizedCp, cpJwksUri: jwksUri, jti: claims.jti,
+            ...(claims.scope ? { scope: claims.scope } : {}) }
         });
         // The durable first pair owns trust even if activation below fails.
+        committed = true;
         this.resolvedApiKey = redeemBody.apiKey;
         this.resolvedCpUrl = normalizedCp;
+        this.inSetupMode = false;
+        this.manifestSync = { ...this.manifestSync, state: "retrying", lastAttemptAt: new Date().toISOString() };
         this.runtimeConfigEncryptionKey = configEncryptionKey;
         if (this.manifest.configSchemas.length > 0) {
           this.configStore = new FileBackedServiceConfigStore({
@@ -2618,7 +2639,6 @@ export abstract class BPService<
             encryptionKey: configEncryptionKey
           });
         }
-        this.inSetupMode = false;
         this.initializeS2SIdentity(obs);
 
         obs.log.info("Install complete for {pluginId}; apiKey persisted; starting CP sync", { pluginId: this.manifest.pluginId });
@@ -2644,6 +2664,10 @@ export abstract class BPService<
         }, 200);
       } catch (err) {
         obs.log.warn("Install handler error: {msg}", { msg: (err as Error).message });
+        if (committed) {
+          return coreJsonResponse({ error: "Installed; activation failed", installed: true }, 503,
+            "service.install_activation_failed", "Activation failed after credentials were saved");
+        }
         return coreJsonResponse(
           { error: "Install failed", detail: (err as Error).message },
           400,
@@ -2651,7 +2675,7 @@ export abstract class BPService<
           (err as Error).message || "Service installation failed"
         );
       } finally {
-        this.installInProgress = false;
+        if (ownsInstall) this.installInProgress = false;
       }
     });
   }
@@ -2804,7 +2828,7 @@ export abstract class BPService<
 
   /**
    * Static shared-secret fallback for LOCAL DEVELOPMENT ONLY. Disabled unless
-   * BP_ALLOW_DEV_CONFIG_TOKEN=true AND configApiToken is explicitly set. It
+   * allowDevConfigToken is true AND configApiToken is explicitly set in BSB config. It
    * trusts the x-bp-tenant-id header to choose the tenant, so it must never be
    * enabled in production.
    */
@@ -2813,7 +2837,7 @@ export abstract class BPService<
     event: BetterPortalEvent,
     action: ServiceConfigAction
   ): ServiceConfigTicketClaims | null {
-    if (process.env.BP_ALLOW_DEV_CONFIG_TOKEN !== "true") return null;
+    if (this.bp.allowDevConfigToken !== true) return null;
     const expectedToken = this.bp.configApiToken;
     if (!expectedToken) return null;
 

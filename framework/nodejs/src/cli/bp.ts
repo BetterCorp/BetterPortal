@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import * as path from "node:path";
+import { readFileSync } from "node:fs";
 import { checkConfiguredRouteUrls } from "../codegen/routeUrlPolicy.js";
 import { buildContracts } from "./contract.js";
 import { installClient, syncClients } from "./client.js";
@@ -15,6 +16,8 @@ function option(args: string[], name: string): string | undefined {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const [command, subcommand] = args;
+  const registryUrl = option(args, "--registry");
+  const devPaths = option(args, "--dev-paths")?.split(path.delimiter).filter(Boolean);
 
   if (command === "setup") {
     await import("../codegen/init.js");
@@ -40,7 +43,7 @@ async function main(): Promise<void> {
   }
   if (command === "run" && subcommand === "types") {
     const outputs = await syncClients({
-      registryOnly: args.includes("--registry-only"),
+      registryUrl, devPaths, registryOnly: args.includes("--registry-only"),
       frozen: args.includes("--frozen")
     });
     console.log(`[bp] Synced ${outputs.length} client type file(s).`);
@@ -53,18 +56,21 @@ async function main(): Promise<void> {
   }
   if (command === "client" && subcommand === "install") {
     const selector = args[2];
-    if (!selector) throw new Error("Usage: bp client install <id|namespace/name> [--path path] [--as alias]");
-    const installed = await installClient(selector, { path: option(args, "--path"), alias: option(args, "--as") });
+    if (!selector) throw new Error("Usage: bp client install <id|namespace/name> [--path path] [--as alias] [--registry URL] [--dev-paths PATHS]");
+    const installed = await installClient(selector, { path: option(args, "--path"), alias: option(args, "--as"), registryUrl, devPaths });
     console.log(`[bp] Installed ${installed.registryRef}@${installed.version} (${installed.pluginId})`);
     return;
   }
   if (command === "client" && (subcommand === "sync" || subcommand === "types")) {
-    const outputs = await syncClients({ registryOnly: args.includes("--registry-only"), frozen: args.includes("--frozen") });
+    const outputs = await syncClients({ registryUrl, devPaths, registryOnly: args.includes("--registry-only"), frozen: args.includes("--frozen") });
     console.log(`[bp] Synced ${outputs.length} client type file(s).`);
     return;
   }
   if (command === "publish") {
-    const published = await publishContracts(args[1]);
+    const tokenFile = option(args, "--token-file");
+    const published = await publishContracts(args[1]?.startsWith("--") ? undefined : args[1], {
+      token: tokenFile ? readFileSync(tokenFile, "utf8").trim() : undefined, registryUrl
+    });
     for (const item of published) console.log(`[bp] Published ${item}`);
     return;
   }
@@ -76,9 +82,9 @@ async function main(): Promise<void> {
   bp run gen
   bp run types [--registry-only] [--frozen]
   bp run contract
-  bp client install <id|namespace/name> [--path path] [--as alias]
-  bp client sync [--registry-only] [--frozen]
-  bp publish [contract-file-or-directory]`);
+  bp client install <id|namespace/name> [--path path] [--as alias] [--registry URL] [--dev-paths PATHS]
+  bp client sync [--registry-only] [--frozen] [--registry URL] [--dev-paths PATHS]
+  bp publish [contract-file-or-directory] --token-file FILE [--registry URL]`);
 }
 
 main().catch((error: unknown) => {

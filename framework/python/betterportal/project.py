@@ -13,6 +13,7 @@ from .clientgen import generate_client
 from .contracts import parse
 from .jsoncodec import loads
 from .registry_client import RegistryClient
+from .environment import read_environment
 
 _Candidate = tuple[Path, str, bytes, Any]
 
@@ -142,7 +143,7 @@ class Project:
             roots += [root / path for path in metadata["workspaces"] if "*" not in path]
         roots.append(self.directory / "node_modules")
         roots += self._children(root.parent)
-        roots += [self.directory / path for path in os.environ.get("BP_DEV_PATHS", "").split(os.pathsep) if path]
+        roots += [self.directory / path for path in read_environment().get("BP_DEV_PATHS", "").split(os.pathsep) if path]
         found = []
         for path in dict.fromkeys(Path(os.path.abspath(path)) for path in roots):
             for package in self._package_roots(path):
@@ -178,7 +179,7 @@ class Project:
     async def publish(self, file: str | Path, url: str | None = None) -> Any:
         reference = self.config.get("registryRef")
         if reference is None: raise ValueError("betterportal.json must define registryRef before publishing")
-        token = os.environ.get("BP_REGISTRY_TOKEN")
+        token = read_environment().get("BP_REGISTRY_TOKEN")
         if not token: raise ValueError("BP_REGISTRY_TOKEN is required")
         return await RegistryClient(url).publish(reference, _json(_read(self.directory / file)), token)
 

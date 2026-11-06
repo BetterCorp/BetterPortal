@@ -200,7 +200,9 @@ public sealed class ServiceInstallation : IAsyncDisposable
         try
         {
             if (closed || !started) throw new RequestException(503, "Installation is not available");
-            var candidate = TrustedKeys.SecureEndpoint((string)request["cpUrl"]!).OriginalString.TrimEnd('/');
+            string candidate;
+            try { candidate = TrustedKeys.SecureEndpoint((string)request["cpUrl"]!).OriginalString.TrimEnd('/'); }
+            catch (ArgumentException) { throw new RequestException(400, "Invalid installation control-plane URL"); }
             if (cp.Length != 0 && candidate != cp) throw new RequestException(403, "Installation control plane does not match configured trust");
             var firstPair = cp.Length == 0;
             if (firstPair)

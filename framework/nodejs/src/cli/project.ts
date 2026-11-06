@@ -50,7 +50,7 @@ export function readContract(file: string): BpSchemaOutput {
   return parseContract(readJsonFile(file));
 }
 
-export function normalizeRegistryUrl(value = process.env.BP_REGISTRY_URL ?? DEFAULT_REGISTRY_URL): string {
+export function normalizeRegistryUrl(value = DEFAULT_REGISTRY_URL): string {
   return value.replace(/\/+$/, "");
 }
 

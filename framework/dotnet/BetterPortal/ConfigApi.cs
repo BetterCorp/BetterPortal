@@ -13,11 +13,11 @@ public sealed class ConfigApi : IAsyncDisposable
     private readonly string? devToken;
     private readonly Node options;
     public ConfigApi(ServiceSettings? settings = null, string? issuer = null, string? jwksUri = null,
-        Generated.ServiceConfigManagementMode? mode = null, string? customUiPath = null, bool writable = true, string? devToken = null)
+        Generated.ServiceConfigManagementMode? mode = null, string? customUiPath = null, bool writable = true, string? devToken = null, bool allowDevConfigToken = false)
     {
         if ((issuer is null) != (jwksUri is null)) throw new ArgumentException("Config tickets require both issuer and JWKS URI");
         Settings = settings;
-        this.devToken = !string.IsNullOrEmpty(devToken) && Environment.GetEnvironmentVariable("BP_ALLOW_DEV_CONFIG_TOKEN") == "true" ? devToken : null;
+        this.devToken = !string.IsNullOrEmpty(devToken) && allowDevConfigToken ? devToken : null;
         if (issuer is not null) { TrustedKeys.SecureEndpoint(issuer); this.issuer = issuer; keys = new JwksClient(issuer, jwksUri!); }
         options = new() { ["mode"] = mode ?? (settings is null ? Generated.ServiceConfigManagementMode.Static : Generated.ServiceConfigManagementMode.Hybrid),
             ["supportsWrite"] = settings is not null && writable, ["supportsCustomUi"] = customUiPath is not null };

@@ -203,7 +203,8 @@ class ServiceInstallation:
         try:
             async with self._gate:
                 if self._closed or not self._started: raise RequestError(503, "Installation is not available")
-                candidate = secure_endpoint(request["cpUrl"]).rstrip("/")
+                try: candidate = secure_endpoint(request["cpUrl"]).rstrip("/")
+                except ValueError: raise RequestError(400, "Invalid installation control-plane URL") from None
                 if self._cp and candidate != self._cp:
                     raise RequestError(403, "Installation control plane does not match configured trust")
                 first_pair = not self._cp

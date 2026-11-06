@@ -45,3 +45,20 @@ test("routing JSX diagnostics point at the offending element instead of the file
   assert.equal(diagnostic.line, 3);
   assert.equal(diagnostic.column, 5);
 });
+
+
+test("BSB services and runtime settings must come from the configuration platform", async () => {
+  const eslint = new ESLint();
+  for (const filePath of ["plugins/nodejs/betterportal-bsb/src/config-probe.ts",
+    "framework/nodejs/src/runtime/config-probe.ts", "services/nodejs/examples/hello-view/src/config-probe.ts",
+    "themes/nodejs/bootstrap1/src/config-probe.ts"]) {
+    for (const source of ["export const value = process.env.BP_CONTROL_PLANE_URL;",
+      'export const value = process["env"].BP_SERVICE_API_KEY;',
+      "export const { env } = process;", 'import { env } from "node:process"; export const value = env.KEY;']) {
+      const [result] = await eslint.lintText(source, { filePath });
+      assert.ok(result.messages.some(({ ruleId }) => ruleId === "no-restricted-syntax" || ruleId === "no-restricted-imports"), filePath + ": " + source);
+    }
+    const [valid] = await eslint.lintText("export const value = config.betterportal.controlPlaneUrl;", { filePath });
+    assert.equal(valid.errorCount, 0, filePath);
+  }
+});

@@ -77,7 +77,7 @@ Each publishable service has a `betterportal.json`. Its registry reference is a 
 }
 ```
 
-Use `bp client install <pluginId|namespace/name|short-name>` to add another service. Resolution checks an explicit `--path`, this repository's workspaces, installed packages, sibling repositories, and `BP_DEV_PATHS` before `https://io.betterportal.org`. Local contracts are synced again by the BSB build hook, so adjacent services under development immediately regenerate the consumer's types. Use a full registry reference when a short name is ambiguous.
+Use `bp client install <pluginId|namespace/name|short-name>` to add another service. Resolution checks an explicit `--path`, this repository's workspaces, installed packages, sibling repositories, and explicit `--dev-paths` before `https://io.betterportal.org`. Local contracts are synced again by the BSB build hook, so adjacent services under development immediately regenerate the consumer's types. Use a full registry reference when a short name is ambiguous.
 
 Generated clients expose one input and response type per `operationId`. Undeclared inputs are omitted, schema-optional inputs remain optional, and inputs with required schema fields are required at the call site. Responses and nested request fields are generated directly from the published AnyVali contracts.
 

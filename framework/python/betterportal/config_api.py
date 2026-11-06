@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping
 import hmac
-import os
 import time
 import anyvali as av
 from .contracts import parse
@@ -16,12 +15,12 @@ from .settings import ServiceSettings, SettingsInputError
 
 class ConfigApi:
     def __init__(self, settings: ServiceSettings | None = None, *, issuer: str | None = None, jwks_uri: str | None = None,
-                 mode: ServiceConfigManagementMode | None = None, custom_ui_path: str | None = None, writable: bool = True, dev_token: str | None = None):
+                 mode: ServiceConfigManagementMode | None = None, custom_ui_path: str | None = None, writable: bool = True, dev_token: str | None = None, allow_dev_config_token: bool = False):
         if (issuer is None) != (jwks_uri is None): raise ValueError("Config tickets require both issuer and JWKS URI")
         self.settings = settings
         self._issuer = secure_endpoint(issuer) if issuer is not None else None
         self._keys = JwksClient(self._issuer, jwks_uri) if self._issuer is not None and jwks_uri is not None else None
-        self._dev_token = dev_token if dev_token and os.environ.get("BP_ALLOW_DEV_CONFIG_TOKEN") == "true" else None
+        self._dev_token = dev_token if dev_token and allow_dev_config_token else None
         self._options = {"mode": mode if mode is not None else ("hybrid" if settings is not None else "static"), "supportsWrite": settings is not None and writable,
                          "supportsCustomUi": custom_ui_path is not None, **({"customUiPath": custom_ui_path} if custom_ui_path is not None else {})}
 

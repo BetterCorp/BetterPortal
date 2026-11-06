@@ -2207,9 +2207,9 @@ test("preview environment editor keeps config crypto in the browser", () => {
   assert.match(page, /groupId=[^"&]+&amp;_c=config/);
   assert.doesNotMatch(page, /click once/);
   assert.match(page, /querySelector\('form'\)/);
-  assert.doesNotMatch(page, /BP_PREVIEW_CONFIG_KEY/);
+  assert.doesNotMatch(page, /betterportal\.previewConfigKey/);
   assert.doesNotMatch(page, /crypto\.subtle\.encrypt/);
-  assert.match(html, /BP_PREVIEW_CONFIG_KEY/);
+  assert.match(html, /betterportal\.previewConfigKey/);
   assertScopedAuthFetch(html);
   assert.doesNotMatch(html, /Service plugin IDs/);
   assert.match(html, /crypto\.subtle\.encrypt/);

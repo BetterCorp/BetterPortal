@@ -32,8 +32,18 @@ def snapshot(directory):
 
 def run(command, directory, valid=True, env=None):
     global checks
+    settings = env or environment
+    command = list(command)
+    if str(tool) in command:
+        if "--registry" not in command and ("add" in command or "publish" in command):
+            command += ["--registry", settings.get("BP_REGISTRY_URL", "https://io.betterportal.org")]
+        if "publish" in command and settings.get("BP_REGISTRY_TOKEN"):
+            token_file = directory / ".registry-token"
+            token_file.write_text(settings["BP_REGISTRY_TOKEN"])
+            command += ["--token-file", str(token_file)]
     result = subprocess.run(command, cwd=directory, env=env or environment, capture_output=True, text=True, encoding="utf-8", timeout=45)
     assert (result.returncode == 0) == valid, (command, result.stdout, result.stderr)
+    if str(tool) in command and "--token-file" in command: token_file.unlink()
     checks += 1
     if not valid: assert "fixture-publisher-token" not in result.stdout + result.stderr, "Registry error exposed credentials"
     return result.stdout

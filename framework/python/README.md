@@ -549,7 +549,7 @@ API remains available to supply them. Public health reflects initialized state a
 managed manifest acknowledgment. Protected key storage and `ServiceInstallation` HTTP provisioning are described below.
 
 `dev_token` is accepted only when explicitly supplied and
-`BP_ALLOW_DEV_CONFIG_TOKEN=true` at construction. It requires an explicit tenant
+`allow_dev_config_token=True` at construction. It requires an explicit tenant
 header and the same scope checks; it is a local-development option. Without pinned
 CP trust or this explicit opt-in, the API rejects every ticket.
 
@@ -1049,7 +1049,7 @@ concrete URLs; discovery never guesses parameter values.
 `DeploymentConfig.from_env().create_app(registry, declaration)` reads optional
 `BP_CP_URL` (omit it to wait for first pairing), `BP_PUBLIC_ORIGIN`, `BP_STATE_DIRECTORY`, and exactly one of
 `BP_BOOTSTRAP_MASTER_KEY` or `BP_BOOTSTRAP_MASTER_KEY_FILE`. The secret is excluded
-from the configuration's repr. `BP_TRUSTED_PROXIES` is an optional comma-separated
+from the configuration's repr. All Python environment reads, including authoring CLI settings, pass through `betterportal.environment` and its AnyVali schema before use. Unknown process variables are ignored, recognized invalid settings fail without printing secret values. `BP_TRUSTED_PROXIES` is an optional comma-separated
 list of IP addresses/CIDRs; your proxy must overwrite `X-Forwarded-Host` and
 `X-Forwarded-Proto`. Never configure arbitrary peers as trusted.
 

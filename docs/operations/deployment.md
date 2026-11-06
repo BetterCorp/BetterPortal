@@ -65,7 +65,7 @@ Each publishable BetterPortal plugin package must set:
 
 The BSB registry uses that `orgId` as the namespace, so BetterPortal plugins publish under `betterportal/<plugin-id>`. This intentionally matches the npm package scope `@betterportal/...`. The GitHub release workflow publishes core packages first, then publishes each plugin package in a matrix and runs `npm run publish:client` for plugin workspaces after their npm publish step.
 
-The separate BetterPortal registry is hosted at `https://io.betterportal.org`. Workspaces containing `betterportal.json` publish their canonical service contract with `BP_REGISTRY_TOKEN`. Its `betterportal/<name>` coordinate does not replace either the npm package name or runtime reverse-domain plugin ID.
+The separate BetterPortal registry is hosted at `https://io.betterportal.org`. Workspaces containing `betterportal.json` publish their canonical service contract with `bp publish --token-file FILE`; the release workflow supplies its registry secret through a temporary protected file. Its `betterportal/<name>` coordinate does not replace either the npm package name or runtime reverse-domain plugin ID.
 
 BetterPortal BSB plugins should declare the registry logo in their `createConfigSchema()` metadata:
 
@@ -157,7 +157,7 @@ Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB
 
 Each vault-backed service profile still sets `package: "@betterportal/..."`; BSB resolves that package from `/mnt/plugins` first, then runtime `node_modules`. The runtime containers do not set `BSB_PLUGINS`; package sync is owned by `bsb-plugin-watcher`. The BSB runtime image provides its built-in config plugins, including config-vault.
 
-Set the config-manager issuer/public URL inside the config-manager vault profile. A new service needs neither a control-plane URL nor a service API key: it waits in setup mode for browser-driven pairing. Successful pairing persists the control-plane URL and credentials for subsequent starts and reconnects. Optionally set `betterportal.controlPlaneUrl` or `BP_CONTROL_PLANE_URL` to pin a Node service to a specific control plane before pairing; installed services reject a different control plane.
+Set the config-manager issuer/public URL inside the config-manager vault profile. A new service needs neither a control-plane URL nor a service API key: it waits in setup mode for browser-driven pairing. Successful pairing persists the control-plane URL and credentials for subsequent starts and reconnects. Optionally set `betterportal.controlPlaneUrl` in BSB configuration to pin a Node service to a specific control plane before pairing; installed services reject a different control plane.
 
 For the bundled database, config-manager storage should use the `postgres` compose hostname:
 

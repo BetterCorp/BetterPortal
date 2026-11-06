@@ -9,6 +9,7 @@ from betterportal.asgi import create_app
 from betterportal.bootstrap import BootstrapCipher
 from betterportal.context import ScopedConfig
 from betterportal.hosting import DeploymentConfig, TrustedProxyMiddleware
+from betterportal.environment import read_environment
 from betterportal.service import Service
 from hosting_cases import fixture
 from python_registry import build_registry
@@ -20,6 +21,14 @@ async def main():
     assert key not in repr(config)
     unpaired = DeploymentConfig.from_env({'BP_PUBLIC_ORIGIN': 'https://service.test', 'BP_BOOTSTRAP_MASTER_KEY': key})
     assert unpaired.cp_url is None
+    assert read_environment({"UNRELATED_SECRET": "ignored"}) == {}
+    for name, value in (("BP_CP_URL", "http://remote.test"), ("BP_REGISTRY_URL", "not-a-url"),
+                        ("BP_BOOTSTRAP_MASTER_KEY", "secret-invalid-key"), ("BP_REGISTRY_TOKEN", "secret\ntoken"),
+                        ("BP_TRUSTED_PROXIES", "not-a-network"), ("BP_STATE_DIRECTORY", "bad\x00path")):
+        try: read_environment({name: value})
+        except ValueError as error: assert value not in str(error)
+        else: raise AssertionError("Invalid environment setting was accepted: " + name)
+    assert read_environment({"BP_REGISTRY_TOKEN": "publisher-token"})["BP_REGISTRY_TOKEN"] == "publisher-token"
     observed = []
     async def app(scope, receive, send):
         observed.append(scope)

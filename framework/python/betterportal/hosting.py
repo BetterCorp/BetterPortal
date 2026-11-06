@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from ipaddress import ip_address, ip_network
-import os
 from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlsplit
@@ -11,6 +10,7 @@ from urllib.parse import urlsplit
 from .bootstrap import BootstrapCipher, BootstrapStateStore
 from .installation import ServiceInstallation
 from .keys import secure_endpoint
+from .environment import deployment_environment
 from .storage import FileStateStore
 
 
@@ -33,17 +33,9 @@ class DeploymentConfig:
 
     @classmethod
     def from_env(cls, environment: Mapping[str, str] | None = None) -> DeploymentConfig:
-        env = os.environ if environment is None else environment
-        key, key_file = env.get('BP_BOOTSTRAP_MASTER_KEY'), env.get('BP_BOOTSTRAP_MASTER_KEY_FILE')
-        if bool(key) == bool(key_file):
-            raise ValueError('Configure exactly one bootstrap master key source')
-        if key_file:
-            with Path(key_file).open('r', encoding='ascii') as source:
-                key = source.read(256).strip()
-                if source.read(1): raise ValueError('Bootstrap key file is too large')
-        assert key is not None
+        env = deployment_environment(environment)
         return cls(env.get('BP_CP_URL') or None, env['BP_PUBLIC_ORIGIN'], Path(env.get('BP_STATE_DIRECTORY', '.bp-state')),
-                   key, tuple(value.strip() for value in env.get('BP_TRUSTED_PROXIES', '').split(',') if value.strip()))
+                   env['BP_BOOTSTRAP_MASTER_KEY'], tuple(value.strip() for value in env.get('BP_TRUSTED_PROXIES', '').split(',') if value.strip()))
 
     def create_app(self, registry, declaration, **options):
         """One process per state directory; the ASGI lifespan owns all resources."""

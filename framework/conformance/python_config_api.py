@@ -3,7 +3,6 @@ import asyncio
 import base64
 from pathlib import Path
 import tempfile
-import os
 import httpx
 from betterportal.asgi import create_app
 from betterportal.config_api import ConfigApi
@@ -23,13 +22,7 @@ async def config_api_request(body):
         path = Path(directory) / "state.json"
         if "stored" in body: path.write_text(body["stored"], encoding="utf-8")
         settings = None if body.get("unsupported") else ServiceSettings(SettingsSchema(body["descriptors"]), ConfigCipher(body["key"]), store)
-        previous = os.environ.get("BP_ALLOW_DEV_CONFIG_TOKEN")
-        try:
-            os.environ["BP_ALLOW_DEV_CONFIG_TOKEN"] = "true" if body.get("enableDevToken") else "false"
-            api = ConfigApi(settings, issuer=body.get("issuer"), jwks_uri=body.get("jwksUri"), mode=body.get("mode"), custom_ui_path=body.get("customUiPath"), writable=body.get("writable", True), dev_token=body.get("devToken"))
-        finally:
-            if previous is None: os.environ.pop("BP_ALLOW_DEV_CONFIG_TOKEN", None)
-            else: os.environ["BP_ALLOW_DEV_CONFIG_TOKEN"] = previous
+        api = ConfigApi(settings, issuer=body.get("issuer"), jwks_uri=body.get("jwksUri"), mode=body.get("mode"), custom_ui_path=body.get("customUiPath"), writable=body.get("writable", True), dev_token=body.get("devToken"), allow_dev_config_token=body.get("enableDevToken", False))
         route = Route("check", "/check/:key", [Operation(Handler(contract("JsonObjectSchema"), lambda context: dict(context.request_context.config)),
             {"operationId": "check.get", "method": "GET", "title": "Check", "description": "Check", "auth": {}})])
         service = Service(Registry([route]), {**body["declaration"], "configSchemas": body["descriptors"]}, ScopedConfig(body["snapshot"]) if body.get("snapshot") is not None else None,

@@ -11,7 +11,7 @@ internal sealed class RegistryClient
     private static readonly UTF8Encoding Utf8 = new(false, true);
     public RegistryClient(string? url = null)
     {
-        var value = url ?? Environment.GetEnvironmentVariable("BP_REGISTRY_URL") ?? "https://io.betterportal.org";
+        var value = url ?? "https://io.betterportal.org";
         TrustedKeys.SecureEndpoint(value); this.url = value.TrimEnd('/');
     }
     private async Task<(byte[] Data, string? Reference)> Request(string path, CancellationToken cancellation, byte[]? data = null, string? token = null)
