@@ -2553,7 +2553,7 @@ export abstract class BPService<
         let claims;
         try {
           claims = await verifySetupToken(setupToken, {
-            jwks: { jwksUri, issuer: normalizedCp }, expectedIssuer: normalizedCp
+            jwks: { jwksUri, issuer: normalizedCp, cache: Boolean(this.resolvedCpUrl) }, expectedIssuer: normalizedCp
           });
         } finally { this.setupVerifications--; }
 
