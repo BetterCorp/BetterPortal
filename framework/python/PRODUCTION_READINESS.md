@@ -4,8 +4,9 @@ The Python runtime ships as a versioned wheel/sdist and standalone container
 scaffold. The delivery target for this change is a disposable local Docker stack,
 as requested by the operator; no existing production portal credentials are used.
 The PR must have green Python 3.10/3.14 CI and all review conversations addressed
-before release approval. CI artifacts are the deployment input; this change does
-not automatically publish to PyPI or modify a production installation.
+before release approval. CI artifacts are the deployment input. Stable release tags can publish through
+the dedicated trusted-publishing workflow after account setup; see [PUBLISHING.md](PUBLISHING.md).
+Neither CI nor package publication modifies a production installation.
 
 | Requirement | Implementation and acceptance |
 | --- | --- |
@@ -47,7 +48,7 @@ Python 3.14 CI job; its service image currently uses Python 3.12.
 
 1. Select the reviewed commit and passing CI run. Preserve its wheel, sdist,
    conformance report and immutable application image digest. Install the wheel
-   directly during the image build until a package-index release is authorized.
+   directly during the image build, or pin the corresponding reviewed PyPI release.
 2. Mount `/data` for persistent state and a separate read-only bootstrap secret.
    Retain that key across restarts. Run one worker per state directory. Use HTTPS
    public/control-plane URLs, except the explicit loopback development allowance.

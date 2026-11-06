@@ -1114,3 +1114,8 @@ exponents) and excessive nesting before the handler runs. Exact integer tokens
 retain Python's integer precision. CI checks the entire runtime with mypy,
 including bodies of functions without annotations, and verifies accepted and
 rejected consumer typing examples.
+
+## PyPI publishing
+
+See [PUBLISHING.md](PUBLISHING.md) for trusted-publisher setup, release versioning
+and the signed-tag publishing workflow.
