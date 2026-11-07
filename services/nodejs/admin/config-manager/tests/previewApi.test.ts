@@ -71,14 +71,14 @@ function fixture() {
     ])) as never,
     storage, controlPlaneUrl: "https://config.example", replayEncryptionKey: "test-key"
   });
-  const call = (method = "post", services = { "org.example.service": "https://service-pr.example" }, expectedUpdatedAt?: string | null) => handlers.get(method)!({
+  const call = (method = "post", services = { "org.example.service": "https://service-pr.example" }, expectedRevision?: string | null) => handlers.get(method)!({
     __bpObservedEvent: { currentObservability: { logger: {
       info(message: string, fields: Record<string, unknown>) { logs.push({ message, fields }); }
     } } },
     req: new Request("https://config.example/preview", {
       method: method.toUpperCase(), headers: { authorization: `Bearer ${apiKey}` },
       ...(method === "post" ? { body: JSON.stringify({ hostname: "pr.example", services,
-        ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}) }) } : {})
+        ...(expectedRevision !== undefined ? { expectedRevision } : {}) }) } : {})
     }),
     context: { params: { groupId: group.id, key: "123" } }
   } as never);
@@ -212,11 +212,14 @@ test("a competing identical preview request replays the winner's committed crede
 test("a stale preflight token cannot rotate preview credentials", async () => {
   const { storage, call } = fixture();
   await call();
+  const lookup = await (await call("get")).json();
   const deployment = storage.current.previewEnvironmentDeployments[0];
-  const staleUpdatedAt = deployment.updatedAt;
-  deployment.updatedAt = "2026-11-07T01:00:00.000Z";
+  const unchangedTimestamp = deployment.updatedAt;
+  deployment.services[0].url = "https://concurrent.example";
+  deployment.updatedAt = unchangedTimestamp;
+  storage.cached = undefined;
   const before = structuredClone(storage.current.tenants.at(-1)!.services[0]);
-  const response = await call("post", { "org.example.service": "https://rotated.example" }, staleUpdatedAt);
+  const response = await call("post", { "org.example.service": "https://rotated.example" }, lookup.revision);
   assert.equal(response.status, 409);
   assert.deepEqual(storage.current.tenants.at(-1)!.services[0], before);
   assert.equal(storage.saves, 1);

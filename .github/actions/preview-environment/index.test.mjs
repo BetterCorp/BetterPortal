@@ -104,7 +104,7 @@ test("action masks BSB output and keeps the encryption key and existing override
   });
   assert.ok(!JSON.stringify(requests).includes(previewKey));
   assert.ok(!JSON.stringify(requests).includes("preview-db"));
-  assert.equal(JSON.parse(requests.at(-1).init.body).expectedUpdatedAt, null);
+  assert.equal(JSON.parse(requests.at(-1).init.body).expectedRevision, null);
   const output = outputs.get("bsb-overrides-json");
   assert.deepEqual(JSON.parse(output), bsbOverrides(provision, [credential], previewKey, "https://config.example"));
   assert.ok(order.findIndex(([n, v]) => n === "add-mask" && v === output) < order.findIndex(([n]) => n === "bsb-overrides-json"));
@@ -116,12 +116,12 @@ test("BSB provisioning binds its mutation to the deployment state read during pr
     fetchImpl: async (url, init) => {
       requests.push({ url: String(url), init });
       if (requests.length === 1) return Response.json({ value: "oidc" });
-      if (init.method === "GET") return Response.json({ updatedAt: "2026-11-07T01:00:00.000Z", services: [] });
+      if (init.method === "GET") return Response.json({ revision: "a".repeat(43), services: [] });
       return Response.json({ created: false, preview: {}, credentials: [credential] });
     },
     command() {}, setOutput() {}
   });
-  assert.equal(JSON.parse(requests.at(-1).init.body).expectedUpdatedAt, "2026-11-07T01:00:00.000Z");
+  assert.equal(JSON.parse(requests.at(-1).init.body).expectedRevision, "a".repeat(43));
 });
 
 test("missing saved keys and unsafe or incomplete provisioning fail with migration diagnostics", () => {

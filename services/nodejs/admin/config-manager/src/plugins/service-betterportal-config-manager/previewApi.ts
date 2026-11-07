@@ -6,6 +6,7 @@ import {
   jsonResponse,
   eventObservability,
   readBoundedJsonBody,
+  type BetterPortalConfig,
   type BetterPortalEvent,
   type BetterPortalH3App,
   type JsonValue,
@@ -43,7 +44,7 @@ export function registerPreviewDeploymentApi(input: {
     );
     if (!deployment) throw new PreviewEnvironmentError("Preview deployment was not found", 404);
     const { credentialReplay: _replay, ...publicDeployment } = deployment;
-    return jsonResponse(publicDeployment as unknown as JsonValue, 200, NO_STORE);
+    return jsonResponse({ ...publicDeployment, revision: deploymentRevision(deployment) } as unknown as JsonValue, 200, NO_STORE);
   }));
 
   input.app.post(route, async (event) => {
@@ -78,12 +79,12 @@ export function registerPreviewDeploymentApi(input: {
         logPreviewCredentials(event, groupId, key, "replayed", (payload as unknown as { credentials: IssuedPreviewCredential[] }).credentials);
         return jsonResponse(payload, (payload as { created: boolean }).created ? 201 : 200, NO_STORE);
       }
-      if (Object.hasOwn(body, "expectedUpdatedAt")) {
-        const expectedUpdatedAt = body.expectedUpdatedAt;
-        if (expectedUpdatedAt !== null && typeof expectedUpdatedAt !== "string") {
-          throw new PreviewEnvironmentError("expectedUpdatedAt must be a timestamp or null");
+      if (Object.hasOwn(body, "expectedRevision")) {
+        const expectedRevision = body.expectedRevision;
+        if (expectedRevision !== null && (typeof expectedRevision !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(expectedRevision))) {
+          throw new PreviewEnvironmentError("expectedRevision must be a deployment revision or null");
         }
-        if ((existing?.updatedAt ?? null) !== expectedUpdatedAt) {
+        if ((existing ? deploymentRevision(existing) : null) !== expectedRevision) {
           throw new PreviewEnvironmentError("Preview deployment changed after preflight; reload it before provisioning", 409);
         }
       }
@@ -126,6 +127,11 @@ export function registerPreviewDeploymentApi(input: {
     }
     return new Response(null, { status: 204, headers: NO_STORE });
   }));
+}
+
+function deploymentRevision(deployment: BetterPortalConfig["previewEnvironmentDeployments"][number]): string {
+  const { credentialReplay: _replay, ...publicDeployment } = deployment;
+  return createHash("sha256").update(JSON.stringify(publicDeployment)).digest("base64url");
 }
 
 function logPreviewCredentials(
