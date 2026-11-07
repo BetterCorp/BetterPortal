@@ -135,7 +135,7 @@ jobs:
 
       - name: Create or refresh BetterPortal preview
         id: betterportal
-        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@master # Pin the reviewed commit containing BSB provisioning.
+        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@f1a86e9c77f8524616c8a587a615dfe83b973de5
         with:
           control-plane-url: ${{ vars.BP_CONTROL_PLANE_URL }}
           group-id: ${{ vars.BP_PREVIEW_GROUP_ID }}
@@ -169,7 +169,7 @@ jobs:
 
       - name: Delete BetterPortal preview
         if: always()
-        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@master # Pin the reviewed commit containing BSB provisioning.
+        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@f1a86e9c77f8524616c8a587a615dfe83b973de5
         with:
           operation: delete
           control-plane-url: ${{ vars.BP_CONTROL_PLANE_URL }}
@@ -249,7 +249,7 @@ The following GCP steps show the complete handoff for one service, after deployi
 
 - name: Provision BetterPortal configuration
   id: betterportal
-  uses: BetterCorp/BetterPortal/.github/actions/preview-environment@master # Pin the reviewed commit containing this integration.
+  uses: BetterCorp/BetterPortal/.github/actions/preview-environment@f1a86e9c77f8524616c8a587a615dfe83b973de5
   with:
     control-plane-url: ${{ vars.BP_CONTROL_PLANE_URL }}
     group-id: ${{ vars.BP_PREVIEW_GROUP_ID }}
