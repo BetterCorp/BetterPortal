@@ -78,6 +78,15 @@ export function registerPreviewDeploymentApi(input: {
         logPreviewCredentials(event, groupId, key, "replayed", (payload as unknown as { credentials: IssuedPreviewCredential[] }).credentials);
         return jsonResponse(payload, (payload as { created: boolean }).created ? 201 : 200, NO_STORE);
       }
+      if (Object.hasOwn(body, "expectedUpdatedAt")) {
+        const expectedUpdatedAt = body.expectedUpdatedAt;
+        if (expectedUpdatedAt !== null && typeof expectedUpdatedAt !== "string") {
+          throw new PreviewEnvironmentError("expectedUpdatedAt must be a timestamp or null");
+        }
+        if ((existing?.updatedAt ?? null) !== expectedUpdatedAt) {
+          throw new PreviewEnvironmentError("Preview deployment changed after preflight; reload it before provisioning", 409);
+        }
+      }
       const result = provisionPreviewDeployment(config, groupId, request, input.controlPlaneUrl);
       const payload = {
         created: result.created,

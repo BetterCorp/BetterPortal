@@ -147,9 +147,12 @@ export async function execute(env = process.env, dependencies = {}) {
   const keyValue = previewConfigKey(rawPreviewKey);
   if (keyValue && !provisioning) throw new Error("preview-config-key requires bsb-provisioning-json; it is never sent to BetterPortal");
   const token = await oidcToken(env, audience, fetchImpl);
+  let expectedUpdatedAt;
   if (provisioning) {
     const existing = await callPreviewApi(fetchImpl, endpoint, "GET", token, undefined, true);
     preflightBsbProvisioning(provisioning, body.services, existing, keyValue, baseUrl);
+    expectedUpdatedAt = existing?.updatedAt ?? null;
+    body.expectedUpdatedAt = expectedUpdatedAt;
   }
   const result = await callPreviewApi(fetchImpl, endpoint, "POST", token, body);
   if (!result || typeof result.created !== "boolean" || !result.preview || !Array.isArray(result.credentials)) {
