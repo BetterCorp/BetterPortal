@@ -7,6 +7,7 @@ import {
 import * as av from "anyvali";
 import {
   BetterPortalConfigSchema,
+  BetterPortalPreviewOverridePaths,
   BPService,
   type BPServiceDefinition
 } from "@betterportal/plugin-bsb";
@@ -45,6 +46,7 @@ export type AuthressPluginConfig = av.Infer<typeof PluginConfigSchema>;
 
 const Config = createConfigSchema(
   {
+    envOverridePaths: BetterPortalPreviewOverridePaths,
     name: "org.betterportal.auth.authress-io",
     description: "BetterPortal Authress.io auth service",
     tags: ["betterportal", "auth", "authress"],

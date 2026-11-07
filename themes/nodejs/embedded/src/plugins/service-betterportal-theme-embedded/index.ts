@@ -38,6 +38,7 @@ import {
 import {
   BPService,
   BetterPortalConfigSchema,
+  BetterPortalPreviewOverridePaths,
   type BPServiceDefinition,
   type BetterPortalConfig
 } from "@betterportal/plugin-bsb";
@@ -149,6 +150,7 @@ function resolveSafeServiceTarget(
 
 const Config = createConfigSchema(
   {
+    envOverridePaths: BetterPortalPreviewOverridePaths,
     name: "service-betterportal-theme-embedded",
     description: "Embedded BetterPortal theme",
     tags: ["betterportal", "theme", "embedded", "htmx"],

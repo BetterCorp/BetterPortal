@@ -7,6 +7,7 @@ import {
 import * as av from "anyvali";
 import {
   BetterPortalConfigSchema,
+  BetterPortalPreviewOverridePaths,
   BPService,
   type BPServiceDefinition
 } from "@betterportal/plugin-bsb";
@@ -88,6 +89,7 @@ export type WorkOSPluginConfig = av.Infer<typeof PluginConfigSchema>;
 
 const Config = createConfigSchema(
   {
+    envOverridePaths: BetterPortalPreviewOverridePaths,
     name: SERVICE_ID,
     description: "BetterPortal WorkOS auth service",
     tags: ["betterportal", "auth", "workos"],

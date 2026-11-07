@@ -32,6 +32,12 @@ inputs:
   services-json:
     description: JSON object mapping BetterPortal service plugin IDs to their public URLs. Required for upsert.
     required: false
+  bsb-provisioning-json:
+    description: JSON mapping selected Node/BSB plugin IDs to its configured BSB alias and existing per-preview overrides object. Preserves unrelated values. Requires published Vault profile authorization.
+    required: false
+  preview-config-key:
+    description: Optional group encryption key from the caller's secret store. Applied only to BSB output; never sent to BetterPortal.
+    required: false
 
 outputs:
   created:
@@ -40,6 +46,8 @@ outputs:
     description: BetterPortal preview metadata as compact JSON.
   credentials-json:
     description: Newly issued or rotated service credentials as compact JSON. API keys are masked in runner logs.
+  bsb-overrides-json:
+    description: Secret JSON mapping BP plugin IDs to complete merged BSB_CONFIG_OVERRIDES objects. Save each in its preview resource's secret store and redeploy. Empty object without BSB provisioning input.
 
 runs:
   using: node24

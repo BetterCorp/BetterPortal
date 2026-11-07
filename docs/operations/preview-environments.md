@@ -130,10 +130,12 @@ jobs:
         run: ./ci/deploy-preview.sh
         # Write a compact services-json value to GITHUB_OUTPUT, for example:
         # services-json={"org.example.shell":"https://shell-pr-123.example.com"}
+        # Also load saved per-preview overrides and output bsb-provisioning-json
+        # as described below; do not reset saved overrides to {} on refresh.
 
       - name: Create or refresh BetterPortal preview
         id: betterportal
-        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@v10.7.1
+        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@cd2b9edc63d6a44d18c48e36fb030d3131451431
         with:
           control-plane-url: ${{ vars.BP_CONTROL_PLANE_URL }}
           group-id: ${{ vars.BP_PREVIEW_GROUP_ID }}
@@ -143,12 +145,14 @@ jobs:
           hostname: pr-${{ github.event.pull_request.number }}.preview.example.com
           expires-in-days: "7"
           services-json: ${{ steps.deploy.outputs.services-json }}
+          bsb-provisioning-json: ${{ steps.deploy.outputs.bsb-provisioning-json }}
+          preview-config-key: ${{ secrets.BP_PREVIEW_CONFIG_KEY }}
 
-      - name: Apply newly issued BetterPortal credentials
-        if: steps.betterportal.outputs.credentials-json != '[]'
+      - name: Save and apply merged BSB preview configuration
         env:
-          BP_PREVIEW_CREDENTIALS_JSON: ${{ steps.betterportal.outputs.credentials-json }}
-        run: ./ci/apply-betterportal-credentials.sh
+          BSB_PREVIEW_CONFIG_JSON: ${{ steps.betterportal.outputs.bsb-overrides-json }}
+        run: ./ci/apply-bsb-preview-config.sh
+        # Implement the secret-store/update/readiness handoff shown below.
 
   cleanup:
     if: >-
@@ -165,7 +169,7 @@ jobs:
 
       - name: Delete BetterPortal preview
         if: always()
-        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@v10.7.1
+        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@cd2b9edc63d6a44d18c48e36fb030d3131451431
         with:
           operation: delete
           control-plane-url: ${{ vars.BP_CONTROL_PLANE_URL }}
@@ -176,9 +180,140 @@ jobs:
 
 The same job may request a separate OIDC token for GCP Workload Identity Federation. Each token has its own audience; the BetterPortal action requests its token only when it calls the preview API.
 
-Provision resources with stable URLs before calling BetterPortal. On a new preview, apply the returned credentials and start or redeploy the services. On later pushes with unchanged URLs, BetterPortal returns an empty credential list and resets the existing expiry. If a URL changes, only that service's credential is rotated and returned.
+Provision resources with stable URLs before calling BetterPortal. On a new preview, save and apply the merged BSB output and start or redeploy the services. On later pushes with unchanged URLs, BetterPortal returns an empty credential list and resets the existing expiry; the action retains credentials from the saved overrides. If a URL changes, only that service's credential is rotated and replaced in its output.
 
 The action masks returned `BP_SERVICE_API_KEY` values before exposing `credentials-json`. Do not print that output. Store the group-level key as `betterportal.previewConfigKey` in the BSB configuration platform; BetterPortal deliberately cannot recover it.
+
+### BSB/Vault provisioning and migration
+
+The action's `bsb-provisioning-json`, `preview-config-key`, and `bsb-overrides-json` support requires the action revision containing this change; the `v11.0.8` action does not provide it. Pin the action to the reviewed commit containing this integration. Upgrading the service package alone does not migrate its CI provisioning.
+
+For each consumer plugin, declare the three allowed credential paths in its **BSB** config schema metadata and publish that schema to Vault. Built-in consumer plugins declare these paths. Custom plugins must declare them too:
+
+```typescript
+import { createConfigSchema } from "@bsb/base";
+import { BetterPortalPreviewOverridePaths } from "@betterportal/plugin-bsb";
+
+const Config = createConfigSchema({
+  name: "service-orders",
+  description: "Orders service",
+  envOverridePaths: BetterPortalPreviewOverridePaths
+}, PluginConfigSchema); // contains betterportal: BetterPortalConfigSchema
+```
+
+For services staying on 11.0.8, use the literal paths instead of the new exported constant:
+`["betterportal.controlPlaneUrl", "betterportal.serviceApiKey", "betterportal.previewConfigKey"] as const`.
+
+In the preview's Vault deployment profile, enable **Allow environment overrides** for the exact consumer plugin, then publish the profile. Vault only includes the plugin's declared paths in the runtime response when the profile authorizes them. Do not grant overrides for the whole `betterportal` object, development token bypasses, or unrelated settings. Other CI settings such as database routing require their own plugin declarations and profile authorization. Do not change production profile policy to make a preview work.
+
+The runtime configuration plugin must be `@bsb/config-vault` 9.7.5 or newer. It owns reading and validating `BSB_CONFIG_OVERRIDES`; the BP service does not read the environment. Vault recursively merges authorized overrides into its published configuration in memory, without sending the override values to Vault or persisting them in its last-known-good cache. Regular service settings remain in the published profile.
+
+`bsb-provisioning-json` maps **BP plugin IDs** to **configured BSB aliases** and their saved per-preview override objects. These are different identifiers; do not guess an alias from a package or plugin ID:
+
+Include only the BSB subset of a mixed-runtime preview. Python and other consumers remain in `services-json`, and their credentials remain in `credentials-json` for their own provisioning. The aggregate BSB input is bounded at 1 MiB; Vault's 128 KiB limit applies separately to each service's overrides, including the merged credentials.
+
+```json
+{
+  "org.example.orders": {
+    "alias": "orders",
+    "overrides": {
+      "services": { "orders": { "database": { "name": "preview-orders-123" } } }
+    }
+  }
+}
+```
+
+The action returns `bsb-overrides-json`, an object keyed by BP plugin ID. Each value is a **complete merged override object** for that service's deployment resource. It preserves unrelated plugins, nested settings, events and observability overrides; only newly issued/rotated credentials and an explicitly supplied encryption key replace their corresponding BP values. The encryption key is never included in an OIDC or preview API request.
+
+Save each result in the preview's secret store and redeploy with that secret as `BSB_CONFIG_OVERRIDES`. On every later run, read that saved object before calling the action. An unchanged service receives no new API key; supplying `{}` again would lose its binding. The action rejects that refresh with a migration diagnostic rather than outputting incomplete credentials. Serialize provisioning and secret updates with the workflow's existing per-preview concurrency group.
+
+Before the mutating upsert, the action reads the deployment's current service bindings. It checks saved credentials for unchanged BSB services and validates the projected merged objects for newly added or URL-rotated BSB services. Missing state, a mismatched saved CP URL or an oversized result therefore fails before another service's key can be issued or revoked. This validates local provisioning state, not the authenticity of a saved API key; retain only this preview's latest issued values.
+
+The following GCP steps show the complete handoff for one service, after deploying its stable public URL and authenticating the runner to GCP. Provision a **separate secret per preview service** containing `{}` initially; `steps.deploy.outputs.overrides-secret`, `cloud-run-service`, and `service-url` identify those caller-owned resources. The runner needs access only to that preview secret and deployment. For multiple services, supply all BP IDs/aliases and save each output to its own resource.
+
+```yaml
+- name: Read this preview's saved overrides
+  id: state
+  shell: bash
+  env:
+    OVERRIDES_SECRET: ${{ steps.deploy.outputs.overrides-secret }}
+  run: |
+    set -euo pipefail
+    umask 077
+    gcloud secrets versions access latest --secret="$OVERRIDES_SECRET" > "$RUNNER_TEMP/current-overrides.json"
+    provisioning=$(jq -cn --slurpfile saved "$RUNNER_TEMP/current-overrides.json" \
+      '{"org.example.orders": {alias: "orders", overrides: $saved[0]}}')
+    masked=${provisioning//%/%25}
+    printf '::add-mask::%s\n' "$masked"
+    printf 'bsb-provisioning-json=%s\n' "$provisioning" >> "$GITHUB_OUTPUT"
+
+- name: Provision BetterPortal configuration
+  id: betterportal
+  uses: BetterCorp/BetterPortal/.github/actions/preview-environment@cd2b9edc63d6a44d18c48e36fb030d3131451431
+  with:
+    control-plane-url: ${{ vars.BP_CONTROL_PLANE_URL }}
+    group-id: ${{ vars.BP_PREVIEW_GROUP_ID }}
+    audience: ${{ vars.BP_PREVIEW_AUDIENCE }}
+    key: ${{ github.event.pull_request.number }}
+    hostname: pr-${{ github.event.pull_request.number }}.preview.example.com
+    services-json: '{"org.example.orders":"${{ steps.deploy.outputs.service-url }}"}'
+    bsb-provisioning-json: ${{ steps.state.outputs.bsb-provisioning-json }}
+    preview-config-key: ${{ secrets.BP_PREVIEW_CONFIG_KEY }}
+
+- name: Save and apply this preview's BSB configuration
+  shell: bash
+  env:
+    MERGED_OVERRIDES: ${{ steps.betterportal.outputs.bsb-overrides-json }}
+    OVERRIDES_SECRET: ${{ steps.deploy.outputs.overrides-secret }}
+    CLOUD_RUN_SERVICE: ${{ steps.deploy.outputs.cloud-run-service }}
+    CLOUD_RUN_REGION: ${{ vars.CLOUD_RUN_REGION }}
+    SERVICE_URL: ${{ steps.deploy.outputs.service-url }}
+  run: |
+    set -euo pipefail
+    umask 077
+    trap 'rm -f "$RUNNER_TEMP/current-overrides.json" "$RUNNER_TEMP/merged-overrides.json" "$RUNNER_TEMP/preview-health.json"' EXIT
+    jq -ce '."org.example.orders" | select(type == "object")' <<< "$MERGED_OVERRIDES" > "$RUNNER_TEMP/merged-overrides.json"
+    secret_version=$(gcloud secrets versions add "$OVERRIDES_SECRET" \
+      --data-file="$RUNNER_TEMP/merged-overrides.json" --format='value(name)')
+    printf 'Saved override secret version: %s\n' "$secret_version"
+    gcloud run services update "$CLOUD_RUN_SERVICE" --region="$CLOUD_RUN_REGION" \
+      --update-secrets="BSB_CONFIG_OVERRIDES=$OVERRIDES_SECRET:${secret_version##*/}"
+    for attempt in $(seq 1 60); do
+      if curl --fail --silent "$SERVICE_URL/.well-known/bp/health" -o "$RUNNER_TEMP/preview-health.json" && \
+        jq -e '.ok == true and .setupMode != true' "$RUNNER_TEMP/preview-health.json" > /dev/null; then
+        exit 0
+      fi
+      sleep 2
+    done
+    echo '::error::Preview did not finish BP setup/sync; check Vault profile authorization and scoped configuration delivery.'
+    exit 1
+```
+
+Do not echo outputs, enable shell tracing, upload the temporary files as artifacts, or supply secret contents on command lines. The GitHub secret above is a CI input; it is **not** `BP_PREVIEW_CONFIG_KEY` injected into the service. The action masks the key and merged output before exposing them. Keep provisioning/apply steps in the same job; GitHub may suppress secret-valued job outputs. Cloud Run `--update-secrets` preserves unrelated secret bindings; avoid replacing the resource's entire environment or secret list.
+
+If the Cloud Run update fails after rotation, the newly added secret version already contains the valid key. The example records the non-secret `secret_version` resource name; retry the update with that exact version. Do not roll back to the revoked key or call upsert again to recover it.
+
+If saving the secret failed, normal BSB provisioning preflight will reject an unchanged binding whose key was never saved. For immediate recovery, run the same action with the identical upsert inputs but omit `bsb-provisioning-json` and `preview-config-key`. Capture its masked `credentials-json` in the same job, securely merge those credentials into the saved overrides using the three documented BSB fields, and resume normal provisioning. The deployment API replays an identical request's credentials for only 15 minutes; retain exactly the same hostname, service URLs, name and expiry. Beyond that window an empty credential list cannot recover a lost key, and the preview must be recreated. The generic action's legacy-injection warning is expected during this recovery; never inject the recovered values as consumer `BP_*` variables.
+
+For an existing legacy preview, securely import its current API key, CP URL and encryption key into the saved override object once, using the three `betterportal` fields. Remove the old `BP_*` container entries and publish the Vault policy before upgrading the service. If the key was not retained, an unchanged upsert cannot recover it: delete/recreate that **preview** and use fresh credentials. Do not delete production state or reuse another preview's bootstrap state. Existing browser pairing state remains authoritative over BSB provisioning credentials.
+
+For a preview previously installed by browser pairing, perform an explicit offline migration before relying on CI key rotation. Stop all processes using that preview's bootstrap file and securely back up both that file and its `.key` sibling. With the plugin revision containing this change, run the following on the stopped preview host using its exact configured `betterportal.bootstrapStatePath`:
+
+```bash
+node --input-type=module - /mounted/preview/bootstrap-state.json <<'JS'
+import { existsSync } from "node:fs";
+import { BootstrapStateStore } from "@betterportal/plugin-bsb";
+const filePath = process.argv[2];
+if (!existsSync(filePath) || !existsSync(`${filePath}.key`)) {
+  throw new Error("Expected the existing preview bootstrap file and its key; no state was changed");
+}
+new BootstrapStateStore({ filePath }).clearPairing();
+JS
+```
+
+`clearPairing()` removes only the saved CP binding, API key and installation/replay metadata. It retains the configuration encryption key, tenant lock, local bootstrap encryption key and other state. It does not clear configuration stores or signing keys. Apply the saved BSB overrides containing the current key before restarting. Do not call `clear()` or delete the bootstrap files: that discards unrelated state. Once migrated, later BSB key rotations need only the secret update/redeployment. A preview still using persisted pairing credentials will not adopt a rotated key merely because the secret was updated.
+
+An HTTP 200 alone is insufficient: setup mode intentionally serves discovery while awaiting pairing. The readiness check above rejects `setupMode: true` and requires `ok: true`; synced public health is deliberately minimal. Also check the expected version at `/.well-known/bp/manifest` and the PVE Debug sidebar's manifest/config-delivery status before promotion. The integration regression runs the action output through the published Vault loader, tests policy denial, then verifies manifest submission, scoped secret decryption and exit from setup mode.
 
 Fork pull requests are excluded in the example because they execute untrusted code. Use a protected GitHub environment with approval if fork previews are required.
 
@@ -195,12 +330,15 @@ Fork pull requests are excluded in the example because they execute untrusted co
 | `hostname` | Upsert | Public preview app hostname. |
 | `expires-in-days` | No | Positive whole days or `never`; defaults to 7 and is capped by the group. |
 | `services-json` | Upsert | JSON object mapping exact service plugin IDs to public HTTPS URLs. |
+| `bsb-provisioning-json` | No | BP plugin ID → `{alias, overrides}` for every requested BSB service; supplies saved per-preview overrides. |
+| `preview-config-key` | No | Secret group encryption key, applied only to BSB output. Requires `bsb-provisioning-json`. |
 
 | Output | Purpose |
 |---|---|
 | `created` | `true` only when a new preview was cloned. |
 | `preview-json` | Preview key, name, hostname, and expiry metadata. |
 | `credentials-json` | Credentials for new or URL-rotated services; otherwise `[]`. |
+| `bsb-overrides-json` | Complete merged override objects keyed by BP plugin ID; `{}` when BSB provisioning was not requested. Secret, same-job output. |
 
 ## Encrypted preview config
 

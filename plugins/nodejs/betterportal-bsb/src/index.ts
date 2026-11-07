@@ -225,9 +225,12 @@ export function createBsbLogger(observable: Observable): BetterPortalLogger {
 export {
   BPService,
   BetterPortalConfigSchema,
+  BetterPortalPreviewOverridePaths,
   type BetterPortalConfig,
   type BetterPortalRuntime,
   type BetterPortalSseEmitScope,
   type BPServiceConfig,
   type BPServiceDefinition
 } from "./service.js";
+
+export { BootstrapStateStore, type BootstrapStateFile, type BootstrapStateOptions } from "./bootstrapState.js";

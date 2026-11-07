@@ -10,6 +10,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { resolve } from "node:path";
 import {
   BetterPortalConfigSchema,
+  BetterPortalPreviewOverridePaths,
   BPService,
   createBsbObservability,
   type BPServiceDefinition
@@ -54,6 +55,7 @@ export type AuthPluginConfig = av.Infer<typeof PluginConfigSchema>;
 
 const Config = createConfigSchema(
   {
+    envOverridePaths: BetterPortalPreviewOverridePaths,
     name: "service-betterportal-auth-default",
     description: "Default BetterPortal auth: app-scoped accounts, social sign-in, MFA and JWT sessions",
     tags: ["betterportal", "auth", "jwt", "jwks"],
