@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import * as av from "anyvali";
-import { BetterPortalConfigSchema, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
+import { BetterPortalConfigSchema, BetterPortalPreviewOverridePaths, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
 import type { BetterPortalRegistry } from "@betterportal/framework";
 
 const AssetRoot = resolve(dirname(fileURLToPath(import.meta.url)), "assets");
@@ -22,6 +22,7 @@ const PluginConfigSchema = av.object({
 
 const Config = createConfigSchema(
   {
+    envOverridePaths: BetterPortalPreviewOverridePaths,
     name: "service-betterportal-docs-site",
     description: "Documentation site service for BetterPortal",
     tags: ["betterportal", "service", "docs"],

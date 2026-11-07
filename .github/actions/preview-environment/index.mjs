@@ -1,6 +1,7 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
+import { bsbOverrides, parseBsbProvisioning, previewConfigKey } from "./bsb.mjs";
 
 const API_PATH = "/api/preview-groups";
 
@@ -125,6 +126,7 @@ export async function execute(env = process.env, dependencies = {}) {
     setOutput("created", "false");
     setOutput("preview-json", "");
     setOutput("credentials-json", "[]");
+    setOutput("bsb-overrides-json", "{}");
     command("notice", `Deleted BetterPortal preview ${key}`);
     return;
   }
@@ -138,6 +140,11 @@ export async function execute(env = process.env, dependencies = {}) {
   };
   const name = input(env, "name");
   if (name) body.name = name;
+  const provisioning = parseBsbProvisioning(input(env, "bsb-provisioning-json"), body.services);
+  const rawPreviewKey = input(env, "preview-config-key");
+  if (rawPreviewKey) command("add-mask", rawPreviewKey);
+  const keyValue = previewConfigKey(rawPreviewKey);
+  if (keyValue && !provisioning) throw new Error("preview-config-key requires bsb-provisioning-json; it is never sent to BetterPortal");
   const token = await oidcToken(env, audience, fetchImpl);
   const result = await callPreviewApi(fetchImpl, endpoint, "POST", token, body);
   if (!result || typeof result.created !== "boolean" || !result.preview || !Array.isArray(result.credentials)) {
@@ -147,9 +154,14 @@ export async function execute(env = process.env, dependencies = {}) {
     const apiKey = credential?.environment?.BP_SERVICE_API_KEY;
     if (typeof apiKey === "string" && apiKey) command("add-mask", apiKey);
   }
+  const overrides = bsbOverrides(provisioning, result.credentials, keyValue, baseUrl);
+  const overridesJson = JSON.stringify(overrides);
+  if (provisioning) command("add-mask", overridesJson);
+  else if (result.credentials.length) command("warning", "Node/BSB 11.0.8+ does not read BP_* credentials from the environment. Use bsb-provisioning-json and profile-authorized BSB/Vault overrides; see the preview migration guide.");
   setOutput("created", String(result.created));
   setOutput("preview-json", JSON.stringify(result.preview));
   setOutput("credentials-json", JSON.stringify(result.credentials));
+  setOutput("bsb-overrides-json", overridesJson);
   command("notice", `${result.created ? "Created" : "Refreshed"} BetterPortal preview ${key}`);
 }
 

@@ -4,7 +4,7 @@ import {
   createEventSchemas
 } from "@bsb/base";
 import * as av from "anyvali";
-import { BetterPortalConfigSchema, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
+import { BetterPortalConfigSchema, BetterPortalPreviewOverridePaths, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
 import type { ConfigSchemaDescriptor } from "@betterportal/framework";
 
 const PluginConfigSchema = av.object({
@@ -15,6 +15,7 @@ const PluginConfigSchema = av.object({
 
 const Config = createConfigSchema(
   {
+    envOverridePaths: BetterPortalPreviewOverridePaths,
     name: "service-betterportal-hello-view",
     description: "Hello view example service for BetterPortal v10",
     tags: ["betterportal", "service", "example", "htmx"],

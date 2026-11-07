@@ -159,6 +159,13 @@ export interface BetterPortalConfig {
   trustedProxyIps?: string[];
 }
 
+/** Preview credential paths that Vault profiles may explicitly authorize for CI overrides. */
+export const BetterPortalPreviewOverridePaths = [
+  "betterportal.controlPlaneUrl",
+  "betterportal.serviceApiKey",
+  "betterportal.previewConfigKey"
+] as const;
+
 export const BetterPortalConfigSchema = av.optional(av.object({
   bpConfigPath: av.optional(av.string().minLength(1)),
   // Optional dev-only shared secret for the static config-token fallback. NOT
@@ -166,12 +173,12 @@ export const BetterPortalConfigSchema = av.optional(av.object({
   // never needs this. The fallback requires allowDevConfigToken in BSB config.
   configApiToken: av.optional(av.string().minLength(1)),
   allowDevConfigToken: av.bool().default(false),
-  previewConfigKey: av.optional(av.string().minLength(1)),
+  previewConfigKey: av.optional(av.string().minLength(1).describe("Preview configuration encryption key", { sensitive: true, writeonly: true })),
   // NOTE: there is deliberately no operator-supplied config encryption key.
   // The key is generated (256-bit, CSPRNG) at install and persisted in the
   // bootstrap state; see resolveConfigEncryptionKey.
   controlPlaneUrl: av.optional(av.string().minLength(1)),
-  serviceApiKey: av.optional(av.string().minLength(1)),
+  serviceApiKey: av.optional(av.string().minLength(1).describe("Control-plane service credential", { sensitive: true, writeonly: true })),
   bootstrapStatePath: av.string().minLength(1).default(DEFAULT_BOOTSTRAP_STATE_PATH),
   scopedConfigCachePath: av.string().minLength(1).default(DEFAULT_SCOPED_CONFIG_CACHE_PATH),
   trustedProxyHeaders: av.bool().default(false),
@@ -2048,7 +2055,7 @@ export abstract class BPService<
     if (!hasLocalPath && !hasSync) {
       // Setup mode - service will accept POST /.well-known/bp/install
       obs.log.warn(
-        "No credentials available - entering setup mode. POST /.well-known/bp/install with setupToken+cpUrl to provision."
+        "No credentials available - entering setup mode. POST /.well-known/bp/install with setupToken+cpUrl to provision. For CI previews, configure betterportal.controlPlaneUrl and betterportal.serviceApiKey through BSB/Vault; legacy BP_* environment injection is not supported. See docs/operations/preview-environments.md#bsbvault-provisioning-and-migration."
       );
       return;
     }
