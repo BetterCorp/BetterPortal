@@ -210,6 +210,8 @@ The runtime configuration plugin must be `@bsb/config-vault` 9.7.5 or newer. It 
 
 `bsb-provisioning-json` maps **BP plugin IDs** to **configured BSB aliases** and their saved per-preview override objects. These are different identifiers; do not guess an alias from a package or plugin ID:
 
+Include only the BSB subset of a mixed-runtime preview. Python and other consumers remain in `services-json`, and their credentials remain in `credentials-json` for their own provisioning. The aggregate BSB input is bounded at 1 MiB; Vault's 128 KiB limit applies separately to each service's overrides, including the merged credentials.
+
 ```json
 {
   "org.example.orders": {
@@ -224,6 +226,8 @@ The runtime configuration plugin must be `@bsb/config-vault` 9.7.5 or newer. It 
 The action returns `bsb-overrides-json`, an object keyed by BP plugin ID. Each value is a **complete merged override object** for that service's deployment resource. It preserves unrelated plugins, nested settings, events and observability overrides; only newly issued/rotated credentials and an explicitly supplied encryption key replace their corresponding BP values. The encryption key is never included in an OIDC or preview API request.
 
 Save each result in the preview's secret store and redeploy with that secret as `BSB_CONFIG_OVERRIDES`. On every later run, read that saved object before calling the action. An unchanged service receives no new API key; supplying `{}` again would lose its binding. The action rejects that refresh with a migration diagnostic rather than outputting incomplete credentials. Serialize provisioning and secret updates with the workflow's existing per-preview concurrency group.
+
+Before the mutating upsert, the action reads the deployment's current service bindings. It checks saved credentials for unchanged BSB services and validates the projected merged objects for newly added or URL-rotated BSB services. Missing state, a mismatched saved CP URL or an oversized result therefore fails before another service's key can be issued or revoked. This validates local provisioning state, not the authenticity of a saved API key; retain only this preview's latest issued values.
 
 The following GCP steps show the complete handoff for one service, after deploying its stable public URL and authenticating the runner to GCP. Provision a **separate secret per preview service** containing `{}` initially; `steps.deploy.outputs.overrides-secret`, `cloud-run-service`, and `service-url` identify those caller-owned resources. The runner needs access only to that preview secret and deployment. For multiple services, supply all BP IDs/aliases and save each output to its own resource.
 
@@ -271,6 +275,7 @@ The following GCP steps show the complete handoff for one service, after deployi
     jq -ce '."org.example.orders" | select(type == "object")' <<< "$MERGED_OVERRIDES" > "$RUNNER_TEMP/merged-overrides.json"
     secret_version=$(gcloud secrets versions add "$OVERRIDES_SECRET" \
       --data-file="$RUNNER_TEMP/merged-overrides.json" --format='value(name)')
+    printf 'Saved override secret version: %s\n' "$secret_version"
     gcloud run services update "$CLOUD_RUN_SERVICE" --region="$CLOUD_RUN_REGION" \
       --update-secrets="BSB_CONFIG_OVERRIDES=$OVERRIDES_SECRET:${secret_version##*/}"
     for attempt in $(seq 1 60); do
@@ -286,7 +291,27 @@ The following GCP steps show the complete handoff for one service, after deployi
 
 Do not echo outputs, enable shell tracing, upload the temporary files as artifacts, or supply secret contents on command lines. The GitHub secret above is a CI input; it is **not** `BP_PREVIEW_CONFIG_KEY` injected into the service. The action masks the key and merged output before exposing them. Keep provisioning/apply steps in the same job; GitHub may suppress secret-valued job outputs. Cloud Run `--update-secrets` preserves unrelated secret bindings; avoid replacing the resource's entire environment or secret list.
 
+If the Cloud Run update fails after rotation, the newly added secret version already contains the valid key. The example records the non-secret `secret_version` resource name; retry the update with that exact version. Do not roll back to the revoked key or call upsert again to recover it.
+
+If saving the secret failed, normal BSB provisioning preflight will reject an unchanged binding whose key was never saved. For immediate recovery, run the same action with the identical upsert inputs but omit `bsb-provisioning-json` and `preview-config-key`. Capture its masked `credentials-json` in the same job, securely merge those credentials into the saved overrides using the three documented BSB fields, and resume normal provisioning. The deployment API replays an identical request's credentials for only 15 minutes; retain exactly the same hostname, service URLs, name and expiry. Beyond that window an empty credential list cannot recover a lost key, and the preview must be recreated. The generic action's legacy-injection warning is expected during this recovery; never inject the recovered values as consumer `BP_*` variables.
+
 For an existing legacy preview, securely import its current API key, CP URL and encryption key into the saved override object once, using the three `betterportal` fields. Remove the old `BP_*` container entries and publish the Vault policy before upgrading the service. If the key was not retained, an unchanged upsert cannot recover it: delete/recreate that **preview** and use fresh credentials. Do not delete production state or reuse another preview's bootstrap state. Existing browser pairing state remains authoritative over BSB provisioning credentials.
+
+For a preview previously installed by browser pairing, perform an explicit offline migration before relying on CI key rotation. Stop all processes using that preview's bootstrap file and securely back up both that file and its `.key` sibling. With the plugin revision containing this change, run the following on the stopped preview host using its exact configured `betterportal.bootstrapStatePath`:
+
+```bash
+node --input-type=module - /mounted/preview/bootstrap-state.json <<'JS'
+import { existsSync } from "node:fs";
+import { BootstrapStateStore } from "@betterportal/plugin-bsb";
+const filePath = process.argv[2];
+if (!existsSync(filePath) || !existsSync(`${filePath}.key`)) {
+  throw new Error("Expected the existing preview bootstrap file and its key; no state was changed");
+}
+new BootstrapStateStore({ filePath }).clearPairing();
+JS
+```
+
+`clearPairing()` removes only the saved CP binding, API key and installation/replay metadata. It retains the configuration encryption key, tenant lock, local bootstrap encryption key and other state. It does not clear configuration stores or signing keys. Apply the saved BSB overrides containing the current key before restarting. Do not call `clear()` or delete the bootstrap files: that discards unrelated state. Once migrated, later BSB key rotations need only the secret update/redeployment. A preview still using persisted pairing credentials will not adopt a rotated key merely because the secret was updated.
 
 An HTTP 200 alone is insufficient: setup mode intentionally serves discovery while awaiting pairing. The readiness check above rejects `setupMode: true` and requires `ok: true`; synced public health is deliberately minimal. Also check the expected version at `/.well-known/bp/manifest` and the PVE Debug sidebar's manifest/config-delivery status before promotion. The integration regression runs the action output through the published Vault loader, tests policy denial, then verifies manifest submission, scoped secret decryption and exit from setup mode.
 

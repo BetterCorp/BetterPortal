@@ -40,7 +40,9 @@ test("fresh preview action → authorized Vault → manifest acceptance and decr
     command() {}, setOutput: (name: string, value: string) => outputs.set(name, value),
     fetchImpl: async (_url: string, init: RequestInit) => {
       assert.ok(!JSON.stringify(init).includes(key));
-      return ++calls === 1 ? Response.json({ value: "oidc" }) : Response.json({ created: true, preview: {}, credentials: [{ serviceId: id,
+      if (++calls === 1) return Response.json({ value: "oidc" });
+      if (init.method === "GET") return new Response(null, { status: 404 });
+      return Response.json({ created: true, preview: {}, credentials: [{ serviceId: id,
         environment: { BP_CONTROL_PLANE_URL: "https://config.example", BP_SERVICE_API_KEY: "preview-key" } }] });
     }
   });

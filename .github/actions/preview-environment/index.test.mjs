@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execute } from "./index.mjs";
-import { bsbOverrides, parseBsbProvisioning } from "./bsb.mjs";
+import { bsbOverrides, parseBsbProvisioning, preflightBsbProvisioning } from "./bsb.mjs";
 
 const baseEnv = {
   "INPUT_CONTROL-PLANE-URL": "https://config.example",
@@ -95,6 +95,7 @@ test("action masks BSB output and keeps the encryption key and existing override
   await execute({ ...baseEnv, "INPUT_BSB-PROVISIONING-JSON": JSON.stringify(provision), "INPUT_PREVIEW-CONFIG-KEY": previewKey }, {
     fetchImpl: async (url, init) => {
       requests.push({ url: String(url), init });
+      if (init.method === "GET") return new Response(null, { status: 404 });
       return requests.length === 1 ? Response.json({ value: "oidc-token" })
         : Response.json({ created: true, preview: {}, credentials: [credential] });
     },
@@ -110,10 +111,55 @@ test("action masks BSB output and keeps the encryption key and existing override
 
 test("missing saved keys and unsafe or incomplete provisioning fail with migration diagnostics", () => {
   assert.throws(() => bsbOverrides(provision, [], undefined, "https://config.example"), /load the saved per-preview overrides/);
-  for (const raw of ['{"__proto__":{}}', '{"org.example.service":{"alias":"constructor","overrides":{}}}', '{}']) {
+  for (const raw of ['{"__proto__":{}}', '{"org.example.service":{"alias":"constructor","overrides":{}}}', '{"unknown":{"alias":"orders","overrides":{}}}']) {
     assert.throws(() => parseBsbProvisioning(raw, { [serviceId]: "https://service.example" }));
   }
   assert.throws(() => bsbOverrides(provision, [{ ...credential, environment: { ...credential.environment, BP_CONTROL_PLANE_URL: "https://foreign.example" } }], previewKey, "https://config.example"), /does not match/);
+});
+
+test("mixed-runtime previews only convert explicitly selected BSB credentials", () => {
+  const services = { [serviceId]: "https://orders.example", "org.example.python": "https://python.example" };
+  const selected = parseBsbProvisioning(JSON.stringify(provision), services);
+  const pythonCredential = { serviceId: "org.example.python", environment: { BP_CONTROL_PLANE_URL: "https://config.example", BP_SERVICE_API_KEY: "python-secret" } };
+  assert.deepEqual(bsbOverrides(selected, [credential, pythonCredential], previewKey, "https://config.example"),
+    bsbOverrides(selected, [credential], previewKey, "https://config.example"));
+});
+
+test("Vault's 128 KiB limit applies separately to service resources, with an overall input bound", () => {
+  const services = { [serviceId]: "https://orders.example", other: "https://other.example" };
+  const entries = Object.fromEntries(Object.keys(services).map(id => [id, { alias: "orders", overrides: {
+    services: { orders: { unrelated: "a".repeat(70 * 1024) } }
+  } }]));
+  const selected = parseBsbProvisioning(JSON.stringify(entries), services);
+  preflightBsbProvisioning(selected, services, null, previewKey, "https://config.example");
+  entries.other.overrides.services.orders.unrelated = "a".repeat(128 * 1024);
+  assert.throws(() => parseBsbProvisioning(JSON.stringify(entries), services), /128 KiB/);
+  assert.throws(() => parseBsbProvisioning(" ".repeat(1024 * 1024 + 1), services), /1 MiB/);
+});
+
+test("unchanged missing or stale state blocks POST before another service can be created or rotated", async () => {
+  const other = "org.example.other";
+  const provisioning = { ...provision, [other]: { alias: "other", overrides: {} } };
+  for (const oldUrl of ["https://old.example", undefined]) {
+    const methods = [];
+    await assert.rejects(() => execute({ ...baseEnv,
+      "INPUT_SERVICES-JSON": JSON.stringify({ [serviceId]: "https://service-pr-123.example.com", [other]: "https://new.example" }),
+      "INPUT_BSB-PROVISIONING-JSON": JSON.stringify(provisioning)
+    }, {
+      fetchImpl: async (_url, init) => {
+        methods.push(init.method ?? "OIDC");
+        if (methods.length === 1) return Response.json({ value: "oidc" });
+        return Response.json({ services: [{ serviceId, url: "https://service-pr-123.example.com" },
+          ...(oldUrl ? [{ serviceId: other, url: oldUrl }] : [])] });
+      }, command() {}, setOutput() {}
+    }), /load the saved per-preview overrides/);
+    assert.deepEqual(methods, ["OIDC", "GET"]);
+  }
+  const stale = bsbOverrides(provision, [credential], previewKey, "https://config.example");
+  stale[serviceId].services.orders.betterportal.controlPlaneUrl = "https://old-control-plane.example";
+  assert.throws(() => preflightBsbProvisioning({ [serviceId]: { alias: "orders", overrides: stale[serviceId] } },
+    { [serviceId]: "https://orders.example" }, { services: [{ serviceId, url: "https://orders.example" }] },
+    undefined, "https://config.example"), /load the saved per-preview overrides/);
 });
 
 test("separate service resources receive only their own issued credential", () => {

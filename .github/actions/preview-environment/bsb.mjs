@@ -13,9 +13,10 @@ function safe(value, depth = 0) {
   }
 }
 
+/** Validate the BSB subset and each independently deployed Vault override before any API mutation. */
 export function parseBsbProvisioning(raw, services) {
   if (!raw) return null;
-  if (Buffer.byteLength(raw) > 128 * 1024) throw new Error("bsb-provisioning-json exceeds 128 KiB");
+  if (Buffer.byteLength(raw) > 1024 * 1024) throw new Error("bsb-provisioning-json exceeds 1 MiB");
   let parsed;
   try { parsed = JSON.parse(raw); } catch { throw new Error("bsb-provisioning-json must be valid JSON"); }
   safe(parsed);
@@ -25,6 +26,7 @@ export function parseBsbProvisioning(raw, services) {
       || typeof entry.alias !== "string" || !/^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,254}$/.test(entry.alias)
       || ["__proto__", "prototype", "constructor"].includes(entry.alias)
       || !object(entry.overrides)) throw new Error("Each BSB provisioning entry requires a requested BP plugin ID, configured BSB alias and existing overrides object");
+    if (Buffer.byteLength(JSON.stringify(entry.overrides)) > 128 * 1024) throw new Error("Saved BSB overrides exceed config-vault's 128 KiB limit");
     if (Object.keys(entry.overrides).some(k => !["services", "events", "observable"].includes(k))) throw new Error("BSB overrides contain an unknown section");
     for (const section of Object.values(entry.overrides)) {
       if (!object(section) || Object.values(section).some(v => !object(v))) throw new Error("BSB override sections must contain plugin objects");
@@ -33,10 +35,10 @@ export function parseBsbProvisioning(raw, services) {
     if (bp !== undefined && !object(bp)) throw new Error("Existing betterportal override must be an object");
     if (bp?.previewConfigKey !== undefined) previewConfigKey(bp.previewConfigKey);
   }
-  if (Object.keys(services).some(id => !Object.hasOwn(parsed, id))) throw new Error("bsb-provisioning-json must map every requested service to its BSB alias");
   return parsed;
 }
 
+/** Validate the caller-held AES key without transmitting or including its value in diagnostics. */
 export function previewConfigKey(raw) {
   if (!raw) return undefined;
   if (typeof raw !== "string" || !/^bp_pck_[A-Za-z0-9_-]{43}$/.test(raw) || Buffer.from(raw.slice(7), "base64url").toString("base64url") !== raw.slice(7)) {
@@ -45,11 +47,14 @@ export function previewConfigKey(raw) {
   return raw;
 }
 
+/** Merge only selected BSB services; leave other runtime credentials in the original API output. */
 export function bsbOverrides(provisioning, credentials, key, baseUrl) {
   if (!provisioning) return {};
   const issued = new Map();
   for (const credential of credentials) {
-    if (!object(credential) || !Object.hasOwn(provisioning, credential.serviceId) || issued.has(credential.serviceId)
+    if (!object(credential)) throw new Error("Preview credential response has an invalid shape");
+    if (!Object.hasOwn(provisioning, credential.serviceId)) continue;
+    if (issued.has(credential.serviceId)
       || typeof credential.environment?.BP_CONTROL_PLANE_URL !== "string" || credential.environment.BP_CONTROL_PLANE_URL.replace(/\/+$/, "") !== baseUrl
       || typeof credential.environment?.BP_SERVICE_API_KEY !== "string" || !credential.environment.BP_SERVICE_API_KEY) {
       throw new Error("Preview credential response does not match the requested BSB provisioning");
@@ -80,4 +85,24 @@ export function bsbOverrides(provisioning, credentials, key, baseUrl) {
     result[id] = next;
   }
   return result;
+}
+
+/** Check unchanged bindings and projected output sizes before a POST can issue or rotate keys. */
+export function preflightBsbProvisioning(provisioning, services, deployment, key, baseUrl) {
+  if (deployment !== null && (!object(deployment) || !Array.isArray(deployment.services))) {
+    throw new Error("Preview deployment lookup has an unexpected shape");
+  }
+  const current = new Map();
+  for (const binding of deployment?.services ?? []) {
+    if (!object(binding) || typeof binding.serviceId !== "string" || typeof binding.url !== "string" || current.has(binding.serviceId)) {
+      throw new Error("Preview deployment lookup contains an invalid service binding");
+    }
+    current.set(binding.serviceId, new URL(binding.url).origin);
+  }
+  const projected = Object.keys(provisioning).filter(id => current.get(id) !== services[id]).map(serviceId => ({
+    serviceId, environment: { BP_CONTROL_PLANE_URL: baseUrl,
+      // The deployment API generates bp_sk_ plus 32 random bytes encoded as hex.
+      BP_SERVICE_API_KEY: `bp_sk_${"0".repeat(64)}` }
+  }));
+  bsbOverrides(provisioning, projected, key, baseUrl);
 }

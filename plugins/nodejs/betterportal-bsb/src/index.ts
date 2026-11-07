@@ -232,3 +232,5 @@ export {
   type BPServiceConfig,
   type BPServiceDefinition
 } from "./service.js";
+
+export { BootstrapStateStore, type BootstrapStateFile, type BootstrapStateOptions } from "./bootstrapState.js";

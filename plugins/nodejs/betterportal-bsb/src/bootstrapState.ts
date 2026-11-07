@@ -81,6 +81,12 @@ export class BootstrapStateStore {
     }
   }
 
+  /** Switch a stopped service to BSB provisioning without discarding its encryption key or tenant lock. */
+  clearPairing(): void {
+    this.write({ apiKey: undefined, cpUrl: undefined, cpId: undefined, cpJwksUri: undefined,
+      installedAt: undefined, installation: undefined });
+  }
+
   hasApiKey(): boolean {
     const s = this.read();
     return typeof s.apiKey === "string" && s.apiKey.length > 0
