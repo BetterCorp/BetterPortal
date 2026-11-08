@@ -721,7 +721,6 @@ function noServicesBanner(serviceUrl: string): HtmlRenderable {
 
 export function render(data: ResponseData): HtmlRenderable {
   const apiBase = (data.serviceBaseUrl ?? "") + data.adminApiBase;
-  const routesPath = `${data.serviceBaseUrl}/routes`;
   const hasServices = data.availableServices.length > 0;
   const canAddRoute = data.selectedAppId && hasServices;
 
@@ -767,11 +766,8 @@ export function render(data: ResponseData): HtmlRenderable {
           class="form-select"
           name="appId"
           data-bp-app-select=""
-          hx-get={routesPath}
+          hx-get="/routes"
           hx-trigger="change"
-          hx-target="#bp-main"
-          hx-swap="innerHTML"
-          hx-push-url="true"
         >
           <option value="">Choose an app...</option>
           {data.apps.map((app) => (
@@ -821,11 +817,11 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
         <div class="offcanvas-body">
           {hasServices ? (
-            <form id="bp-add-route-form" hx-post={`${apiBase}/apps/${data.selectedAppId}/routes`} hx-target="#bp-main" hx-swap="innerHTML">
+            <form id="bp-add-route-form" hx-post={`${apiBase}/apps/${data.selectedAppId}/routes`} hx-target="this" hx-swap="none" data-bp-mutation-scope="">
               <div data-bp-route-form="" data-bp-route-mode="create">
               {routeFormFields("bp-add-route", data.availableServices)}
               </div>
-              <div class="alert alert-danger d-none" id="bp-add-route-error"></div>
+              <div id="bp-add-route-error" data-bp-mutation-error="" role="alert" hidden></div>
               <div class="alert alert-warning d-none" data-bp-route-conflict="" role="status"></div>
               <button type="submit" class="btn btn-primary w-100" data-bp-add-route-submit="">Add Route</button>
             </form>
@@ -843,12 +839,14 @@ export function render(data: ResponseData): HtmlRenderable {
           <div class="offcanvas-body">
             <form
               hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-              hx-target="#bp-main"
-              hx-swap="innerHTML"
+              hx-target="this"
+              hx-swap="none"
+              data-bp-mutation-scope=""
             >
               <div data-bp-route-form="" data-bp-route-mode="edit" data-bp-route-id={route.id}>
               {routeFormFields(`bp-edit-route-${route.id}`, data.availableServices, route)}
               </div>
+              <div data-bp-mutation-error="" role="alert" hidden></div>
               <div class="alert alert-warning d-none" data-bp-route-conflict="" role="status"></div>
               <button type="submit" class="btn btn-primary w-100">Save Changes</button>
             </form>

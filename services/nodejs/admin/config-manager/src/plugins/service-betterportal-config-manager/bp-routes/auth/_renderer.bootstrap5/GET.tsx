@@ -154,7 +154,6 @@ const PERMISSION_OPTIONS = [
 export function render(data: ResponseData): HtmlRenderable {
   const serviceUrl = data.serviceBaseUrl ?? "";
   const apiBase = serviceUrl + data.adminApiBase;
-  const authPath = `${serviceUrl}/auth`;
   const selectedApp = data.apps.find((a) => a.id === data.selectedAppId);
   const externalRoleSync = data.externalRoleSync;
   const managedRoleSync = data.managedRoleSync;
@@ -178,11 +177,8 @@ export function render(data: ResponseData): HtmlRenderable {
           class="form-select"
           id="bp-app-select"
           name="appId"
-          hx-get={authPath}
+          hx-get="/auth"
           hx-trigger="change"
-          hx-target="#bp-main"
-          hx-swap="innerHTML"
-          hx-push-url="true"
         >
           <option value="">Select app...</option>
           {data.apps.map((a) => (

@@ -1,6 +1,7 @@
 /* @jsxImportSource @betterportal/framework */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
+import { renderServiceConnections } from "../../../serviceConnections.js";
 import type { ResponseData } from "../GET.js";
 
 const TICKET_ONLY_THEME_SERVICES = new Set([
@@ -314,61 +315,6 @@ function renderCatalogCard(
   );
 }
 
-function renderConnections(data: ResponseData, appId: string): HtmlRenderable {
-  if (data.m2mConnections.length === 0) return <div class="alert alert-secondary mb-0">No service connection requests for this app.</div>;
-  const endpoint = `${data.adminApiBase}/apps/${encodeURIComponent(appId)}/m2m/connections`;
-  return (
-    <div class="list-group list-group-flush">
-      {data.m2mConnections.map((connection) => (
-        <div class="list-group-item px-0 py-3">
-          <div class="d-flex justify-content-between align-items-start gap-3">
-            <div>
-              <div class="fw-semibold">{connection.title}</div>
-              <div class="small text-secondary">
-                {connection.sourceServiceTitle} / <span class="font-monospace">{connection.sourceServiceType}</span>
-              </div>
-              <div class="small font-monospace">{connection.contractId}{connection.version ? `@${connection.version}` : ""} / {connection.mode}</div>
-              <div class="small mt-1">
-                <span class={`badge me-2 ${connection.status === "connected" ? "text-bg-success" : connection.status === "stale" || connection.status === "unavailable" ? "text-bg-warning" : "text-bg-secondary"}`}>
-                  {connection.status}
-                </span>
-                {connection.message}
-              </div>
-              {connection.methods.length > 0 ? <div class="small mt-1"><strong>Methods:</strong> {connection.methods.join(", ")}</div> : ""}
-              {connection.permissions.length > 0 ? <div class="small"><strong>Permissions:</strong> {connection.permissions.join(", ")}</div> : ""}
-            </div>
-            <div class="d-flex flex-column gap-2 align-items-end">
-              {connection.bindingId ? (
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-danger"
-                  hx-delete={`${endpoint}/${encodeURIComponent(connection.bindingId)}`}
-                  hx-target="#bp-services-alerts"
-                  hx-swap="innerHTML"
-                  hx-confirm="Revoke this service connection? Existing service tokens will stop working."
-                  data-bp-error-modal=""
-                >Revoke</button>
-              ) : connection.candidates.map((candidate) => (
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-primary text-start"
-                  hx-post={endpoint}
-                  hx-vals={JSON.stringify({ sourceServiceId: connection.sourceServiceId, requestId: connection.requestId, targetServiceId: candidate.targetServiceId, targetViewId: candidate.targetViewId })}
-                  hx-target="#bp-services-alerts"
-                  hx-swap="innerHTML"
-                  data-bp-error-modal=""
-                >
-                  Connect {candidate.targetServiceTitle} / {candidate.targetServiceType}
-                  <span class="d-block small font-monospace">{candidate.targetServiceId}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export function render(data: ResponseData): HtmlRenderable {
   const tenantById = new Map(data.tenants.map((tenant) => [tenant.id, tenant]));
@@ -400,9 +346,6 @@ export function render(data: ResponseData): HtmlRenderable {
             aria-label="Tenant"
             hx-get="/services"
             hx-trigger="change"
-            hx-target="#bp-main"
-            hx-swap="innerHTML"
-            hx-push-url="true"
           >
             {data.tenants.map((tenant) => (
               <option value={tenant.id} selected={tenant.id === selectedTenantId}>{tenant.title}</option>
@@ -416,9 +359,6 @@ export function render(data: ResponseData): HtmlRenderable {
             hx-get="/services"
             hx-trigger="change"
             hx-include="#bp-services-tenant-filter"
-            hx-target="#bp-main"
-            hx-swap="innerHTML"
-            hx-push-url="true"
             disabled={selectedTenantApps.length === 0 ? true : undefined}
           >
             {selectedTenantApps.map((app) => (
@@ -442,7 +382,7 @@ export function render(data: ResponseData): HtmlRenderable {
             <h3 class="h5 mb-1">Service Connections</h3>
             <div class="small text-secondary">Approve explicit app-scoped service and delegated access. Revocation requires a new approval.</div>
           </div>
-          {selectedAppId ? renderConnections(data, selectedAppId) : <div class="alert alert-secondary mb-0">Select an app to manage service connections.</div>}
+          {selectedAppId ? renderServiceConnections(data.m2mConnections, selectedAppId, data.adminApiBase) : <div class="alert alert-secondary mb-0">Select an app to manage service connections.</div>}
         </div>
       </section>
 
