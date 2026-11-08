@@ -1785,7 +1785,12 @@ export function betterPortalShellRuntimeSource(): string {
         if (!attr) return false;
         const value = el.getAttribute(attr) || "";
         const { origin } = serviceContextFor(el, serviceId);
-        if (!isRelativeServicePath(value) || !origin || origin === unresolvedServiceOrigin) return false;
+        if (!isRelativeServicePath(value)) return false;
+        if (!origin || origin === unresolvedServiceOrigin) {
+          // Disable only this connection; other actions may have valid absolute URLs.
+          el.removeAttribute(attr);
+          return false;
+        }
         el.setAttribute(attr, origin + value);
         return true;
       };

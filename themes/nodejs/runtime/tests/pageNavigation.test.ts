@@ -93,6 +93,21 @@ test("unregistered contextual owners do not emit or request a fabricated service
   assert.deepEqual(requests.filter(url => url.includes("/services")), [], "change, load and keyboard submissions must honor the route-error guard");
 });
 
+test("unknown SSE owners disable only their connection and preserve valid actions", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, [list], route => response(route,
+    new URL(route.request().url()).pathname === "/action" ? '<p id="done">Done</p>'
+      : '<div data-bp-service-id="missing"><button id="sse-action" hx-sse:connect="/events" hx-get="https://service.test/action" hx-target="#local">Run</button><div id="legacy-sse" sse-connect="/legacy-events"></div><div id="local"></div></div>'), "/ui/batches", false, requests);
+  await page.waitForSelector("#sse-action");
+  assert.equal(await page.locator("#sse-action").getAttribute("hx-sse:connect"), null);
+  assert.equal(await page.locator("#legacy-sse").getAttribute("sse-connect"), null);
+  assert.equal(await page.locator("#sse-action").getAttribute("data-bp-route-error"), null);
+  await page.locator("#sse-action").click();
+  await page.waitForSelector("#done");
+  assert.deepEqual(requests.filter(url => url.includes("events") || url.includes("betterportal.invalid")), []);
+  assert.deepEqual(errors, []);
+});
+
 test("connection mutations replace one row and keep HTTP and network errors inside that component", async t => {
   const connection: M2MConnectionView = { sourceServiceId: "source", sourceServiceTitle: "Source", sourceServiceType: "source.plugin", requestId: "read",
     title: "Read reports", contractId: "reports", mode: "service", methods: ["GET"], permissions: ["read"], optional: false,
