@@ -163,7 +163,8 @@ export function registerSetupEndpoints(input: {
       instanceId?: string;
       reconfigure?: boolean;
     } | null;
-    const requestedOrigin = normalizeServiceOrigin(body?.serviceUrl);
+    if (!body) return jsonResponse({ error: "A valid service URL origin is required" }, 400);
+    const requestedOrigin = normalizeServiceOrigin(body.serviceUrl);
     if (!requestedOrigin) {
       return jsonResponse({ error: "A valid service URL origin is required" }, 400);
     }
