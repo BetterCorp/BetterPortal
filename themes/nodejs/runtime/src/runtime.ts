@@ -1780,6 +1780,16 @@ export function betterPortalShellRuntimeSource(): string {
         return !!target && !targetWithinLane(source, target);
       };
 
+      const rewriteSseUrl = (el: Element, serviceId: string): boolean => {
+        const attr = el.hasAttribute("hx-sse:connect") ? "hx-sse:connect" : el.hasAttribute("sse-connect") ? "sse-connect" : null;
+        if (!attr) return false;
+        const value = el.getAttribute(attr) || "";
+        const { origin } = serviceContextFor(el, serviceId);
+        if (!isRelativeServicePath(value) || !origin || origin === unresolvedServiceOrigin) return false;
+        el.setAttribute(attr, origin + value);
+        return true;
+      };
+
       const resolveServiceLinks = (root: Element, reprocess = true) => {
         if (!root) return;
 
@@ -1823,6 +1833,7 @@ export function betterPortalShellRuntimeSource(): string {
           const tag = el.tagName;
 
           if (el.hasAttribute(DOWNLOAD_ATTR)) {
+            rewriteSseUrl(el, serviceId);
             const elContext = serviceContextFor(el, serviceId);
             const rawDownload = (el.getAttribute(DOWNLOAD_ATTR) || "").trim();
             const rawHref = tag === "A" ? (el.getAttribute("href") || "") : "";
@@ -1869,15 +1880,7 @@ export function betterPortalShellRuntimeSource(): string {
               ? "sse-connect"
               : null;
           if (sseAttr) {
-            const sseUrl = el.getAttribute(sseAttr) || "";
-            if (isRelativeServicePath(sseUrl)) {
-              const elContext = serviceContextFor(el, serviceId);
-              const elServiceOrigin = elContext.origin || serviceOrigin;
-              if (elServiceOrigin) {
-                el.setAttribute(sseAttr, elServiceOrigin + sseUrl);
-                el.setAttribute("data-bp-shell-route", "sse");
-              }
-            }
+            if (rewriteSseUrl(el, serviceId)) el.setAttribute("data-bp-shell-route", "sse");
             continue;
           }
 
@@ -2843,9 +2846,6 @@ export function betterPortalShellRuntimeSource(): string {
           }
         },
 
-        // Rewrite SSE connect URLs in the response body before the swap
-        // pipeline builds task fragments, so hx-sse ext reads the absolute
-        // service-origin URL once the new content is processed.
         htmx_after_request(_elt: any, detail: any) {
           if (detail.ctx?.__bpElevationHandled) return false;
           // HTMX follows these before before_swap. A 401 belongs to the
@@ -2855,16 +2855,6 @@ export function betterPortalShellRuntimeSource(): string {
               if (detail.ctx.hx) delete detail.ctx.hx[key];
             }
           }
-          try {
-            const ctx = detail.ctx;
-            const text: string | undefined = ctx?.text;
-            const requestUrl: string | undefined = ctx?.request?.action;
-            if (text && requestUrl && /(?:hx-sse:connect|sse-connect)\s*=\s*["']\/(?!\/)/.test(text)) {
-              const origin = new URL(requestUrl, window.location.origin).origin;
-              ctx.text = text.replace(/((?:hx-sse:connect|sse-connect)\s*=\s*["'])\/(?!\/)/g, "$1" + origin + "/");
-            }
-          } catch { /* non-fatal */ }
-
           scheduleBootstrapOverlaySync();
           const bpElement = requestBpElement(detail.ctx?.__bpRoute || detail.ctx?.sourceElement);
           if (bpElement

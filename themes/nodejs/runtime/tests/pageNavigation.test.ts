@@ -4,7 +4,7 @@ import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 import { buildServiceViewUrl, resolveAppRoute } from "../../../../framework/nodejs/src/runtime/configProvider.js";
 import type { BetterPortalApp } from "../../../../framework/nodejs/src/contracts/platformConfig.js";
-import { renderServiceConnection } from "../../../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/serviceConnections.js";
+import { renderServiceConnection } from "../../../../services/nodejs/admin/config-manager/src/plugins/service-betterportal-config-manager/serviceConnections.js";
 import type { M2MConnectionView } from "../../../../services/nodejs/admin/config-manager/src/plugins/service-betterportal-config-manager/m2mConnections.js";
 
 const list = { href: "/ui/batches", requestUrl: "https://service.test/batches", serviceId: "service", kind: "page", title: "Import batches" };
@@ -15,10 +15,11 @@ const response = (route: Route, body: string, chrome = {}, status = 200, mode = 
   contentType: `text/html; mode=${mode}` + Object.entries(chrome).map(([key, value]) => `; bp-chrome-${key}=${encodeURIComponent(Array.isArray(value) ? JSON.stringify(value) : String(value))}` + (Array.isArray(value) ? `; bp-array-chrome-${key}=true` : "")).join(""),
   headers: { "access-control-allow-origin": "*" }
 });
-async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches", errorOutlet = false) {
+async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches", errorOutlet = false, requests?: string[]) {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
+  if (requests) page.on("request", request => requests.push(request.url()));
   page.setDefaultTimeout(5000);
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -80,11 +81,16 @@ test("page filters infer navigation, retain submitted values and survive direct 
 });
 
 test("unregistered contextual owners do not emit or request a fabricated service origin", async t => {
+  const requests: string[] = [];
   const { page } = await shell(t, [list], route => response(route,
-    '<div data-bp-service-id="missing"><select id="unknown" hx-get="/services" hx-target="#local"><option value="first">First</option><option value="second">Second</option></select><div id="local"></div></div>'));
+    '<div data-bp-service-id="missing"><select id="unknown" hx-get="/services" hx-target="#local"><option value="first">First</option><option value="second">Second</option></select><div hx-get="/services?load" hx-trigger="load" hx-target="#local"></div><form hx-post="/services?form" hx-target="#local"><input id="entry" name="value"><button>Submit</button></form><div id="local"></div></div>'), "/ui/batches", false, requests);
   await page.waitForSelector("#unknown");
   assert.equal(await page.locator("#unknown").getAttribute("hx-get"), "/services");
   assert.ok(await page.locator("#unknown").getAttribute("data-bp-route-error"));
+  await page.locator("#unknown").selectOption("second");
+  await page.locator("#entry").press("Enter");
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
+  assert.deepEqual(requests.filter(url => url.includes("/services")), [], "change, load and keyboard submissions must honor the route-error guard");
 });
 
 test("connection mutations replace one row and keep HTTP and network errors inside that component", async t => {
@@ -140,6 +146,20 @@ test("route-form validation shows the actual error without hiding the page or lo
   assert.equal(await page.locator('[name="fixedParam.section"]').inputValue(), "users");
   assert.equal(page.url(), "https://app.test/ui/batches");
   assert.deepEqual(errors, []);
+});
+
+test("injected component downloads resolve encoded SSE paths without overriding explicit opt-outs", async t => {
+  const { page } = await shell(t, [list], route => new URL(route.request().url()).pathname === "/events"
+    ? route.fulfill({ status: 200, contentType: "text/event-stream", body: ": heartbeat\n\n", headers: { "access-control-allow-origin": "*" } })
+    : new URL(route.request().url()).pathname === "/summary"
+      ? response(route, '<button id="both" hx-download="/file" hx-sse:connect="&#47;events">Download</button><button id="optout" hx-download="/file" sse-connect="/events" data-bp-config="rewrite=false">Opt out</button>', {}, 200, "fragment")
+      : response(route, '<bp-route data-bp-route data-bp-mode="embed" data-bp-state="loading" data-bp-service="service" hx-get="https://service.test/summary" hx-trigger="load" hx-target="this" hx-swap="none"><template data-bp-route-state="ok"><div><template data-bp-route-insertion></template></div></template></bp-route>'));
+  await page.waitForSelector("#both");
+  assert.equal(await page.locator("#both").getAttribute("hx-download"), "https://service.test/file");
+  assert.equal(await page.locator("#both").getAttribute("hx-sse:connect"), "https://service.test/events");
+  assert.equal(await page.locator("#both").getAttribute("data-bp-shell-route"), "download");
+  assert.equal(await page.locator("#optout").getAttribute("hx-download"), "/file");
+  assert.equal(await page.locator("#optout").getAttribute("sse-connect"), "/events");
 });
 
 test("declared parameter routes preserve IDs, static titles, queries and direct refresh", async t => {

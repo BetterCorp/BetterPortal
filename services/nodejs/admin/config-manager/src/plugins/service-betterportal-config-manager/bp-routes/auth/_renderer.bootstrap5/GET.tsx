@@ -355,7 +355,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 <label class="form-label">Description (optional)</label>
                 <textarea class="form-control" name="description" rows={2}></textarea>
               </div>
-              <div class="alert alert-danger d-none" id="bp-add-role-error"></div>
+              <div class="alert alert-danger d-none" id="bp-add-role-error" role="alert"></div>
               <button type="submit" class="btn btn-primary w-100">Create Role</button>
               <p class="text-secondary small mt-2 mb-0">Grants are set via the Edit panel after creation.</p>
             </form>
@@ -466,7 +466,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 </div>
               )}
 
-              <div class="alert alert-danger d-none" id="bp-edit-role-error"></div>
+              <div class="alert alert-danger d-none" id="bp-edit-role-error" role="alert"></div>
               <button type="submit" class="btn btn-primary w-100">Save Role</button>
             </form>
           </div>

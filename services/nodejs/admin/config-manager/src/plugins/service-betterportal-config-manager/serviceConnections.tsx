@@ -1,3 +1,4 @@
+/* @jsxRuntime automatic */
 /* @jsxImportSource @betterportal/framework */
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { M2MConnectionView } from "./m2mConnections.js";
