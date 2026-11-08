@@ -100,6 +100,7 @@ jobs:
           python framework/conformance/check_python_resources.py
           python framework/conformance/check_python_webhooks.py
           python framework/conformance/check_python_health.py
+          dotnet framework/dotnet/Conformance/bin/Debug/net10.0/Conformance.dll --health
           python framework/conformance/check_python_client_streams.py
           python framework/conformance/check_python_auth_helpers.py
           python framework/conformance/check_python_themes.py

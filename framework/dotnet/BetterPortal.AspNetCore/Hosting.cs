@@ -136,7 +136,8 @@ public static class Hosting
     {
         context.Response.StatusCode = status;
         if (headers is not null) foreach (var (key, item) in headers) context.Response.Headers[key] = item;
-        if (status >= 400) context.Response.Headers.CacheControl = "no-store";
+        // Preserve the explicit private no-store discovery policy, including trailing-slash requests.
+        if (status >= 400 && context.Response.Headers.CacheControl != "private, no-store") context.Response.Headers.CacheControl = "no-store";
         if (status is 204 or 304) return;
         context.Response.ContentType = contentType + "; charset=utf-8";
         if (context.Request.Method == "HEAD") return;
@@ -183,8 +184,12 @@ public static class Hosting
             var allowed = methods.Distinct().ToArray();
             endpoints.MapMethods(path, allowed, handler);
             // Only BP paths own this fallback; other host endpoints keep their error behavior.
-            endpoints.Map(path, (HttpContext context) => Reply(context, new { error = "Method not allowed" }, 405,
-                new Dictionary<string, string> { ["allow"] = string.Join(", ", allowed) }))
+            endpoints.Map(path, (HttpContext context) =>
+            {
+                var headers = new Dictionary<string, string> { ["allow"] = string.Join(", ", allowed) };
+                if (path == "/.well-known/bp/health") { headers["cache-control"] = "private, no-store"; headers["vary"] = "Authorization"; }
+                return Reply(context, new { error = "Method not allowed" }, 405, headers);
+            })
                 .WithOrder(int.MaxValue - 1);
         }
         string[] discovery = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"];
@@ -192,15 +197,27 @@ public static class Hosting
         foreach (var path in discovery) Map(path, ["GET", "HEAD", "OPTIONS"], async (HttpContext context) =>
         {
             var headers = new Dictionary<string, string> { ["access-control-allow-origin"] = "*", ["cache-control"] = "no-store" };
-            try { _ = Headers(context.Request); }
+            var health = path == "/.well-known/bp/health";
+            if (health) { headers["cache-control"] = "private, no-store"; headers["vary"] = "Authorization"; }
+            Dictionary<string, string> requestHeaders;
+            try { requestHeaders = Headers(context.Request); }
             catch (RequestException error) { await Reply(context, new { error = error.Message }, error.Status, headers); return; }
             if (context.Request.Method == "OPTIONS")
             {
                 if (context.Request.Headers["access-control-request-method"].ToString() is not ("GET" or "HEAD")) { await Reply(context, new { error = "Method not allowed" }, 403, headers); return; }
-                headers["access-control-allow-methods"] = "GET, HEAD, OPTIONS"; headers["access-control-allow-headers"] = "Accept, BP-Protocol-Version";
+                headers["access-control-allow-methods"] = "GET, HEAD, OPTIONS"; headers["access-control-allow-headers"] = health ? "Accept, Authorization, BP-Protocol-Version" : "Accept, BP-Protocol-Version";
                 await Reply(context, null, 204, headers); return;
             }
-            if (path == discovery[0]) await Reply(context, new { ok = service.Ready }, service.Ready ? 200 : 503, headers);
+            if (health)
+            {
+                using var stopping = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, endpoints.Lifetime.ApplicationStopping);
+                try
+                {
+                    var value = await service.HealthAsync(requestHeaders, stopping.Token);
+                    await Reply(context, value, value["ok"] is true ? 200 : 503, headers);
+                }
+                catch (OperationCanceledException) when (stopping.IsCancellationRequested) { context.Abort(); }
+            }
             else if (path == "/.well-known/jwks.json" && installation is not null)
             {
                 try { await Reply(context, installation.Jwks(), 200, headers); }
