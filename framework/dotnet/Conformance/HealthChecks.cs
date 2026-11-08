@@ -180,8 +180,20 @@ internal static class HealthChecks
                 Diagnostic(suspended, false, "awaiting-sync");
                 Require(((Node)suspended["config"]!)["synced"] is false, "Suspended sync reported a synchronized config"); checks++;
             }
+            foreach (var invalid in new[] {
+                new Dictionary<string, string> { ["bp-protocol-version"] = "unsupported" },
+                new Dictionary<string, string> { ["authorization"] = "Bearer invalid", ["Authorization"] = "Bearer invalid" } })
+            {
+                try { await service.HealthAsync(invalid); throw new Exception("Invalid custom-host headers became a readiness response"); }
+                catch (RequestException error) when (error.Status == 400) { checks++; }
+            }
             await using (var empty = new Service(new Registry([]), declaration))
-            { Public(await empty.HealthAsync(Bearer(Token())), false); checks++; }
+            {
+                Public(await empty.HealthAsync(Bearer(Token())), false); checks++;
+                try { await empty.HealthAsync(new Dictionary<string, string> { ["bp-protocol-version"] = "unsupported" });
+                    throw new Exception("Unready custom host ignored an invalid protocol version"); }
+                catch (RequestException error) when (error.Status == 400) { checks++; }
+            }
             using (var cancelled = new CancellationTokenSource())
             {
                 cancelled.Cancel();

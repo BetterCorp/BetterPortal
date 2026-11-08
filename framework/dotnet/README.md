@@ -1029,6 +1029,9 @@ Caller disconnects and host/service shutdown cancel pending authentication waits
 
 Custom hosts use `await service.HealthAsync(headers, cancellation)` for the same
 policy, then return 200 or 503 from its `ok` value and apply the cache headers above.
+Invalid protocol versions or duplicate header names throw `RequestException` with
+status 400 even before readiness; custom hosts must preserve that status instead
+of treating request-validation errors as readiness or authentication failures.
 For example, an unsynchronized service returns only public readiness:
 
 ```csharp

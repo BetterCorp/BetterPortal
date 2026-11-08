@@ -8,13 +8,13 @@ public sealed partial class Service
     public async Task<Node> HealthAsync(IReadOnlyDictionary<string, string> headers, CancellationToken cancellation = default)
     {
         cancellation.ThrowIfCancellationRequested();
+        var normalized = Headers(headers);
         Node Public() => new() { ["ok"] = Ready };
         var current = state;
         if (current is null || closed) return Public();
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellation, shutdown.Token, current.Retirement.Token);
         try
         {
-            var normalized = Headers(headers);
             // Service/delegated envelopes and caller-supplied scope hints cannot grant diagnostics.
             if (RequestAuthorization.IsMachineRequest(normalized)) return Public();
             var token = RequestAuthorization.Bearer(normalized.GetValueOrDefault("authorization"));
