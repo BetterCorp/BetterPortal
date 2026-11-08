@@ -213,6 +213,34 @@ test("a forged setup token with a real token ID cannot redeem service credential
   assert.equal(valid.status, 200, await valid.clone().text());
 });
 
+test("new service installation accepts only an HTTP(S) origin", async () => {
+  const { send, storage, appId, tenantId, token } = fixture();
+  const credential = token(appId, tenantId);
+  const begin = (serviceUrl: string) => send("/.well-known/bp/admin/services/begin-install", "POST", {
+    serviceUrl, tenantId
+  }, credential);
+
+  for (const invalid of [
+    "https://service.example/path",
+    "https://service.example?key=value",
+    "https://user:pass@service.example",
+    "file:///etc/passwd",
+    "javascript:alert(1)"
+  ]) {
+    assert.equal((await begin(invalid)).status, 400, invalid);
+  }
+  assert.equal(storage.saves, 0);
+
+  const issued = await begin("https://SERVICE.EXAMPLE:443/");
+  assert.equal(issued.status, 200, await issued.clone().text());
+  const { setupToken } = await issued.json() as { setupToken: string };
+  const redeemed = await send("/.well-known/bp/services/redeem", "POST", {
+    setupToken, pluginId: "org.example.service"
+  });
+  assert.equal(redeemed.status, 200, await redeemed.clone().text());
+  assert.equal(storage.config.tenants[0].services.at(-1)?.hostname, "https://service.example");
+});
+
 test("re-setup at a new URL preserves registration and app bindings and verifies the stored plugin", async () => {
   const { send, storage, appId, tenantId, token } = fixture();
   const service = storage.config.tenants[0].services[0];
