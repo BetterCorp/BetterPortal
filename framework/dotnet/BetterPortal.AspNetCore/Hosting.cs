@@ -132,6 +132,7 @@ public static class Hosting
         if (media == "application/x-www-form-urlencoded") foreach (var (name, value) in fields) values[name] = value;
         return (values, Contracts.Parse<Generated.MultipartRequest>("MultipartRequestSchema", new Node { ["fields"] = fields, ["files"] = files }));
     }
+    /// <summary>Write a JSON reply, preserving private no-store health policy and suppressing HEAD/bodyless response content.</summary>
     private static async Task Reply(HttpContext context, object? value, int status, IReadOnlyDictionary<string, string>? headers = null, string contentType = "application/json")
     {
         context.Response.StatusCode = status;
@@ -175,6 +176,7 @@ public static class Hosting
             else await context.Response.Body.WriteAsync(raw.Body, context.RequestAborted);
         }
     }
+    /// <summary>Map service and discovery endpoints with BP authorization, input bounds, representation selection and host cancellation.</summary>
     public static WebApplication MapBetterPortal(this WebApplication endpoints, Service service, int maxBodyBytes = 1024 * 1024, string mode = "service", ServiceInstallation? installation = null)
     {
         if (maxBodyBytes < 1 || mode is not ("service" or "theme")) throw new ArgumentException("Invalid hosting options");

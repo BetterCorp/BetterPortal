@@ -16,21 +16,27 @@ internal static class HealthChecks
         internal TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
+    /// <summary>Fail the suite when a protocol or authorization invariant does not hold.</summary>
     private static void Require(bool condition, string message)
     {
         if (!condition) throw new Exception(message);
     }
+    /// <summary>Assert that anonymous or rejected callers receive only current readiness.</summary>
     private static void Public(Node value, bool ready = true) =>
         Require(value.Count == 1 && Equals(value.GetValueOrDefault("ok"), ready), "Unexpected public health: " + Json.Write(value));
+    /// <summary>Create a quiet, disposable Kestrel host on an available loopback port.</summary>
     private static WebApplication Host()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders(); builder.WebHost.UseUrls("http://127.0.0.1:0");
         return builder.Build();
     }
+    /// <summary>Read the bound loopback address after the test host starts.</summary>
     private static string Address(WebApplication app) => app.Services.GetRequiredService<IServer>()
         .Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+    /// <summary>Normalize and own JSON containers so policy mutations cannot alter shared fixtures.</summary>
     private static Node Copy(Node value) => (Node)Json.Read(Json.Write(value))!;
+    /// <summary>Build a single active management scope trusting only the test JWKS endpoint.</summary>
     private static Node Snapshot(string jwks) => new()
     {
         ["managementOrigins"] = Array.Empty<object>(),
@@ -40,13 +46,16 @@ internal static class HealthChecks
             ["hostnames"] = new[] { "app.test" }, ["auth"] = new Node { ["serviceId"] = Other, ["expectedIssuer"] = Issuer,
                 ["expectedAudience"] = Audience, ["jwksUri"] = jwks, ["roles"] = Array.Empty<object>() } } }
     };
+    /// <summary>Locate a normalized tenant or app fixture for a targeted policy mutation.</summary>
     private static Node First(Node value, string key) => ((List<object?>)value[key]!)[0] as Node ?? throw new Exception("Missing " + key);
+    /// <summary>Create current access claims whose scope and purpose can be independently varied.</summary>
     private static Node Claims() => new()
     {
         ["iss"] = Issuer, ["aud"] = Audience, ["sub"] = "management-user", ["realm"] = "runtime",
         ["tenantId"] = Tenant, ["appId"] = App, ["roles"] = Array.Empty<string>(), ["jti"] = Guid.NewGuid().ToString(),
         ["iat"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), ["exp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 600, ["tokenType"] = "access"
     };
+    /// <summary>Exercise health authorization, wire policy and lifecycle races against real ASP.NET and JWKS servers.</summary>
     internal static async Task Run()
     {
         var key = KeyPair.Generate(); var requests = 0; Gate? gate = null;
@@ -74,13 +83,16 @@ internal static class HealthChecks
         using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false })
             { BaseAddress = new Uri(Address(host)), Timeout = TimeSpan.FromSeconds(8) };
         var checks = 0;
+        /// <summary>Sign a fixture token, optionally varying claims, purpose or signing identity.</summary>
         string Token(Node? overrides = null, KeyPair? signer = null, TokenPurpose purpose = TokenPurpose.Access)
         {
             var claims = Claims();
             if (overrides is not null) foreach (var (name, value) in overrides) claims[name] = value;
             return Tokens.Sign(signer ?? key, claims, purpose);
         }
+        /// <summary>Format a bearer credential for direct framework policy checks.</summary>
         Dictionary<string, string> Bearer(string token) => new() { ["authorization"] = "Bearer " + token };
+        /// <summary>Issue a health HTTP request and verify status, cache policy and body suppression before inspecting its data.</summary>
         async Task<Node> Probe(string? credential = null, string method = "GET", int status = 200, Dictionary<string, string>? extra = null)
         {
             using var request = new HttpRequestMessage(new HttpMethod(method), "/.well-known/bp/health");
@@ -95,6 +107,7 @@ internal static class HealthChecks
             if (method == "HEAD" || status == 204) { Require(body.Length == 0, "Health HEAD/preflight has a body"); return new(); }
             return (Node)Json.Read(body)!;
         }
+        /// <summary>Assert the bounded operator projection and its expected readiness and manifest-sync state.</summary>
         void Diagnostic(Node value, bool ready = true, string sync = "local")
         {
             Require(value.Count == 6 && Equals(value["ok"], ready) && Equals(value["ready"], ready)
