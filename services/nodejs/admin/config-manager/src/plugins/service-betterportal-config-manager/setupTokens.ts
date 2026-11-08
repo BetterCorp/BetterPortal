@@ -163,10 +163,11 @@ export function registerSetupEndpoints(input: {
       instanceId?: string;
       reconfigure?: boolean;
     } | null;
-    if (!body || typeof body.serviceUrl !== "string" || body.serviceUrl.length === 0) {
-      return jsonResponse({ error: "Missing serviceUrl" }, 400);
+    const requestedOrigin = normalizeServiceOrigin(body?.serviceUrl);
+    if (!requestedOrigin) {
+      return jsonResponse({ error: "A valid service URL origin is required" }, 400);
     }
-    let serviceUrl = body.serviceUrl.replace(/\/+$/, "");
+    const serviceUrl = requestedOrigin;
     let tenantScope = body.tenantId ? { tenantId: body.tenantId, appId: body.appId } : undefined;
     let sharedServiceId = typeof body.sharedServiceId === "string" && body.sharedServiceId.length > 0
       ? body.sharedServiceId
@@ -183,9 +184,6 @@ export function registerSetupEndpoints(input: {
         ?? config.platformServices.find((service) => service.id === instanceId) ?? shared;
       if (!existing) return jsonResponse({ error: "Service instance not found" }, 404);
       if (!existing.serviceId) return jsonResponse({ error: "The existing service has no plugin id to verify" }, 409);
-      const requestedOrigin = normalizeServiceOrigin(serviceUrl);
-      if (!requestedOrigin) return jsonResponse({ error: "A valid service URL origin is required" }, 400);
-      serviceUrl = requestedOrigin;
       tenantScope = tenant ? { tenantId: tenant.id, appId: undefined } : undefined;
       sharedServiceId = shared?.id;
       // Shared catalogs retain their opaque ID; the install token still uses a UUID instance claim.
