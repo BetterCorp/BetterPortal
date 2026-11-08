@@ -99,6 +99,36 @@ test("route creation uses one transaction without duplicates and reads the reque
   assert.equal(storage.current.tenants[0].title, "Concurrent");
 });
 
+test("native route forms accept untyped variant parameters and partial edits retain saved fixed values", async t => {
+  const { storage, handlers, serviceId, appId } = fixture();
+  const cache = getManifestCache();
+  t.after(() => cache.delete(serviceId));
+  cache.set(serviceId, { serviceId, viewIndex: { "crm.manage": {
+    path: "/manage", pathVariants: ["/manage", "/manage/:section"], paramsSchema: {}, operations: [{
+      operationId: "crm.management.read", method: "GET", renderModes: ["page"], dependencies: []
+    }]
+  } } } as unknown as CachedManifest);
+  const send = (method: string, values: Record<string, string>, routeId?: string) => handlers.get(
+    `${method} /.well-known/bp/admin/apps/:appId/routes${routeId ? "/:routeId" : ""}`
+  )!({ context: { params: { appId, routeId } }, req: new Request("https://config.example/routes", {
+    method: method.toUpperCase(), headers: { "content-type": "application/x-www-form-urlencoded;charset=UTF-8", "hx-request": "true" },
+    body: new URLSearchParams(values)
+  }) } as never);
+  const created = await send("post", { serviceId, viewId: "crm.manage", operationId: "crm.management.read", path: "/crm/users",
+    servicePathVariant: "/manage/:section", "fixedParam.section": "users", title: "Users", query: "" });
+  assert.equal(created.status, 200, await created.text());
+  const mounted = storage.current.apps[0].routes.find(route => route.path === "/crm/users")!;
+  assert.deepEqual(mounted.fixedParams, { section: "users" });
+  for (const values of [{ enabled: "false" }, { title: "People" }, { query: "tab=roles" }]) {
+    const changed = await send("put", values, mounted.id);
+    assert.equal(changed.status, 200, await changed.text());
+    assert.deepEqual(storage.current.apps[0].routes.find(route => route.id === mounted.id)?.fixedParams, { section: "users" });
+  }
+  const invalid = await send("put", { "fixedParam.section": "" }, mounted.id);
+  assert.equal(invalid.status, 400);
+  assert.match(await invalid.text(), /must appear in the app path or have a fixed value/);
+});
+
 for (const alias of ["instance", "plugin", "shared"] as const) {
   test(`visual routes use the persisted ${alias} manifest even when the hot cache is missing or stale`, async t => {
     const { storage, call, serviceId, tenantId, appId } = fixture();

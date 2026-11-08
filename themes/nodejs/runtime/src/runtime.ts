@@ -1336,14 +1336,14 @@ export function betterPortalShellRuntimeSource(): string {
         return unique.size === 1 ? [...unique.values()][0] : null;
       };
 
-      const tenantUrlForServiceUrl = (value: string): string => {
+      const tenantUrlForServiceUrl = (value: string, serviceId = ""): string => {
         try {
           const url = new URL(value, window.location.origin);
           const tenantMatch = url.origin === window.location.origin ? matchTenantRoute(url.pathname) : null;
           if (tenantMatch) {
             return tenantMatch.route.tenantPath + url.search + url.hash;
           }
-          const match = matchServiceRoute("", url.pathname, "page", url.origin) || matchServiceRoute("", url.pathname, "api", url.origin);
+          const match = matchServiceRoute(serviceId, url.pathname, "page", url.origin) || matchServiceRoute(serviceId, url.pathname, "api", url.origin);
           if (!match) return value;
           return match.route.tenantPath + url.search + url.hash;
         } catch {
@@ -1780,6 +1780,21 @@ export function betterPortalShellRuntimeSource(): string {
         return !!target && !targetWithinLane(source, target);
       };
 
+      const rewriteSseUrl = (el: Element, serviceId: string): boolean => {
+        const attr = el.hasAttribute("hx-sse:connect") ? "hx-sse:connect" : el.hasAttribute("sse-connect") ? "sse-connect" : null;
+        if (!attr) return false;
+        const value = el.getAttribute(attr) || "";
+        const { origin } = serviceContextFor(el, serviceId);
+        if (!isRelativeServicePath(value)) return false;
+        if (!origin || origin === unresolvedServiceOrigin) {
+          // Disable only this connection; other actions may have valid absolute URLs.
+          el.removeAttribute(attr);
+          return false;
+        }
+        el.setAttribute(attr, origin + value);
+        return true;
+      };
+
       const resolveServiceLinks = (root: Element, reprocess = true) => {
         if (!root) return;
 
@@ -1823,6 +1838,7 @@ export function betterPortalShellRuntimeSource(): string {
           const tag = el.tagName;
 
           if (el.hasAttribute(DOWNLOAD_ATTR)) {
+            rewriteSseUrl(el, serviceId);
             const elContext = serviceContextFor(el, serviceId);
             const rawDownload = (el.getAttribute(DOWNLOAD_ATTR) || "").trim();
             const rawHref = tag === "A" ? (el.getAttribute("href") || "") : "";
@@ -1869,15 +1885,7 @@ export function betterPortalShellRuntimeSource(): string {
               ? "sse-connect"
               : null;
           if (sseAttr) {
-            const sseUrl = el.getAttribute(sseAttr) || "";
-            if (isRelativeServicePath(sseUrl)) {
-              const elContext = serviceContextFor(el, serviceId);
-              const elServiceOrigin = elContext.origin || serviceOrigin;
-              if (elServiceOrigin) {
-                el.setAttribute(sseAttr, elServiceOrigin + sseUrl);
-                el.setAttribute("data-bp-shell-route", "sse");
-              }
-            }
+            if (rewriteSseUrl(el, serviceId)) el.setAttribute("data-bp-shell-route", "sse");
             continue;
           }
 
@@ -1966,6 +1974,10 @@ export function betterPortalShellRuntimeSource(): string {
           // Had an explicit hx-target BEFORE shell default targeting -> the
           // element knows its own context; don't apply page-nav semantics.
           if (hadExplicitTarget) {
+            if (elServiceOrigin === unresolvedServiceOrigin) {
+              el.setAttribute("data-bp-route-error", "The owning service is not available in this app.");
+              continue;
+            }
             // -- Contextual request: just rewrite URL to absolute --
             if (hxMethodAttr && (hxThisUrl || hxMethodPath) && elServiceOrigin) {
               el.setAttribute(hxMethodAttr, hxThisUrl || (elServiceOrigin + hxMethodPath));
@@ -2021,8 +2033,13 @@ export function betterPortalShellRuntimeSource(): string {
               }
               el.setAttribute("hx-target", "#bp-main");
               if (!el.hasAttribute("hx-swap")) el.setAttribute("hx-swap", "innerHTML");
-              if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", tenantUrl);
+              // Controls add their selected/form values at request time. Map
+              // that final request URL back to the mounted UI route in history.
+              if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", isAnchor ? tenantUrl : "true");
               el.setAttribute("data-bp-shell-route", "page");
+            } else if (hxMethodAttr === "hx-get" || elServiceOrigin === unresolvedServiceOrigin) {
+              el.setAttribute("data-bp-route-error", "This page is not available in this app.");
+              el.removeAttribute("hx-preload");
             } else if (elServiceOrigin && hxMethodAttr && hxMethodPath) {
               // Unknown route but has hx-method - at minimum make URL absolute
               // and treat as full-page since no target
@@ -2341,9 +2358,25 @@ export function betterPortalShellRuntimeSource(): string {
         if ((event.target as Element)?.closest?.("[data-bp-back]")) window.history.back();
       });
       document.addEventListener("htmx:before:history:update", (event: Event) => {
-        const detail = (event as CustomEvent<{ history?: { path?: string } }>).detail;
+        const detail = (event as CustomEvent<{ history?: { path?: string }; sourceElement?: Element; response?: { raw?: { url?: string } } }>).detail;
         if (detail?.history?.path) {
-          detail.history.path = tenantUrlForServiceUrl(detail.history.path);
+          const path = detail.history.path;
+          // HTMX strips the origin from its final request URL. Restore the
+          // registered request origin before mapping service paths to UI paths.
+          const requestUrl = detail.response?.raw?.url || detail.sourceElement?.getAttribute("hx-get") || "";
+          const requestOrigin = originFromAbsoluteUrl(requestUrl);
+          const usesRequestUrl = detail.sourceElement?.getAttribute("hx-push-url") === "true"
+            || detail.sourceElement?.getAttribute("hx-replace-url") === "true";
+          const owner = serviceContextFor(detail.sourceElement);
+          const ownerId = owner.origin === requestOrigin ? owner.id : "";
+          const uiPath = usesRequestUrl && requestOrigin && serviceIdForUrl(requestUrl)
+            ? tenantUrlForServiceUrl(new URL(path, requestOrigin).href, ownerId)
+            : tenantUrlForServiceUrl(path);
+          if (new URL(uiPath, window.location.origin).origin !== window.location.origin) {
+            event.preventDefault();
+            return;
+          }
+          detail.history.path = uiPath;
         }
       });
       document.addEventListener("htmx:before:history:restore", (event: Event) => {
@@ -2541,26 +2574,7 @@ export function betterPortalShellRuntimeSource(): string {
           if (elt instanceof Element) resolveServiceLinks(elt, false);
           if (elt instanceof Element) initializeBpElements(elt);
           if (elt instanceof Element && elt.hasAttribute(DOWNLOAD_ATTR)) bindDownload(elt);
-          for (const attr of HX_METHODS) {
-            const val = elt.getAttribute(attr);
-            if (isThisReference(val)) {
-              const context = elt instanceof Element ? serviceContextFor(elt) : { id: "", origin: "" };
-              const action = elt instanceof Element ? resolveThisServiceUrl(elt, context) : "";
-              if (action) elt.setAttribute(attr, action);
-            } else if (isRelativeServicePath(val)) {
-              const { origin } = elt instanceof Element ? serviceContextFor(elt) : { origin: "" };
-              if (origin) elt.setAttribute(attr, origin + (val || "").trim());
-            }
-          }
-          // Also rewrite SSE connect URL so hx-sse ext captures absolute URL
-          // when it reads the attribute during htmx_after_process.
-          if (elt.hasAttribute?.("hx-sse:connect")) {
-            const sseVal = elt.getAttribute("hx-sse:connect");
-            if (sseVal && sseVal.startsWith("/")) {
-              const { origin } = elt instanceof Element ? serviceContextFor(elt) : { origin: "" };
-              if (origin) elt.setAttribute("hx-sse:connect", origin + sseVal);
-            }
-          }
+
         },
 
         htmx_after_process(elt: any) {
@@ -2837,9 +2851,6 @@ export function betterPortalShellRuntimeSource(): string {
           }
         },
 
-        // Rewrite SSE connect URLs in the response body before the swap
-        // pipeline builds task fragments, so hx-sse ext reads the absolute
-        // service-origin URL once the new content is processed.
         htmx_after_request(_elt: any, detail: any) {
           if (detail.ctx?.__bpElevationHandled) return false;
           // HTMX follows these before before_swap. A 401 belongs to the
@@ -2849,16 +2860,6 @@ export function betterPortalShellRuntimeSource(): string {
               if (detail.ctx.hx) delete detail.ctx.hx[key];
             }
           }
-          try {
-            const ctx = detail.ctx;
-            const text: string | undefined = ctx?.text;
-            const requestUrl: string | undefined = ctx?.request?.action;
-            if (text && requestUrl && /(?:hx-sse:connect|sse-connect)\s*=\s*["']\/(?!\/)/.test(text)) {
-              const origin = new URL(requestUrl, window.location.origin).origin;
-              ctx.text = text.replace(/((?:hx-sse:connect|sse-connect)\s*=\s*["'])\/(?!\/)/g, "$1" + origin + "/");
-            }
-          } catch { /* non-fatal */ }
-
           scheduleBootstrapOverlaySync();
           const bpElement = requestBpElement(detail.ctx?.__bpRoute || detail.ctx?.sourceElement);
           if (bpElement
@@ -3009,6 +3010,15 @@ export function betterPortalShellRuntimeSource(): string {
           // Clear fragment loading on error
           if (target instanceof Element && !isMainTarget(target)) {
             target.classList.remove("bp-fragment-loading");
+          }
+
+          const localError = ctx?.sourceElement instanceof Element ? mutationErrorOutlet(ctx.sourceElement) : null;
+          if (localError && !isMainTarget(target)) {
+            localError.textContent = "Service unavailable or blocked by network policy. Try the action again.";
+            localError.hidden = false;
+            localError.setAttribute("tabindex", "-1");
+            localError.focus({ preventScroll: true });
+            return;
           }
 
           if (!requestTargetsMain(detail)) return;

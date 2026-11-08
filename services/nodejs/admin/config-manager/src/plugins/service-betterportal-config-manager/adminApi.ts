@@ -35,6 +35,7 @@ import {
   type M2MConnectionSelection
 } from "./m2mConnections.js";
 import { isPreviewApp } from "./previewEnvironments.js";
+import { renderServiceConnection } from "./serviceConnections.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
@@ -211,7 +212,9 @@ export function validateFixedParamValue(
   paramsSchema?: Record<string, JsonValue>
 ): string | undefined {
   if (value.length > 100) return `${name} must be at most 100 characters.`;
-  if (!paramsSchema) return undefined;
+  // The SDK publishes {} when no parameter schema was declared. This is
+  // different from an explicitly declared AnyVali object with no such field.
+  if (!paramsSchema || Object.keys(paramsSchema).length === 0) return undefined;
 
   try {
     const document = paramsSchema as unknown as AnyValiDocument;
@@ -2178,10 +2181,17 @@ export function registerAdminApiRoutes(
     const config = await store.loadConfig();
     const appDef = config.apps.find((candidate) => candidate.id === appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
+    if (wantsHtmx(event) && selections.length !== 1) return htmxError("Choose one service connection to update", 400);
     try {
       const result = approveM2MConnections(config, appId, selections);
       if (result.created.length > 0) await store.saveConfig(config);
-      if (wantsHtmx(event)) return htmxReload(`/services?tenantId=${encodeURIComponent(appDef.tenantId)}&appId=${encodeURIComponent(appId)}`);
+      if (wantsHtmx(event)) {
+        const connections = buildM2MConnectionModel(config, appId);
+        const selected = selections.length === 1 ? connections.find(connection => connection.sourceServiceId === selections[0].sourceServiceId && connection.requestId === selections[0].requestId) : undefined;
+        return selected
+          ? htmlResponse(String(renderServiceConnection(selected, appId, API_BASE)), 200, "text/html; mode=fragment")
+          : htmxError("Service connection is no longer available", 404);
+      }
       return jsonResponse(result as unknown as JsonValue, result.created.length > 0 ? 201 : 200);
     } catch (error) {
       const status = error instanceof M2MConnectionError ? error.status : 500;
@@ -2196,11 +2206,15 @@ export function registerAdminApiRoutes(
     if (!appId || !bindingId) return jsonResponse({ error: "appId and bindingId required" }, 400);
     const config = await store.loadConfig();
     const appDef = config.apps.find((candidate) => candidate.id === appId);
+    const previous = buildM2MConnectionModel(config, appId).find(connection => connection.bindingId === bindingId);
     if (!appDef || !revokeM2MConnection(config, appId, bindingId)) {
       return wantsHtmx(event) ? htmxError("Service connection not found", 404) : jsonResponse({ error: "Service connection not found" }, 404);
     }
     await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(`/services?tenantId=${encodeURIComponent(appDef.tenantId)}&appId=${encodeURIComponent(appId)}`);
+    if (wantsHtmx(event)) {
+      const selected = previous && buildM2MConnectionModel(config, appId).find(connection => connection.sourceServiceId === previous.sourceServiceId && connection.requestId === previous.requestId);
+      return htmlResponse(selected ? String(renderServiceConnection(selected, appId, API_BASE)) : '<div class="list-group-item bp-service-connection">Service connection revoked.</div>', 200, "text/html; mode=fragment");
+    }
     return jsonResponse({ ok: true });
   });
 
@@ -2295,7 +2309,10 @@ export function registerAdminApiRoutes(
         }
         const servicePathError = validateCanonicalRoutePath(requestedServicePath, "Service path");
         if (servicePathError) return validationError(event, servicePathError);
-        const submittedFixed = fixedParamsFromBody(body);
+        const hasFixedParams = Object.keys(body).some(key => key.startsWith("fixedParam."));
+        const submittedFixed = !hasFixedParams && !routeIdentityChanged && body.servicePathVariant === undefined
+          ? route.fixedParams ?? {}
+          : fixedParamsFromBody(body);
         const pageRenderable = isPageOperation(manifestOperation);
         const mappedAppPath = !pageRenderable
           ? apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath)

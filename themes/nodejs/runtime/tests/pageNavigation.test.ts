@@ -4,6 +4,8 @@ import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 import { buildServiceViewUrl, resolveAppRoute } from "../../../../framework/nodejs/src/runtime/configProvider.js";
 import type { BetterPortalApp } from "../../../../framework/nodejs/src/contracts/platformConfig.js";
+import { renderServiceConnection } from "../../../../services/nodejs/admin/config-manager/src/plugins/service-betterportal-config-manager/serviceConnections.js";
+import type { M2MConnectionView } from "../../../../services/nodejs/admin/config-manager/src/plugins/service-betterportal-config-manager/m2mConnections.js";
 
 const list = { href: "/ui/batches", requestUrl: "https://service.test/batches", serviceId: "service", kind: "page", title: "Import batches" };
 const detail = { ...list, href: "/ui/batches/:batchId", requestUrl: "https://service.test/batches/%3AbatchId", title: "Batch details" };
@@ -13,10 +15,11 @@ const response = (route: Route, body: string, chrome = {}, status = 200, mode = 
   contentType: `text/html; mode=${mode}` + Object.entries(chrome).map(([key, value]) => `; bp-chrome-${key}=${encodeURIComponent(Array.isArray(value) ? JSON.stringify(value) : String(value))}` + (Array.isArray(value) ? `; bp-array-chrome-${key}=true` : "")).join(""),
   headers: { "access-control-allow-origin": "*" }
 });
-async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches", errorOutlet = false) {
+async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches", errorOutlet = false, requests?: string[]) {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
+  if (requests) page.on("request", request => requests.push(request.url()));
   page.setDefaultTimeout(5000);
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -30,7 +33,7 @@ async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) =>
     if (!mount) return route.fulfill({ status: 404, body: "No page mount" });
     const action = buildServiceViewUrl({ hostname: "https://service.test" }, mount, url.pathname)! + url.search;
     return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><title>App</title><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
-      <div data-bp-shell-root data-bp-menu-health="false" data-bp-document-title="App" data-bp-services='{"service":"https://service.test"}' data-bp-routes='${JSON.stringify(mounts)}'>
+      <div data-bp-shell-root data-bp-menu-health="false" data-bp-document-title="App" data-bp-services='${JSON.stringify(Object.fromEntries(mounts.map(mount => [mount.serviceId, "https://service.test"])))}' data-bp-routes='${JSON.stringify(mounts)}'>
       <h1 data-bp-current-title></h1><div data-bp-current-breadcrumb></div><a data-bp-up hidden>Up</a><button data-bp-back>Back</button>
       <main id="bp-main" data-bp-service="service" hx-get="${action}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></main></div><div id="error-outlet"></div><script>window.BetterPortalShellAdapter = { applyChrome: chrome => { window.appliedChrome = chrome; } ${errorOutlet ? ', showRequestError: (status, html) => { document.getElementById("error-outlet").innerHTML = html; }' : ''} };</script><script>${asset.body}</script></body></html>` });
   });
@@ -48,6 +51,130 @@ test("undeclared child links cannot invent page mounts", async t => {
   assert.equal(page.url(), "https://app.test/ui/batches");
   assert.equal(requests, 1);
   assert.deepEqual(errors, []);
+});
+
+test("page filters infer navigation, retain submitted values and survive direct refresh on an aliased mount", async t => {
+  const mounted = { ...list, href: "/configuration/services", requestUrl: "https://service.test/services", title: "Services" };
+  const { page, errors } = await shell(t, [mounted,
+    { ...list, href: "/services", requestUrl: "https://service.test/unrelated" },
+    { ...mounted, serviceId: "other", href: "/other/services" }], route => {
+    const tenant = new URL(route.request().url()).searchParams.get("tenantId") || "first";
+    const app = new URL(route.request().url()).searchParams.get("appId") || "first";
+    return response(route, `<select id="tenant" name="tenantId" hx-get="/services" hx-trigger="change"><option value="first" ${tenant === "first" ? "selected" : ""}>First</option><option value="second" ${tenant === "second" ? "selected" : ""}>Second</option></select><select id="app" name="appId" hx-get="/services" hx-trigger="change" hx-include="#tenant"><option value="first" ${app === "first" ? "selected" : ""}>First</option><option value="other" ${app === "other" ? "selected" : ""}>Other</option></select><p id="selected">${tenant}</p>`);
+  }, "/configuration/services");
+  await page.waitForSelector("#tenant");
+  assert.equal(await page.locator("#tenant").getAttribute("data-bp-shell-route"), "page");
+  assert.equal(await page.locator("#tenant").getAttribute("hx-get"), "https://service.test/services");
+  await page.locator("#tenant").selectOption("second");
+  await page.waitForURL("https://app.test/configuration/services?tenantId=second");
+  await page.waitForFunction(() => document.querySelector("#selected")?.textContent === "second");
+  await page.locator("#app").selectOption("other");
+  await page.waitForURL(url => url.pathname === "/configuration/services" && url.searchParams.get("tenantId") === "second" && url.searchParams.get("appId") === "other");
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector("#selected")?.textContent === "second");
+  assert.equal(await page.locator("#app").inputValue(), "other");
+  await page.goBack();
+  await page.waitForURL("https://app.test/configuration/services?tenantId=second");
+  await page.goBack();
+  await page.waitForURL("https://app.test/configuration/services");
+  assert.deepEqual(errors, []);
+});
+
+test("unregistered contextual owners do not emit or request a fabricated service origin", async t => {
+  const requests: string[] = [];
+  const { page } = await shell(t, [list], route => response(route,
+    '<div data-bp-service-id="missing"><select id="unknown" hx-get="/services" hx-target="#local"><option value="first">First</option><option value="second">Second</option></select><div hx-get="/services?load" hx-trigger="load" hx-target="#local"></div><form hx-post="/services?form" hx-target="#local"><input id="entry" name="value"><button>Submit</button></form><div id="local"></div></div>'), "/ui/batches", false, requests);
+  await page.waitForSelector("#unknown");
+  assert.equal(await page.locator("#unknown").getAttribute("hx-get"), "/services");
+  assert.ok(await page.locator("#unknown").getAttribute("data-bp-route-error"));
+  await page.locator("#unknown").selectOption("second");
+  await page.locator("#entry").press("Enter");
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
+  assert.deepEqual(requests.filter(url => url.includes("/services")), [], "change, load and keyboard submissions must honor the route-error guard");
+});
+
+test("unknown SSE owners disable only their connection and preserve valid actions", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, [list], route => response(route,
+    new URL(route.request().url()).pathname === "/action" ? '<p id="done">Done</p>'
+      : '<div data-bp-service-id="missing"><button id="sse-action" hx-sse:connect="/events" hx-get="https://service.test/action" hx-target="#local">Run</button><div id="legacy-sse" sse-connect="/legacy-events"></div><div id="local"></div></div>'), "/ui/batches", false, requests);
+  await page.waitForSelector("#sse-action");
+  assert.equal(await page.locator("#sse-action").getAttribute("hx-sse:connect"), null);
+  assert.equal(await page.locator("#legacy-sse").getAttribute("sse-connect"), null);
+  assert.equal(await page.locator("#sse-action").getAttribute("data-bp-route-error"), null);
+  await page.locator("#sse-action").click();
+  await page.waitForSelector("#done");
+  assert.deepEqual(requests.filter(url => url.includes("events") || url.includes("betterportal.invalid")), []);
+  assert.deepEqual(errors, []);
+});
+
+test("connection mutations replace one row and keep HTTP and network errors inside that component", async t => {
+  const connection: M2MConnectionView = { sourceServiceId: "source", sourceServiceTitle: "Source", sourceServiceType: "source.plugin", requestId: "read",
+    title: "Read reports", contractId: "reports", mode: "service", methods: ["GET"], permissions: ["read"], optional: false,
+    status: "pending", message: "Choose a provider", candidates: [{ targetServiceId: "provider", targetServiceTitle: "Provider", targetServiceType: "provider.plugin", targetViewId: "reports" }] };
+  let failure = "", connected = false, pages = 0;
+  const row = () => String(renderServiceConnection({ ...connection, ...(connected ? { bindingId: "binding", status: "connected" as const } : {}) }, "app", "/api"));
+  const { page, errors } = await shell(t, [list], route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,DELETE,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    if (route.request().method() !== "GET") {
+      if (failure === "network") return route.abort("failed");
+      if (failure === "http") return response(route, '<div role="alert">Connection update failed</div>', {}, 500, "fragment");
+      connected = route.request().method() === "POST";
+      return response(route, row(), {}, 200, "fragment");
+    }
+    pages++;
+    return response(route, '<input id="untouched" value="original"><p id="sibling">Other connection</p>' + row());
+  });
+  await page.waitForSelector("#untouched");
+  page.removeAllListeners("dialog");
+  page.on("dialog", dialog => dialog.accept());
+  await page.locator("#untouched").fill("keep my changes");
+  await page.getByRole("button", { name: /Connect Provider/ }).click();
+  await page.getByRole("button", { name: "Revoke" }).waitFor();
+  failure = "http";
+  await page.getByRole("button", { name: "Revoke" }).click();
+  await page.locator(".bp-service-connection [data-bp-mutation-error]").getByText("Connection update failed").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Revoke" }).count(), 1);
+  failure = "network";
+  await page.getByRole("button", { name: "Revoke" }).click();
+  await page.locator(".bp-service-connection [data-bp-mutation-error]").getByText(/Service unavailable/).waitFor();
+  failure = "";
+  await page.getByRole("button", { name: "Revoke" }).click();
+  await page.getByRole("button", { name: /Connect Provider/ }).waitFor();
+  assert.equal(await page.locator("#untouched").inputValue(), "keep my changes");
+  assert.equal(await page.locator("#sibling").textContent(), "Other connection");
+  assert.equal(page.url(), "https://app.test/ui/batches");
+  assert.equal(pages, 1);
+  assert.deepEqual(errors, []);
+});
+
+test("route-form validation shows the actual error without hiding the page or losing entered values", async t => {
+  const { page, errors } = await shell(t, [list], route => route.request().method() === "POST"
+    ? response(route, '<div class="alert alert-danger">section is missing from the service parameter schema.</div>', {}, 400, "fragment")
+    : response(route, '<div id="route-list">Existing routes</div><form id="route-form" hx-post="/routes" hx-target="this" hx-swap="none" data-bp-mutation-scope><input name="path" value="/crm/users"><input name="fixedParam.section" value="users"><div data-bp-mutation-error role="alert" hidden></div><button>Save route</button></form>'));
+  await page.getByRole("button", { name: "Save route" }).click();
+  await page.locator("#route-form [data-bp-mutation-error]").getByText("section is missing from the service parameter schema.").waitFor();
+  assert.equal(await page.locator("#route-list").isVisible(), true);
+  assert.equal(await page.locator('[name="path"]').inputValue(), "/crm/users");
+  assert.equal(await page.locator('[name="fixedParam.section"]').inputValue(), "users");
+  assert.equal(page.url(), "https://app.test/ui/batches");
+  assert.deepEqual(errors, []);
+});
+
+test("injected component downloads resolve encoded SSE paths without overriding explicit opt-outs", async t => {
+  const { page } = await shell(t, [list], route => new URL(route.request().url()).pathname === "/events"
+    ? route.fulfill({ status: 200, contentType: "text/event-stream", body: ": heartbeat\n\n", headers: { "access-control-allow-origin": "*" } })
+    : new URL(route.request().url()).pathname === "/summary"
+      ? response(route, '<button id="both" hx-download="/file" hx-sse:connect="&#47;events">Download</button><button id="optout" hx-download="/file" sse-connect="/events" data-bp-config="rewrite=false">Opt out</button>', {}, 200, "fragment")
+      : response(route, '<bp-route data-bp-route data-bp-mode="embed" data-bp-state="loading" data-bp-service="service" hx-get="https://service.test/summary" hx-trigger="load" hx-target="this" hx-swap="none"><template data-bp-route-state="ok"><div><template data-bp-route-insertion></template></div></template></bp-route>'));
+  await page.waitForSelector("#both");
+  assert.equal(await page.locator("#both").getAttribute("hx-download"), "https://service.test/file");
+  assert.equal(await page.locator("#both").getAttribute("hx-sse:connect"), "https://service.test/events");
+  assert.equal(await page.locator("#both").getAttribute("data-bp-shell-route"), "download");
+  assert.equal(await page.locator("#optout").getAttribute("hx-download"), "/file");
+  assert.equal(await page.locator("#optout").getAttribute("sse-connect"), "/events");
 });
 
 test("declared parameter routes preserve IDs, static titles, queries and direct refresh", async t => {
