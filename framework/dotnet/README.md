@@ -1018,7 +1018,9 @@ flags and tenant/app counts), and `manifestSync.state` (`local`, `awaiting-sync`
 or `synced`). They include no snapshot, settings, credentials or token claims.
 Operators can read these diagnostics even when a managed service has cached config
 and is awaiting sync. Snapshot replacement or shutdown during verification discards
-the old authorization result. Readiness still determines the HTTP status.
+the old authorization result. Readiness and manifest-sync flags are captured together
+and rechecked after projection, including control-plane denial without a new snapshot.
+Readiness still determines the HTTP status.
 
 The host sets `Cache-Control: private, no-store` and `Vary: Authorization` on
 health responses, including HEAD, preflight and errors. HEAD sends no body;

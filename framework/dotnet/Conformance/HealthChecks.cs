@@ -71,6 +71,7 @@ internal static class HealthChecks
             }
             return Results.Json(new { keys = new[] { key.PublicJwk() } });
         });
+        peer.MapPost("/.well-known/bp/sync/poll", () => Results.Unauthorized());
         peer.MapGet("/unavailable", () => Results.StatusCode(503));
         await peer.StartAsync();
         var snapshot = Copy(Snapshot(Address(peer) + "/jwks"));
@@ -168,6 +169,16 @@ internal static class HealthChecks
                 var diagnostic = await managed.HealthAsync(Bearer(Token())); Diagnostic(diagnostic, sync: "synced");
                 Require(((Node)diagnostic["config"]!)["synced"] is true && ((Node)diagnostic["config"]!)["localConfig"] is false, "Managed config projection");
                 checks += 3;
+                // CP denial suspends readiness without replacing the snapshot while health is verifying its user.
+                await managed.ApplySnapshot(snapshot, manifestSubmitted: true); gate = new();
+                var pendingHealth = managed.HealthAsync(Bearer(Token()));
+                await gate.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                await using var denied = new ControlPlaneSync(managed, Address(peer), "health-test-credential");
+                Require(!await denied.StartAsync(), "Denied CP synchronization succeeded");
+                gate.Release.TrySetResult(); gate = null;
+                var suspended = await pendingHealth.WaitAsync(TimeSpan.FromSeconds(2));
+                Diagnostic(suspended, false, "awaiting-sync");
+                Require(((Node)suspended["config"]!)["synced"] is false, "Suspended sync reported a synchronized config"); checks++;
             }
             await using (var empty = new Service(new Registry([]), declaration))
             { Public(await empty.HealthAsync(Bearer(Token())), false); checks++; }

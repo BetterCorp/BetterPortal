@@ -30,14 +30,15 @@ public sealed partial class Service
                 new AuthContext(tenantId, appId, policy, keys.ResolveAsync), lifetime.Token);
             lifetime.Token.ThrowIfCancellationRequested();
             if (!ReferenceEquals(state, current) || closed) return Public();
-            var ready = Ready;
+            var synced = submitted;
+            var ready = !closed && configApi.Ready && (!managed || synced);
             var diagnostics = new Node { ["ok"] = ready, ["ready"] = ready, ["pluginId"] = schema.Manifest.PluginId, ["version"] = schema.Manifest.Version,
-                ["config"] = new Node { ["synced"] = submitted, ["localConfig"] = !managed,
+                ["config"] = new Node { ["synced"] = synced, ["localConfig"] = !managed,
                     ["tenants"] = ((List<object?>)current.Config["tenants"]!).Count, ["apps"] = ((List<object?>)current.Config["apps"]!).Count },
-                ["manifestSync"] = new Node { ["state"] = submitted ? "synced" : managed ? "awaiting-sync" : "local" } };
+                ["manifestSync"] = new Node { ["state"] = synced ? "synced" : managed ? "awaiting-sync" : "local" } };
             // Projection must finish before the final revision check: replacement also revokes completed verification.
             lifetime.Token.ThrowIfCancellationRequested();
-            return ReferenceEquals(state, current) && !closed ? diagnostics : Public();
+            return ReferenceEquals(state, current) && !closed && submitted == synced && Ready == ready ? diagnostics : Public();
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
         catch (Exception) { return Public(); } // Invalid/unavailable/retired authentication keeps the probe public.
