@@ -31,9 +31,9 @@ jobs:
       BP_AUTH_TEST_POSTGRES: postgres://postgres:bp-test-only@127.0.0.1:5432/bp_auth_test
       BP_CONFIG_TEST_POSTGRES: postgres://postgres:bp-test-only@127.0.0.1:5432/bp_auth_test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 24
           cache: npm
@@ -57,17 +57,17 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 24
           cache: npm
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: framework/conformance/requirements*.txt
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73
         with:
           dotnet-version: '10.0.x'
           cache: true
@@ -137,7 +137,7 @@ jobs:
 
       - name: Preserve packages and conformance report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: native-ports-python-${{ matrix.python }}
           path: ports-artifacts/
