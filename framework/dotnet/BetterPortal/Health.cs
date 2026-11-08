@@ -31,10 +31,13 @@ public sealed partial class Service
             lifetime.Token.ThrowIfCancellationRequested();
             if (!ReferenceEquals(state, current) || closed) return Public();
             var ready = Ready;
-            return new() { ["ok"] = ready, ["ready"] = ready, ["pluginId"] = schema.Manifest.PluginId, ["version"] = schema.Manifest.Version,
+            var diagnostics = new Node { ["ok"] = ready, ["ready"] = ready, ["pluginId"] = schema.Manifest.PluginId, ["version"] = schema.Manifest.Version,
                 ["config"] = new Node { ["synced"] = submitted, ["localConfig"] = !managed,
                     ["tenants"] = ((List<object?>)current.Config["tenants"]!).Count, ["apps"] = ((List<object?>)current.Config["apps"]!).Count },
                 ["manifestSync"] = new Node { ["state"] = submitted ? "synced" : managed ? "awaiting-sync" : "local" } };
+            // Projection must finish before the final revision check: replacement also revokes completed verification.
+            lifetime.Token.ThrowIfCancellationRequested();
+            return ReferenceEquals(state, current) && !closed ? diagnostics : Public();
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
         catch (Exception) { return Public(); } // Invalid/unavailable/retired authentication keeps the probe public.
