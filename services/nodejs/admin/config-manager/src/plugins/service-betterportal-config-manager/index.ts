@@ -1,3 +1,4 @@
+import type { PostgresConfigChanges } from "./storage/configChanges.js";
 import { isPageOperation } from "./routeMounts.js";
 import {
   type BSBServiceConstructor,
@@ -157,6 +158,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private readonly requestConfigs = new WeakMap<BetterPortalEvent, ReturnType<PlatformConfigStore["loadConfig"]>>();
   private webhookRuntime?: { start(): void; stop(): void; drain(): Promise<void> };
   private previewExpiryTimer?: NodeJS.Timeout;
+  private configChanges?: PostgresConfigChanges;
   private outboxTimer?: NodeJS.Timeout;
   private outboxDrain?: Promise<void>;
   private readonly workerId = uuidv7();
@@ -245,7 +247,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private async subscribeConfigChanges(obs: Observable): Promise<void> {
     await this.selfClient.onPlatformConfigChanged(obs, eventObs => this.refreshConfigCaches(eventObs));
-    await this.refreshConfigCaches(obs);
+    if (this.postgresStorage) {
+      this.configChanges = await this.postgresStorage.subscribeChanges(
+        () => this.refreshConfigCaches(obs),
+        error => obs.log.warn("Config change subscription failed: {message}", {
+          message: error instanceof Error ? error.message : String(error)
+        })
+      );
+    } else await this.refreshConfigCaches(obs);
   }
 
   /**
@@ -542,6 +551,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     if (this.previewExpiryTimer) clearInterval(this.previewExpiryTimer);
     if (this.outboxTimer) clearInterval(this.outboxTimer);
     this.webhookRuntime?.stop();
+    await this.configChanges?.close();
+    await this.outboxDrain;
     await super.dispose();
   }
 
@@ -580,6 +591,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       for (const record of records) {
         try {
           if (record.eventName === "platform-config.changed") {
+            // BSB's default transport is process-local. PostgreSQL fans out the
+            // durable outbox invalidation to every replica's live sync streams.
+            await this.postgresStorage!.publishChange();
             await this.events.emitBroadcast("platform-config.changed", obs, {
               revision: Number(record.payload.revision)
             });

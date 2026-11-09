@@ -477,24 +477,25 @@ pgTest("one outbox worker broadcasts grants and revocations to four replica cach
   const { pool, makeStore } = await database(t, config);
   const stores = [makeStore(), makeStore(), makeStore(), makeStore()];
   await Promise.all(stores.map(store => store.initialize()));
-  const listeners = new Map<string, Array<(obs: unknown, input: unknown) => Promise<void>>>();
   const errors: unknown[] = [];
   const obs = { trace: {}, log: { warn(message: string) { errors.push(message); }, debug() {} } };
-  const bus = {
-    async onBroadcast(_context: unknown, _trace: unknown, plugin: string, event: string, listener: (obs: unknown, input: unknown) => Promise<void>) {
-      const key = `${plugin}:${event}`;
-      const handlers = listeners.get(key) ?? [];
-      handlers.push(listener);
-      listeners.set(key, handlers);
-    },
-    async emitBroadcast(_trace: unknown, plugin: string, event: string, ...args: unknown[]) {
-      await Promise.all((listeners.get(`${plugin}:${event}`) ?? []).map(listener => (listener as any)(obs, ...args)));
-    }
-  };
   const plugins: any[] = [];
   const readers: ReadableStreamDefaultReader<Uint8Array>[] = [];
   try {
     for (const [index, store] of stores.entries()) {
+      // Real deployments have separate process-local BSB transports.
+      const listeners = new Map<string, Array<(obs: unknown, input: unknown) => Promise<void>>>();
+      const bus = {
+        async onBroadcast(_context: unknown, _trace: unknown, plugin: string, event: string, listener: (obs: unknown, input: unknown) => Promise<void>) {
+          const key = `${plugin}:${event}`;
+          const handlers = listeners.get(key) ?? [];
+          handlers.push(listener);
+          listeners.set(key, handlers);
+        },
+        async emitBroadcast(_trace: unknown, plugin: string, event: string, ...args: unknown[]) {
+          await Promise.all((listeners.get(`${plugin}:${event}`) ?? []).map(listener => (listener as any)(obs, ...args)));
+        }
+      };
       const plugin = Object.create(ConfigManagerPlugin.prototype) as any;
       const client = new BetterportalConfigManagerClient({ _clients: [] } as never);
       Object.assign(client, { events: new PluginEvents("development", bus as never, client as never, client.__clientEventSchemas!, undefined as never) });
@@ -522,7 +523,6 @@ pgTest("one outbox worker broadcasts grants and revocations to four replica cach
       assert.fail("expected role update was not delivered");
     };
     assert.deepEqual(await Promise.all(readers.map(reader => readRoles(reader, []))), [[], [], [], []]);
-    assert.equal(listeners.get("service-betterportal-config-manager:platform-config.changed")!.length, 4);
     const grant = { id: "admin", title: "Admin", permissions: [{ serviceId, viewId: "frame.layouts", permissions: ["read", "create", "update", "delete"] }] };
     for (const [index, roles] of [[0, [grant]], [1, []]] as const) {
       await stores[index].mutateApp(appId, async data => { data.apps[0].auth!.roles = structuredClone([...roles]); });
@@ -532,7 +532,11 @@ pgTest("one outbox worker broadcasts grants and revocations to four replica cach
       clearInterval(worker.outboxTimer);
       assert.deepEqual(errors, []);
       assert.deepEqual(await Promise.all(readers.map(reader => readRoles(reader, roles))), [roles, roles, roles, roles]);
-      for (const plugin of plugins) assert.deepEqual(plugin.authConfigCache.get(`${tenantId}::${appId}`).auth.roles, roles);
+      const deadline = Date.now() + 5000;
+      while (plugins.some(plugin => !isDeepStrictEqual(plugin.authConfigCache.get(`${tenantId}::${appId}`).auth.roles, roles))) {
+        assert.ok(Date.now() < deadline, "replica verifier caches did not converge");
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
       assert.equal((await pool.query("select count(*)::int as count from bp_platform_config_outbox")).rows[0].count, 0);
     }
     assert.deepEqual(errors, []);
@@ -541,6 +545,7 @@ pgTest("one outbox worker broadcasts grants and revocations to four replica cach
     for (const plugin of plugins) {
       clearInterval(plugin.outboxTimer);
       await plugin.outboxDrain;
+      await plugin.configChanges.close();
     }
   }
 });
@@ -883,4 +888,39 @@ pgTest("menu edits preserve unavailable auth and shell dependency protections", 
     assert.equal((await pool.query(`select count(*)::int as count from bp_platform_config_references
       where kind='apps' and entity_id=$1 and target_kind='tenantServices' and target_id=$2`, [app.id, serviceId])).rows[0].count, 1);
   }
+});
+
+pgTest("config notifications retry failed reads and reconnect with a fresh snapshot", async t => {
+  const { makeStore, pool, config } = await database(t);
+  const reader = makeStore(), writer = makeStore();
+  await Promise.all([reader.initialize(), writer.initialize()]);
+  let roles: string[] = [], fail = false;
+  const errors: unknown[] = [];
+  const subscription = await reader.subscribeChanges(async () => {
+    if (fail) { fail = false; throw new Error("temporary projection failure"); }
+    roles = (await reader.loadConfig()).apps[0].auth!.roles.map(role => role.id);
+  }, error => errors.push(error));
+  t.after(() => subscription.close());
+  const waitFor = async (predicate: () => boolean) => {
+    const deadline = Date.now() + 5000;
+    while (!predicate()) {
+      assert.ok(Date.now() < deadline, "notification recovery timed out");
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  };
+  fail = true;
+  await writer.mutateApp(config.apps[0].id, async data => {
+    data.apps[0].auth!.roles = [{ id: "admin", title: "Admin", permissions: [] }];
+  });
+  await writer.publishChange();
+  await waitFor(() => roles.includes("admin"));
+  assert.match(String(errors[0]), /temporary projection failure/);
+  const oldClient = (subscription as any).client;
+  await pool.query("select pg_terminate_backend($1)", [oldClient.processID]);
+  await writer.mutateApp(config.apps[0].id, async data => { data.apps[0].auth!.roles = []; });
+  // No notification: the reconnect itself must catch a commit made while offline.
+  await waitFor(() => roles.length === 0);
+  assert.notEqual((subscription as any).client, oldClient);
+  await subscription.close();
+  assert.equal((subscription as any).client, undefined);
 });
