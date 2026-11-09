@@ -46,7 +46,7 @@
     "argon2": "^0.45.1",
     "bcrypt": "^6.0.0",
     "jsx-htmx": "4.0.100",
-    "openid-client": "^6.8.8",
+    "openid-client": "^6.8.9",
     "otplib": "^13.5.0",
     "pg": "^8.23.0"
   },
