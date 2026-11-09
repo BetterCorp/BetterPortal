@@ -23,7 +23,8 @@ export class PostgresConfigChanges {
 
   private async connect(): Promise<void> {
     if (this.stopped) return;
-    const client = new Client({ connectionString: this.connectionString, application_name: "bp-config-changes" });
+    const client = new Client({ connectionString: this.connectionString, application_name: "bp-config-changes",
+      connectionTimeoutMillis: 10_000, keepAlive: true, keepAliveInitialDelayMillis: 10_000 });
     this.client = client;
     const disconnected = () => {
       if (this.client !== client || this.stopped) return;

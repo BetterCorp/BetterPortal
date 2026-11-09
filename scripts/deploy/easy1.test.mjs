@@ -101,3 +101,22 @@ test('readiness has a bounded timeout and tolerates transient connection errors'
   assert.equal(attempts, 2);
   await assert.rejects(waitFor(() => false, clock), /Timed out/);
 });
+
+
+test('a failed rebuild of the active version rolls all services back to the previous release', async () => {
+  const calls = [];
+  await assert.rejects(rollout({ current, previous, target: current,
+    move: async (...args) => calls.push(['move', ...args]),
+    deploy: async version => { calls.push(['deploy', version]); if (version === current.version) throw new Error('rebuild failed'); }
+  }), /all seven services restored to 11.0.8/);
+  assert.deepEqual(calls, [['deploy', '11.0.11'], ['move', 'old', 'prior', 'prior', 'old'], ['deploy', '11.0.8']]);
+});
+
+test('a successful rebuild retains both existing release pointers', async () => {
+  const calls = [];
+  const result = await rollout({ current, previous, target: current,
+    move: async () => assert.fail('rebuild must retain release pointers'), deploy: async version => calls.push(version) });
+  assert.deepEqual(calls, ['11.0.11']);
+  assert.equal(result.status, 'verified');
+  assert.equal(result.previousVersion, '11.0.8');
+});

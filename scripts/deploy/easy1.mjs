@@ -75,24 +75,27 @@ export async function deployServices(version, hooks, { request = fetch, wait = w
 
 /** The previous pointer is written atomically with the active pointer before any service changes. */
 export async function rollout({ current, previous, target, move, deploy, report = () => {} }) {
-  if (target.sha === current.sha) return { status: 'unchanged', version: current.version };
-  await move(current.sha, previous?.sha, target.sha, current.sha);
+  const rebuild = target.sha === current.sha;
+  const recovery = rebuild ? previous : current;
+  if (!recovery) throw new Error('A previous release is required for rebuild recovery');
+  if (!rebuild) await move(current.sha, previous?.sha, target.sha, current.sha);
   try {
     await deploy(target.version);
-    const result = { status: 'deployed', version: target.version, previousVersion: current.version };
+    const result = { status: rebuild ? 'verified' : 'deployed', version: target.version, previousVersion: recovery.version };
     report(result);
     return result;
   } catch (error) {
-    report({ status: 'rolling-back', version: target.version, previousVersion: current.version });
+    report({ status: 'rolling-back', version: target.version, previousVersion: recovery.version });
     try {
-      await move(target.sha, current.sha, current.sha, previous?.sha);
-      await deploy(current.version);
+      if (rebuild) await move(current.sha, previous.sha, previous.sha, current.sha);
+      else await move(target.sha, current.sha, current.sha, previous?.sha);
+      await deploy(recovery.version);
     } catch {
-      report({ status: 'rollback-failed', version: target.version, previousVersion: current.version });
+      report({ status: 'rollback-failed', version: target.version, previousVersion: recovery.version });
       throw new Error('Deployment failed and rollback needs attention. Inspect all seven services.');
     }
-    report({ status: 'rolled-back', version: target.version, previousVersion: current.version });
-    throw new Error(`Deployment failed; all seven services restored to ${current.version}`, { cause: error });
+    report({ status: 'rolled-back', version: target.version, previousVersion: recovery.version });
+    throw new Error(`Deployment failed; all seven services restored to ${recovery.version}`, { cause: error });
   }
 }
 
@@ -160,12 +163,6 @@ async function main() {
     writeFileSync('easy1-deployment.json', JSON.stringify({ ...result, services: services.map(({ name, replicas }) => ({ name, replicas })) }, null, 2));
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Easy1: ${result.status}; requested ${result.version}; previous ${result.previousVersion}.\n\n`);
   };
-  // Dispatching the active version verifies/rebuilds the entire deployment without changing pointers.
-  if (target.sha === current.sha) {
-    await deployServices(target.version, hooks);
-    report({ status: 'verified', version: target.version, previousVersion: previous.version });
-    return;
-  }
   await rollout({ current, previous, target, move: movePointers, deploy: version => deployServices(version, hooks), report });
 }
 
