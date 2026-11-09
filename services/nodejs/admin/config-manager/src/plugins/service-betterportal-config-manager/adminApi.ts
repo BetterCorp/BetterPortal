@@ -3167,7 +3167,7 @@ export function renderConfigClientShell(d: {
     if (control === "multiselect") return Array.from(input.selectedOptions || []).map((option) => option.value).join(",");
     return input.value;
   };
-  const schemaLayout = (schema) => {
+  const schemaLayout = (schema, scope) => {
     const byKey = new Map();
     const groupsById = new Map();
     for (const entry of schema.configSchemas || []) {
@@ -3176,6 +3176,8 @@ export function renderConfigClientShell(d: {
       }
       for (const field of entry.fields || []) {
         if (!field || typeof field.key !== "string" || byKey.has(field.key)) continue;
+        // App settings may inherit tenant defaults; tenant-only settings cannot be overridden.
+        if (scope === "app" && (field.scope || entry.scope) === "tenant") continue;
         const property = entry.jsonSchema?.properties?.[field.key] ?? entry.jsonSchema?.[field.key];
         const type = typeof property === "string" ? property : property?.type;
         const boolean = type === "boolean" || (!type && typeof field.defaultValue === "boolean");
@@ -3214,9 +3216,9 @@ export function renderConfigClientShell(d: {
     return { fields, sections };
   };
   const renderForm = async (schema, token, selectedScope, appId) => {
-    const layout = schemaLayout(schema);
-    const fields = layout.fields;
     const scope = selectedScope === "app" ? "app" : "tenant";
+    const layout = schemaLayout(schema, scope);
+    const fields = layout.fields;
     const apps = cfg.tenantApps || [];
     const selectedAppId = scope === "app"
       ? (apps.some((app) => app.id === appId) ? appId : apps[0]?.id || "")

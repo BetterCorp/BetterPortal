@@ -674,3 +674,57 @@ test("login rate limits use trusted client addresses and reject spoofed proxy ch
   for (let i = 0; i < 100; i++) assert.equal(await attempt("10.0.0.1", `198.51.100.${i + 1}, 192.0.2.1`, `same-client-${i}`), i < 99 ? 401 : 429);
   for (let i = 0; i < 101; i++) assert.equal(await attempt("192.0.2.200", `198.51.100.${i + 1}`, `untrusted-${i}`), i < 100 ? 401 : 429);
 });
+
+
+test("app default roles can override tenant defaults while directory administration remains tenant-only", async t => {
+  const { identity, scope } = fixture(t);
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const service = Object.create(Plugin.prototype) as any;
+  service.identity = identity;
+  service.getPortalConfig = () => ({ apps: [{ tenantId: scope.tenantId, id: scope.appId, auth: { roles: [{ id: "reader" }, { id: "editor" }] } }] });
+  let writes = 0;
+  const write = (appId: string | undefined, values: Record<string, unknown>) => service.mutateServiceConfiguration(scope.tenantId, appId, values, () => ++writes);
+  await write(scope.appId, { defaultRoleIds: '["reader"]', registration: "public", requireMfa: false });
+  await write(scope.appId, { defaultRoleIds: undefined });
+  await assert.rejects(write(scope.appId, { defaultRoleIds: '["*"]' }), /existing app roles/);
+  await assert.rejects(write(scope.appId, { defaultRoleIds: '["missing"]' }), /existing app roles/);
+  await assert.rejects(write(scope.appId, { directoryAdminAppId: undefined }), /tenant scope/);
+  await assert.rejects(write(scope.appId, { directoryAdminAppId: scope.appId }), /tenant scope/);
+  await write(undefined, { directoryAdminAppId: scope.appId });
+  assert.equal(writes, 3);
+});
+
+for (const registration of ["public", "invite-only", "closed"] as const) test(`login exposes public signup only when registration is public: ${registration}`, async () => {
+  const { handleGet } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const { render } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/login/_renderer.bootstrap5/GET.js");
+  const { toHtmlString } = await import("@betterportal/framework/lib/runtime/http.js");
+  const runtime = { isManagement: () => false, policy: async () => ({ ...policy, registration }), configuration: () => ({}) };
+  const response = await handleGet({ plugin: { runtime }, tenant: { id: "tenant" }, app: { id: "app" }, query: {},
+  } as never);
+  assert.equal(response.publicRegistration, registration === "public");
+  const context = { request: { query: {} }, app: { defaultRoute: "/" }, route: () => ({
+    apiPath: "/account", viewPath: "/account", uiPath: "/custom-account", absoluteApiPath: "https://auth.test/account", absoluteViewPath: "https://auth.test/account", absoluteUiPath: "https://app.test/custom-account"
+  }) };
+  const html = toHtmlString(render(response, context as never));
+  assert.equal(html.includes("Create account"), registration === "public");
+  assert.ok(html.includes("Recover your account"));
+});
+
+
+test("login hides social sign-in without valid configured connections", async () => {
+  const { handleGet } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const { render } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/login/_renderer.bootstrap5/GET.js");
+  const { toHtmlString } = await import("@betterportal/framework");
+  const connection = { id: "google", kind: "google", clientId: "client", clientSecret: "private-secret" };
+  const context = { request: { query: {} }, app: { defaultRoute: "/" }, route: () => ({
+    apiPath: "/social", viewPath: "/social", uiPath: "/social", absoluteApiPath: "https://auth.test/social", absoluteViewPath: "https://auth.test/social", absoluteUiPath: "https://app.test/social"
+  }) };
+  for (const configured of [undefined, "", "[]", "invalid-json", "[null]", JSON.stringify([connection])]) {
+    const runtime = { isManagement: () => false, policy: async () => policy, configuration: () => ({ socialConnections: configured }) };
+    const result = await handleGet({ plugin: { runtime }, tenant: { id: "tenant" }, app: { id: "app" }, query: {} } as never);
+    const expected = configured === JSON.stringify([connection]);
+    assert.equal(result.socialSignIn, expected);
+    assert.equal(toHtmlString(render(result, context as never)).includes("Sign in with Google, Microsoft or GitHub"), expected);
+    assert.ok(!JSON.stringify(result).includes(connection.clientSecret));
+  }
+});

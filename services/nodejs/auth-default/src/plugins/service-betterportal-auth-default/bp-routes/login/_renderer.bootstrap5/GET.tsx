@@ -175,8 +175,9 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
             <div class="alert alert-danger d-none" id="bp-login-error"></div>
             <button type="submit" class="btn btn-primary w-100">Sign in</button>
           </form>
-          {social?.uiPath ? <BPRoute ctx={ctx} {...{ path: "/social" }} class="d-block mt-3"><bp-ok>Sign in with Google, Microsoft or GitHub</bp-ok></BPRoute> : null}
-          {accountPage?.uiPath ? <BPRoute ctx={ctx} {...{ path: "/account" }} class="d-block mt-3"><bp-ok>Register or recover your account</bp-ok></BPRoute> : null}
+          {data.socialSignIn && social?.uiPath ? <BPRoute ctx={ctx} {...{ path: "/social" }} class="d-block mt-3"><bp-ok>Sign in with Google, Microsoft or GitHub</bp-ok></BPRoute> : null}
+          {data.publicRegistration && accountPage?.uiPath ? <BPRoute ctx={ctx} {...{ path: "/account" }} class="d-block mt-3"><bp-ok>Create account</bp-ok></BPRoute> : null}
+          {accountPage?.uiPath ? <BPRoute ctx={ctx} {...{ path: "/account" }} class="d-block mt-3"><bp-ok>Recover your account</bp-ok></BPRoute> : null}
         </div>
       </div>
       <script>{loginScript()}</script>
