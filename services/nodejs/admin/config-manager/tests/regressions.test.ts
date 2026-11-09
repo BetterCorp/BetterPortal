@@ -29,7 +29,7 @@ import { render as renderPreviewConfigEditor } from "../src/plugins/service-bett
 import { resolvePreviewConfigSchemas } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
 import { splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
 import { PostgresStorage } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
-import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
+import { registerAdminApiRoutes, purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { buildDefaultAdminRoutes, registerBootstrapEndpoint } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
 import { registerFragmentsEditorRoutes } from "../src/plugins/service-betterportal-config-manager/fragmentsEditor.js";
 import { registerMenuEditorRoutes } from "../src/plugins/service-betterportal-config-manager/menuEditor.js";
@@ -95,6 +95,9 @@ test("fixed route parameters use the published AnyVali schema", () => {
 
   assert.equal(validateFixedParamValue("accountId", "c3f6025d-08fd-4ce7-b50c-43f4435f2e89", schema), undefined);
   assert.match(validateFixedParamValue("accountId", "not-a-uuid", schema) ?? "", /uuid/i);
+  assert.equal(validateFixedParamValue("section", "users", {}), undefined, "empty publication means no declared parameter schema");
+  assert.match(validateFixedParamValue("section", "users", schema) ?? "", /missing from the service parameter schema/,
+    "a declared schema still requires the parameter to exist");
 });
 
 test("root bootstrap mounts every page action with its generated permissions", () => {
@@ -847,6 +850,51 @@ test("shared activation manifest lookup falls back to its shared service", () =>
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
 });
 
+test("service connection approval and revocation return only their row without page redirects", async t => {
+  const value = s2sConfig();
+  value.config.m2m.bindings = [];
+  value.config.m2m.grants = [];
+  const cache = getManifestCache();
+  const manifest = (serviceId: string, fields: Partial<CachedManifest>): CachedManifest => ({
+    serviceId, manifestVersion: "1", capabilities: [], apiContracts: [], m2mRequests: [], developerResources: [], viewIndex: {},
+    configSchemas: [], webhooks: [], fetchedAt: Date.now(), ...fields
+  });
+  cache.set(value.sourceId, manifest("org.example.source", { m2mRequests: [{ id: "reports.read", title: "Read reports", contractId: "reports",
+    version: "1", methods: ["GET"], permissions: ["read"], mode: "service" }] }));
+  cache.set(value.targetId, manifest("org.example.target", { apiContracts: [{ id: "reports", title: "Reports", version: "1", viewId: "reports.list",
+    methods: ["GET"], capabilities: [], permissions: ["read"], modes: ["service"] }] }));
+  t.after(() => { cache.delete(value.sourceId); cache.delete(value.targetId); });
+  const handlers = new Map<string, (event: any) => Promise<Response>>();
+  registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
+    (path: string, handler: (event: any) => Promise<Response>) => handlers.set(`${method} ${path}`, handler)
+  ])) as never, new MemoryStorage(value.config), {} as never);
+  const call = (method: string, body?: Record<string, unknown>, bindingId?: string, html = true) => handlers.get(
+    `${method} /.well-known/bp/admin/apps/:appId/m2m/connections${method === "delete" ? "/:bindingId" : ""}`
+  )!({ context: { params: { appId: value.appId, bindingId } }, req: new Request("https://config.example/connections", {
+    method: method.toUpperCase(), headers: { "content-type": "application/json", ...(html ? { "hx-request": "true" } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {})
+  }) });
+  const selection = { sourceServiceId: value.sourceId, requestId: "reports.read" };
+  const approved = await call("post", selection);
+  assert.equal(approved.status, 200);
+  assert.equal(approved.headers.get("HX-Location"), null);
+  const approvedHtml = await approved.text();
+  assert.equal((approvedHtml.match(/data-bp-mutation-scope=/g) ?? []).length, 1);
+  assert.match(approvedHtml, />Revoke</);
+  assert.doesNotMatch(approvedHtml, /bp-services-page|bp-services-alerts|hx-push-url/);
+  const revoked = await call("delete", undefined, value.config.m2m.bindings[0].id);
+  assert.equal(revoked.status, 200);
+  assert.equal(revoked.headers.get("HX-Location"), null);
+  assert.match(await revoked.text(), /Connect/);
+  const invalid = await call("post", { ...selection, requestId: "missing" });
+  assert.equal(invalid.status, 404);
+  assert.equal(invalid.headers.get("HX-Location"), null);
+  assert.match(await invalid.text(), /alert-danger/);
+  const json = await call("post", selection, undefined, false);
+  assert.equal(json.status, 201);
+  assert.equal((await json.json()).created.length, 1);
+});
+
 test("a replica hydrates shared activation manifest aliases from persisted config", () => {
   hydrateManifestCache({
     manifestCache: [{ serviceId: "shared-service", title: "CRM", viewIndex: {} }],
@@ -1511,6 +1559,8 @@ test("route designer exposes conflicts, stale views, and service identity", () =
   assert.doesNotMatch(html, /submit\?\.classList\.toggle\("d-none", conflict\)/);
   assert.match(html, /\/reports\/:reportId\/pdf/);
   assert.match(html, /data-bp-add-route-submit/);
+  assert.match(html, /id="bp-add-route-form"[^>]*hx-target="this"[^>]*hx-swap="none"[^>]*data-bp-mutation-scope/);
+  assert.match(html, /id="bp-add-route-error"[^>]*data-bp-mutation-error[^>]*role="alert"[^>]*hidden/);
   assert.doesNotMatch(html, /wantedPath \+ .*unavailable/);
   assert.match(html, /TRG One Theme · service\.trg-one\.crm/);
   assert.match(html, /bp-api-routes-service-a/);
@@ -1675,7 +1725,8 @@ test("service registration stays browser-mediated and tenant history follows the
     tenantApps: { "tenant-a": [{ id: "app-a", title: "App A" }] },
     adminApiBase: "/.well-known/bp/admin"
   }));
-  assert.match(html, /id="bp-services-tenant-filter"[^>]*hx-push-url="true"/);
+  assert.match(html, /id="bp-services-tenant-filter"[^>]*hx-get="\/services"/);
+  assert.doesNotMatch(html, /id="bp-services-(?:tenant|app)-filter"[^>]*hx-(?:target|swap|push-url)=/);
   assert.match(html, /id="bp-services-app-filter"/);
   assert.match(html, /\/apps\/app-a\/m2m\/connections/);
   assert.match(html, /Connect CRM \/ org\.example\.crm/);

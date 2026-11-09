@@ -589,10 +589,28 @@ function ensureAuthRouteMounts(config: BetterPortalConfig, appDef: BetterPortalA
   if (!manifest) return;
 
   const desiredRoles = new Set(["auth.login", "auth.logout", "auth.refresh", "auth.register"]);
+  // Account handles public signup, verification, recovery and MFA completion.
+  // These operations are not all tagged with the legacy auth roles.
+  const desiredOperations = new Set(["auth.account.view", "auth.account", "auth.social.view", "auth.social"]);
   for (const view of Object.values(manifest.viewIndex)) {
-    for (const operation of view.operations.filter((candidate) => candidate.role && desiredRoles.has(candidate.role))) {
-      if (appDef.routes.some((route) => route.serviceId === authServiceId && route.operations.includes(operation.operationId))) continue;
+    for (const operation of view.operations.filter((candidate) => desiredOperations.has(candidate.operationId) || (candidate.role && desiredRoles.has(candidate.role)))) {
       const page = operation.method === "GET" && operation.renderModes.includes("page");
+      const matches = appDef.routes.filter((route) => route.serviceId === authServiceId && route.operations.includes(operation.operationId));
+      const existing = matches.find(route => !page || route.kind !== "api")
+        ?? matches.find(route => route.enablement === "auto");
+      if (existing) {
+        // Older dependency reconciliation mounted GET pages as APIs, then disabled
+        // them on conversion to pages. Repair those mounts without losing aliases.
+        if (page && existing.enablement !== "disabled") {
+          if (existing.kind === "api") {
+            existing.kind = "page";
+            existing.path = pageRoutePath(manifest.serviceId, view.path);
+            existing.targetPath = view.path;
+          }
+          existing.enabled = true;
+        }
+        continue;
+      }
       const path = page ? pageRoutePath(manifest.serviceId, view.path) : apiRoutePath(manifest.serviceId, view.path);
       appDef.routes.push({
         id: uuidv7(),

@@ -154,7 +154,6 @@ const PERMISSION_OPTIONS = [
 export function render(data: ResponseData): HtmlRenderable {
   const serviceUrl = data.serviceBaseUrl ?? "";
   const apiBase = serviceUrl + data.adminApiBase;
-  const authPath = `${serviceUrl}/auth`;
   const selectedApp = data.apps.find((a) => a.id === data.selectedAppId);
   const externalRoleSync = data.externalRoleSync;
   const managedRoleSync = data.managedRoleSync;
@@ -178,11 +177,8 @@ export function render(data: ResponseData): HtmlRenderable {
           class="form-select"
           id="bp-app-select"
           name="appId"
-          hx-get={authPath}
+          hx-get="/auth"
           hx-trigger="change"
-          hx-target="#bp-main"
-          hx-swap="innerHTML"
-          hx-push-url="true"
         >
           <option value="">Select app...</option>
           {data.apps.map((a) => (
@@ -359,7 +355,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 <label class="form-label">Description (optional)</label>
                 <textarea class="form-control" name="description" rows={2}></textarea>
               </div>
-              <div class="alert alert-danger d-none" id="bp-add-role-error"></div>
+              <div class="alert alert-danger d-none" id="bp-add-role-error" role="alert"></div>
               <button type="submit" class="btn btn-primary w-100">Create Role</button>
               <p class="text-secondary small mt-2 mb-0">Grants are set via the Edit panel after creation.</p>
             </form>
@@ -470,7 +466,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 </div>
               )}
 
-              <div class="alert alert-danger d-none" id="bp-edit-role-error"></div>
+              <div class="alert alert-danger d-none" id="bp-edit-role-error" role="alert"></div>
               <button type="submit" class="btn btn-primary w-100">Save Role</button>
             </form>
           </div>
