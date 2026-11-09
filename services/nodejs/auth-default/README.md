@@ -59,11 +59,15 @@ App settings:
 | `mailHeaders` | Protected JSON object of headers for a custom HTTP service |
 | `socialConnections` | Protected JSON array of connection objects described below |
 
+In the service configuration editor, choose **App override**, select the app, enable the **Default role IDs** override and enter a JSON string array such as `["reader"]`. These IDs must exist in that app. Tenant defaults remain available for app-scoped settings; user isolation and directory administration are tenant-only.
+
 Default roles are applied once at the first completed login, after required verification/factors. Empty initialization is persisted too. Administrative/invitation assignments take precedence. Changing defaults or revoking roles never regrants them on later login. Group membership contributes only the current app's role mappings. The existing `*` root meaning is unchanged; ordinary users have no roles unless assigned.
 
 ## Mount the account routes
 
-Alongside existing `/login`, `/logout`, `/register` and `/refresh`, mount these routes in each app that uses them:
+Creating an app with an authentication service, or saving its authentication service selection, mounts the available login, logout, refresh, bootstrap registration, account and social routes. Public registration uses the account page; login shows a **Create account** link only when the app's effective `registration` setting is `public`.
+
+For manually configured apps, alongside existing `/login`, `/logout`, `/register` and `/refresh`, mount these routes in each app that uses them:
 
 - `/account` (`account.index`): registration, email verification/resend, password reset, profile/password/email changes, factor enrollment/removal, recovery-code display and active-session revocation.
 - `/social` (`social.index`): social sign-in and explicit account linking; its app-shell URL is the provider's registered callback.

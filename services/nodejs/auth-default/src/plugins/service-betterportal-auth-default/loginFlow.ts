@@ -27,6 +27,7 @@ export const RequestSchema = av.object({
 
 export const ResponseSchema = av.object({
   challenge: av.optional(JsonObjectSchema),
+  publicRegistration: av.optional(av.bool()).describe("True when public signup is enabled for this app."),
   status: av.enum_(["ok", "error"] as const).describe("Login request outcome."),
   message: av.optional(av.string()).describe("Human-readable status or error message for the renderer."),
   accessToken: av.optional(av.string()).describe("Signed JWT access token returned on successful login."),
@@ -104,10 +105,12 @@ export const handleGet = createHandler(
       };
     }
 
+    const policy = await runtime.policy({ tenantId: ctx.tenant.id, appId: ctx.app.id });
     return {
       status: "ok" as const,
       message: "Submit username + password via POST to authenticate.",
       requiresFirstAdmin,
+      publicRegistration: !requiresFirstAdmin && policy.registration === "public"
     };
   }
 );

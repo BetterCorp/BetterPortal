@@ -589,8 +589,11 @@ function ensureAuthRouteMounts(config: BetterPortalConfig, appDef: BetterPortalA
   if (!manifest) return;
 
   const desiredRoles = new Set(["auth.login", "auth.logout", "auth.refresh", "auth.register"]);
+  // Account handles public signup, verification, recovery and MFA completion.
+  // These operations are not all tagged with the legacy auth roles.
+  const desiredOperations = new Set(["auth.account.view", "auth.account", "auth.social.view", "auth.social"]);
   for (const view of Object.values(manifest.viewIndex)) {
-    for (const operation of view.operations.filter((candidate) => candidate.role && desiredRoles.has(candidate.role))) {
+    for (const operation of view.operations.filter((candidate) => desiredOperations.has(candidate.operationId) || (candidate.role && desiredRoles.has(candidate.role)))) {
       if (appDef.routes.some((route) => route.serviceId === authServiceId && route.operations.includes(operation.operationId))) continue;
       const page = operation.method === "GET" && operation.renderModes.includes("page");
       const path = page ? pageRoutePath(manifest.serviceId, view.path) : apiRoutePath(manifest.serviceId, view.path);
