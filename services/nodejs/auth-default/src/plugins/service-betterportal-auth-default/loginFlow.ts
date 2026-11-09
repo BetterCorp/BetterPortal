@@ -11,6 +11,7 @@ import { createHandler } from "./.bp-generated/route-runtime.js";
 import { getEventPeerIp, type BetterPortalEvent } from "@betterportal/framework/lib/runtime/h3.js";
 import { AuthError, normalizeAccountIdentifier } from "../../identity.js";
 import { revokePresentedRefreshToken } from "./logoutFlow.js";
+import { socialConnections } from "../../social.js";
 
 export const QuerySchema = av.object({
   action: av.optional(av.string()).describe("Optional login route action, currently supports logout."),
@@ -28,6 +29,7 @@ export const RequestSchema = av.object({
 export const ResponseSchema = av.object({
   challenge: av.optional(JsonObjectSchema),
   publicRegistration: av.optional(av.bool()).describe("True when public signup is enabled for this app."),
+  socialSignIn: av.optional(av.bool()).describe("True when this app has at least one configured social connection."),
   status: av.enum_(["ok", "error"] as const).describe("Login request outcome."),
   message: av.optional(av.string()).describe("Human-readable status or error message for the renderer."),
   accessToken: av.optional(av.string()).describe("Signed JWT access token returned on successful login."),
@@ -105,12 +107,17 @@ export const handleGet = createHandler(
       };
     }
 
-    const policy = await runtime.policy({ tenantId: ctx.tenant.id, appId: ctx.app.id });
+    const scope = { tenantId: ctx.tenant.id, appId: ctx.app.id };
+    const policy = await runtime.policy(scope);
+    let socialSignIn = false;
+    try { socialSignIn = socialConnections(runtime, scope).length > 0; }
+    catch (error) { if (!(error instanceof AuthError)) throw error; }
     return {
       status: "ok" as const,
       message: "Submit username + password via POST to authenticate.",
       requiresFirstAdmin,
-      publicRegistration: !requiresFirstAdmin && policy.registration === "public"
+      publicRegistration: !requiresFirstAdmin && policy.registration === "public",
+      socialSignIn
     };
   }
 );

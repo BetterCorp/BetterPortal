@@ -698,7 +698,7 @@ for (const registration of ["public", "invite-only", "closed"] as const) test(`l
   const { handleGet } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
   const { render } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/login/_renderer.bootstrap5/GET.js");
   const { toHtmlString } = await import("@betterportal/framework/lib/runtime/http.js");
-  const runtime = { isManagement: () => false, policy: async () => ({ ...policy, registration }) };
+  const runtime = { isManagement: () => false, policy: async () => ({ ...policy, registration }), configuration: () => ({}) };
   const response = await handleGet({ plugin: { runtime }, tenant: { id: "tenant" }, app: { id: "app" }, query: {},
   } as never);
   assert.equal(response.publicRegistration, registration === "public");
@@ -708,4 +708,23 @@ for (const registration of ["public", "invite-only", "closed"] as const) test(`l
   const html = toHtmlString(render(response, context as never));
   assert.equal(html.includes("Create account"), registration === "public");
   assert.ok(html.includes("Recover your account"));
+});
+
+
+test("login hides social sign-in without valid configured connections", async () => {
+  const { handleGet } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const { render } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/login/_renderer.bootstrap5/GET.js");
+  const { toHtmlString } = await import("@betterportal/framework");
+  const connection = { id: "google", kind: "google", clientId: "client", clientSecret: "private-secret" };
+  const context = { request: { query: {} }, app: { defaultRoute: "/" }, route: () => ({
+    apiPath: "/social", viewPath: "/social", uiPath: "/social", absoluteApiPath: "https://auth.test/social", absoluteViewPath: "https://auth.test/social", absoluteUiPath: "https://app.test/social"
+  }) };
+  for (const configured of [undefined, "", "[]", "invalid-json", "[null]", JSON.stringify([connection])]) {
+    const runtime = { isManagement: () => false, policy: async () => policy, configuration: () => ({ socialConnections: configured }) };
+    const result = await handleGet({ plugin: { runtime }, tenant: { id: "tenant" }, app: { id: "app" }, query: {} } as never);
+    const expected = configured === JSON.stringify([connection]);
+    assert.equal(result.socialSignIn, expected);
+    assert.equal(toHtmlString(render(result, context as never)).includes("Sign in with Google, Microsoft or GitHub"), expected);
+    assert.ok(!JSON.stringify(result).includes(connection.clientSecret));
+  }
 });

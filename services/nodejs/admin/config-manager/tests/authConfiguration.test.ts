@@ -44,6 +44,21 @@ test("new apps mount public account and social pages with their POST operations"
   config.apps[0].routes = config.apps[0].routes.filter(route => !["account.index", "social.index"].includes(route.viewId));
   await handlePut({ request: { entity: "app", appId: app.id, authServiceId } } as never);
   assert.equal(config.apps[0].routes.length, routeCount);
+  const pages = () => config.apps[0].routes.filter(route => ["auth.account.view", "auth.social.view"].some(id => route.operations.includes(id)));
+  const ids = pages().map(route => route.id);
+  for (const route of pages()) {
+    route.kind = "api"; route.enablement = "auto"; route.path = "/_bp/service/org.betterportal.auth.default" + route.targetPath;
+  }
+  await handlePut({ request: { entity: "app", appId: app.id, authServiceId } } as never);
+  assert.deepEqual(pages().map(route => route.id), ids);
+  assert.ok(pages().every(route => route.kind === "page" && route.enabled && route.path === "/org.betterportal.auth.default" + route.targetPath));
+  for (const route of pages()) { route.enabled = false; route.path = "/custom" + route.targetPath; }
+  await handlePut({ request: { entity: "app", appId: app.id, authServiceId } } as never);
+  assert.ok(pages().every(route => route.enabled && route.path === "/custom" + route.targetPath));
+  for (const route of pages()) { route.enabled = false; route.enablement = "disabled"; }
+  await handlePut({ request: { entity: "app", appId: app.id, authServiceId } } as never);
+  assert.ok(pages().every(route => !route.enabled));
+  assert.equal(config.apps[0].routes.length, routeCount);
 });
 
 test("app config saves, resets and imports omit tenant-only fields and preserve booleans", async t => {
