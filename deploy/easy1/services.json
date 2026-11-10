@@ -1,0 +1,9 @@
+[
+  { "name": "config-manager", "package": "@betterportal/config-manager", "origin": "https://config.eu.betterportal.net", "replicas": 4 },
+  { "name": "auth-default", "package": "@betterportal/auth-default", "origin": "https://default-auth.eu.betterportal.net", "replicas": 1 },
+  { "name": "auth-authress-io", "package": "@betterportal/auth-authress-io", "origin": "https://authress-auth.eu.betterportal.net", "replicas": 2 },
+  { "name": "auth-workos", "package": "@betterportal/auth-workos", "origin": "https://workos-auth.eu.betterportal.net", "replicas": 2 },
+  { "name": "bootstrap1", "package": "@betterportal/theme-bootstrap1", "origin": "https://bootstrap1.eu.betterportal.net", "replicas": 3 },
+  { "name": "embedded", "package": "@betterportal/theme-embedded", "origin": "https://embedded1.eu.betterportal.net", "replicas": 2 },
+  { "name": "hello-view", "package": "@betterportal/hello-view", "origin": "https://hello-view.eu.betterportal.net", "replicas": 1 }
+]

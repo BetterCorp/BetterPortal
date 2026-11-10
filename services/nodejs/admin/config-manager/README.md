@@ -13,3 +13,9 @@ Preview API writes retry revision conflicts up to five total attempts, reloading
 Preview route refreshes consolidate equivalent generated API mounts for the same service, view and URL pattern. For example, separate GET, PUT and DELETE mounts copied from the source app become one generated API mount with all current API operations, preserving the first mount ID and compatible request and presentation settings. Distinct valid aliases and service-path variants survive; aliases retain their selected operations. Conflicting request settings or paths owned by unrelated routes still return HTTP 409. Repeating a successful refresh leaves the routes unchanged; deleting staging is unnecessary. See [preview deployment operations](../../../../docs/operations/preview-environments.md) for an example.
 
 Preview reconciliation also owns API mounts during normal service manifest sync. Generic source-app normalization does not rewrite preview aliases or strip their query strings, fixed parameters or path variants before reconciliation.
+
+PostgreSQL deployments use a dedicated LISTEN connection per Config Manager replica to
+fan out durable configuration outbox invalidations. This keeps role/grant changes visible
+to every replica's open service sync streams even with BSB's default local transport.
+Listeners reload persisted state after reconnecting and retry failed cache refreshes.
+Allow one additional database connection per replica. File storage retains BSB delivery.

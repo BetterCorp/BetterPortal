@@ -1,3 +1,4 @@
+import { PostgresConfigChanges, configChangeChannel } from "./configChanges.js";
 import { isDeepStrictEqual } from "node:util";
 import { AppData, AppDataConflictError, appSettings } from "./appData.js";
 import { existsSync, readFileSync } from "node:fs";
@@ -143,6 +144,21 @@ export class PostgresStorage extends BaseStorage {
     return { pool: this.getPool(), scope: this.rowId, entities: this.entitiesTable,
       tableName: this.tableName, appData: this.appData, references: this.referencesTable,
       outbox: this.outboxTable, activity: this.activityTable, revisions: this.revisionSequence };
+  }
+
+  private async changeChannel(): Promise<string> {
+    const result = await this.getPool().query("select current_schema() as schema");
+    return configChangeChannel(result.rows[0].schema, this.tableName, this.rowId);
+  }
+
+  async subscribeChanges(refresh: () => Promise<void>, report: (error: unknown) => void): Promise<PostgresConfigChanges> {
+    const subscription = new PostgresConfigChanges(this.connectionString, await this.changeChannel(), refresh, report);
+    try { await subscription.start(); } catch (error) { await subscription.close(); throw error; }
+    return subscription;
+  }
+
+  async publishChange(): Promise<void> {
+    await this.getPool().query("select pg_notify($1, '')", [await this.changeChannel()]);
   }
 
   async loadConfig(options: { readOnly?: boolean; obs?: BetterPortalObservability } = {}): Promise<BetterPortalConfig> {

@@ -1,0 +1,55 @@
+name: Deploy Easy1
+
+on:
+  workflow_run:
+    workflows: [Release, Python package, Build]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Deploy a release or roll back all seven services to the previous release
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      version:
+        description: Stable release version for deploy (for example 11.0.11); unused for rollback
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: easy1-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && (startsWith(github.event.workflow_run.head_branch, 'v') || (github.event.workflow_run.name == 'Build' && github.event.workflow_run.head_branch == 'master')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - name: Verify deployment logic
+        run: node --test scripts/deploy/easy1.test.mjs
+      - name: Deploy all services with automatic rollback
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EASY1_DEPLOY_WEBHOOKS: ${{ secrets.EASY1_DEPLOY_WEBHOOKS }}
+        run: node scripts/deploy/easy1.mjs
+      - name: Keep deployment outcome
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: easy1-deployment
+          path: easy1-deployment.json
+          if-no-files-found: ignore
