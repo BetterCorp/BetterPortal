@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { compareVersions, deployServices, rollout, services, validateHooks, waitFor } from './easy1.mjs';
+import { compareVersions, deployServices, rollout, services, validateHooks, waitFor, waitForReleasePackages } from './easy1.mjs';
 
 const current = { sha: 'old', version: '11.0.11' };
 const previous = { sha: 'prior', version: '11.0.8' };
@@ -63,6 +63,29 @@ test('every hook is attempted after a partial failure without exposing its URL',
   }), /auth-default/);
   assert.equal(triggered.length, 7);
   assert.ok(messages.every(message => !message.includes('https://')));
+});
+
+test('deployment readiness waits when npm has published metadata but a tarball is missing', async () => {
+  const checked = [];
+  let frameworkAvailable = false;
+  await waitForReleasePackages('11.0.12', {
+    log() {},
+    wait: async check => {
+      assert.equal(await check(), false);
+      frameworkAvailable = true;
+      assert.equal(await check(), true);
+    },
+    request: async (url, init) => {
+      assert.equal(init.method, 'HEAD');
+      assert.equal(init.redirect, 'error');
+      assert.match(url, /^https:\/\/registry\.npmjs\.org\/@betterportal\/[^/]+\/-\/[^/]+-11\.0\.12\.tgz$/);
+      checked.push(url);
+      return new Response(null, { status: url.includes('/framework/-/') && !frameworkAvailable ? 404 : 200 });
+    }
+  });
+  assert.equal(new Set(checked).size, 10);
+  assert.equal(checked.at(-1), 'https://registry.npmjs.org/@betterportal/framework/-/framework-11.0.12.tgz');
+  assert.equal(checked.length, 11);
 });
 
 test('a rollout waits for publication and checks version and health on every service', async () => {

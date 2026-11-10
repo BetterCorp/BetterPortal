@@ -1,7 +1,8 @@
 # Easy1 release deployment
 
 The normal signed release flow deploys all seven services in `services.json` after
-both publication workflows and master CI succeed for that same commit. Config Manager
+both publication workflows and master CI succeed for that same commit. It waits up to
+ten minutes for the target npm archives before changing the release pointer. Config Manager
 is triggered first. Every service must report the target manifest version and healthy
 status three times before the rollout succeeds. Package selection is exact; BSB remains
 on the reviewed 9.7.5 baseline and anyvali on 1.1.7. The base image is pinned by

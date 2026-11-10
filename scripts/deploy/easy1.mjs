@@ -40,6 +40,34 @@ export async function waitFor(check, { timeoutMs = 900_000, intervalMs = 10_000,
   throw new Error('Timed out waiting for deployment readiness');
 }
 
+export async function waitForReleasePackages(version, { request = fetch, wait = waitFor, log = console.log } = {}) {
+  if (!stableVersion(version)) throw new Error('Expected a stable release version');
+  const packages = [
+    '@betterportal/framework',
+    '@betterportal/plugin-bsb',
+    '@betterportal/theme-runtime',
+    ...services.map(service => service.package)
+  ];
+  const pending = new Set(packages);
+  try {
+    await wait(async () => {
+      await Promise.all([...pending].map(async name => {
+        const filename = name.split('/').at(-1);
+        try {
+          const response = await request(`https://registry.npmjs.org/${name}/-/${filename}-${version}.tgz`, {
+            method: 'HEAD', cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000)
+          });
+          if (response.ok) pending.delete(name);
+        } catch { /* retry packages that are not reachable yet */ }
+      }));
+      return pending.size === 0;
+    }, { timeoutMs: 600_000 });
+  } catch {
+    throw new Error(`npm tarballs for ${version} are not available: ${[...pending].join(', ')}`);
+  }
+  log(`All Easy1 npm tarballs are available for ${version}`);
+}
+
 export async function deployServices(version, hooks, { request = fetch, wait = waitFor, log = console.log } = {}) {
   await wait(async () => {
     const response = await request(releaseUrl, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) });
@@ -163,6 +191,7 @@ async function main() {
     writeFileSync('easy1-deployment.json', JSON.stringify({ ...result, services: services.map(({ name, replicas }) => ({ name, replicas })) }, null, 2));
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Easy1: ${result.status}; requested ${result.version}; previous ${result.previousVersion}.\n\n`);
   };
+  await waitForReleasePackages(target.version);
   await rollout({ current, previous, target, move: movePointers, deploy: version => deployServices(version, hooks), report });
 }
 
