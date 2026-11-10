@@ -32,8 +32,9 @@ pointers; normal application changes still go through master pull requests.
 A failed release restores the previous active pointer and rebuilds **all seven** services
 at the old version, then verifies their public version and health. The workflow remains
 failed so the failed release is visible. A failed rollback reports `rollback-failed` and
-requires operator attention. Each rollout and rollback has a 20 minute readiness budget;
-the job has 90 minutes to allow completion of recovery.
+requires operator attention. Each rollout and rollback allows up to ten minutes for
+the release pointer to become visible, followed by a separate twenty minute deployment
+and readiness budget. The job has ninety minutes to allow completion of recovery.
 
 For a later manual rollback, run **Deploy Easy1** from master with action **rollback**;
 this uses `deploy/easy1-previous`. To deploy a specific older signed release, choose

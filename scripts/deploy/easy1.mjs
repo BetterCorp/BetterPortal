@@ -41,11 +41,11 @@ export async function waitFor(check, { timeoutMs = 900_000, intervalMs = 10_000,
 }
 
 export async function deployServices(version, hooks, { request = fetch, wait = waitFor, log = console.log } = {}) {
-  const deadline = Date.now() + 20 * 60_000;
   await wait(async () => {
     const response = await request(releaseUrl, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) });
     return response.ok && (await response.json()).version === version;
   }, { timeoutMs: 600_000 });
+  const deadline = Date.now() + 20 * 60_000;
   // Trigger all seven even if an earlier trigger failed: rollback also repairs partial deployments.
   const failed = [];
   for (const service of services) {
