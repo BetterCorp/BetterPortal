@@ -4,7 +4,8 @@ The normal signed release flow deploys all seven services in `services.json` aft
 both publication workflows and master CI succeed for that same commit. Config Manager
 is triggered first. Every service must report the target manifest version and healthy
 status three times before the rollout succeeds. Package selection is exact; BSB remains
-on the reviewed 9.7.5 baseline and anyvali on 1.1.7.
+on the reviewed 9.7.5 baseline and anyvali on 1.1.7. The base image is pinned by
+its immutable multi-platform digest so a tag update cannot alter recovery builds.
 
 Each service's inline Easypanel Dockerfile is the corresponding file here. It reads the
 root package version from `deploy/easy1`, a Git branch pointing at a signed release

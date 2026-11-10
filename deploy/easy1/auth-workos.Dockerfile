@@ -1,4 +1,4 @@
-FROM code.bettercorp.dev/bettercorp/service-base:node-latest
+FROM code.bettercorp.dev/bettercorp/service-base@sha256:eeb2f5d15c389557fc71554a8ea8400999a43e4575e0e4ce2b5db29cf333211a
 WORKDIR /home/bsb
 ENV BSB_PLUGIN_DIRS=""
 ADD https://raw.githubusercontent.com/BetterCorp/BetterPortal/deploy/easy1/package.json /tmp/betterportal-release.json
