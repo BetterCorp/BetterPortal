@@ -51,7 +51,7 @@ export async function deployServices(version, hooks, { request = fetch, wait = w
   for (const service of services) {
     log(`Deploying ${service.name} to ${version}`);
     try {
-      const response = await request(hooks[service.name], { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(60_000) });
+      const response = await request(hooks[service.name], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', redirect: 'error', signal: AbortSignal.timeout(60_000) });
       if (!response.ok) failed.push(service.name);
     } catch { failed.push(service.name); }
   }

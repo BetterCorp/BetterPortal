@@ -71,7 +71,11 @@ test('a rollout waits for publication and checks version and health on every ser
     log() {},
     wait: async check => { for (let i = 0; i < 5; i++) if (await check()) return; assert.fail('service not ready'); },
     request: async (url, init) => {
-      if (init.method === 'POST') { triggered.push(url); return new Response(''); }
+      if (init.method === 'POST') {
+        assert.equal(init.headers['Content-Type'], 'application/json');
+        assert.equal(init.body, '{}');
+        triggered.push(url); return new Response('');
+      }
       checked.add(url);
       return Response.json(url.endsWith('/health') ? { ok: true } : { version: '11.0.12' });
     }
