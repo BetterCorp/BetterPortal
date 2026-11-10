@@ -45,7 +45,7 @@ export async function deployServices(version, hooks, { request = fetch, wait = w
   await wait(async () => {
     const response = await request(releaseUrl, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) });
     return response.ok && (await response.json()).version === version;
-  }, { timeoutMs: 300_000 });
+  }, { timeoutMs: 600_000 });
   // Trigger all seven even if an earlier trigger failed: rollback also repairs partial deployments.
   const failed = [];
   for (const service of services) {
