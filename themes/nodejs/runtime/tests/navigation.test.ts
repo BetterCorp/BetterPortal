@@ -159,7 +159,9 @@ test("connection errors keep the main area inert and Reload makes only one expli
   await page.locator('[data-bp-error-action="reload"]').hover();
   await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
   assert.equal(requests, initialRequests);
+  const failedReload = page.waitForEvent("requestfailed", request => new URL(request.url()).hostname === "service.test");
   await page.locator('[data-bp-error-action="reload"]').click();
+  await failedReload;
   await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Connection Error"));
   assert.equal(requests, initialRequests + 1);
   assert.equal(await page.locator("#bp-main").getAttribute("hx-get"), null);
