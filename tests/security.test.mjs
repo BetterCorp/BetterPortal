@@ -72,3 +72,20 @@ test("coverage still loads YAML configuration with the maintained parser", async
     assert.deepEqual(nycConfig.reporter, ["text"]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("release OIDC permission is limited to npm publishing jobs", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/publish.yml", import.meta.url), "utf8");
+  const topLevel = workflow.slice(0, workflow.indexOf("\njobs:\n"));
+  assert.doesNotMatch(topLevel, /^\s+id-token:\s+write\s*$/m);
+
+  for (const [job, next] of [
+    ["publish-core", "publish-plugin-packages"],
+    ["publish-plugin-packages", "publish-bsb-schemas"]
+  ]) {
+    const start = workflow.indexOf(`\n  ${job}:\n`);
+    assert.notEqual(start, -1, `${job} must exist`);
+    const nextJob = workflow.indexOf(`\n  ${next}:\n`, start + job.length + 4);
+    const section = workflow.slice(start, nextJob);
+    assert.match(section, /^\s{6}id-token:\s+write\s*$/m, `${job} needs npm provenance OIDC`);
+  }
+});
