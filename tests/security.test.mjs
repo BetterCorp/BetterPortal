@@ -7,6 +7,7 @@ import { loadNycConfig } from "@istanbuljs/load-nyc-config";
 import test from "node:test";
 import uri from "fast-uri";
 import serialize from "serialize-javascript";
+import { parse as parseYaml } from "yaml";
 
 const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 
@@ -75,21 +76,19 @@ test("coverage still loads YAML configuration with the maintained parser", async
 
 test("release OIDC permission is limited to npm publishing jobs", () => {
   const workflow = readFileSync(new URL("../.github/workflows/publish.yml", import.meta.url), "utf8");
-  const topLevel = workflow.slice(0, workflow.indexOf("\njobs:\n"));
-  assert.doesNotMatch(topLevel, /^permissions:\s*write-all\s*$/m);
-  assert.doesNotMatch(topLevel, /^\s+id-token:\s+write\s*$/m);
+  const definition = parseYaml(workflow);
+  assert.notEqual(definition.permissions, "write-all", "workflow must not receive write-all");
+  assert.notEqual(definition.permissions?.["id-token"], "write", "workflow must not receive OIDC");
 
-  const jobs = [...workflow.matchAll(/^  ([a-zA-Z0-9_-]+):\s*$/gm)];
   const oidcJobs = new Set(["publish-core", "publish-plugin-packages"]);
-  for (const [index, match] of jobs.entries()) {
-    const job = match[1];
-    const section = workflow.slice(match.index, jobs[index + 1]?.index ?? workflow.length);
+  for (const [job, configuration] of Object.entries(definition.jobs ?? {})) {
+    const permissions = configuration?.permissions;
     if (oidcJobs.has(job)) {
-      assert.match(section, /^\s{6}id-token:\s+write\s*$/m, `${job} needs npm provenance OIDC`);
+      assert.equal(permissions?.["id-token"], "write", `${job} needs npm provenance OIDC`);
       oidcJobs.delete(job);
     } else {
-      assert.doesNotMatch(section, /^\s{4}permissions:\s*write-all\s*$/m, `${job} must not receive write-all`);
-      assert.doesNotMatch(section, /^\s{6}id-token:\s+write\s*$/m, `${job} must not receive OIDC`);
+      assert.notEqual(permissions, "write-all", `${job} must not receive write-all`);
+      assert.notEqual(permissions?.["id-token"], "write", `${job} must not receive OIDC`);
     }
   }
   assert.deepEqual([...oidcJobs], [], "all npm publishing jobs must exist");
