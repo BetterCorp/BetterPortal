@@ -7,6 +7,7 @@ import { loadNycConfig } from "@istanbuljs/load-nyc-config";
 import test from "node:test";
 import uri from "fast-uri";
 import serialize from "serialize-javascript";
+import { parse as parseYaml } from "yaml";
 
 const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 
@@ -71,4 +72,24 @@ test("coverage still loads YAML configuration with the maintained parser", async
     assert.deepEqual(nycConfig.include, ["src/**/*.ts"]);
     assert.deepEqual(nycConfig.reporter, ["text"]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("release OIDC permission is limited to npm publishing jobs", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/publish.yml", import.meta.url), "utf8");
+  const definition = parseYaml(workflow);
+  assert.notEqual(definition.permissions, "write-all", "workflow must not receive write-all");
+  assert.notEqual(definition.permissions?.["id-token"], "write", "workflow must not receive OIDC");
+
+  const oidcJobs = new Set(["publish-core", "publish-plugin-packages"]);
+  for (const [job, configuration] of Object.entries(definition.jobs ?? {})) {
+    const permissions = configuration?.permissions;
+    if (oidcJobs.has(job)) {
+      assert.equal(permissions?.["id-token"], "write", `${job} needs npm provenance OIDC`);
+      oidcJobs.delete(job);
+    } else {
+      assert.notEqual(permissions, "write-all", `${job} must not receive write-all`);
+      assert.notEqual(permissions?.["id-token"], "write", `${job} must not receive OIDC`);
+    }
+  }
+  assert.deepEqual([...oidcJobs], [], "all npm publishing jobs must exist");
 });

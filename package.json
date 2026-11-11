@@ -36,7 +36,8 @@
     "eslint": "^10.14.0",
     "eslint-plugin-tsdoc": "^0.5.2",
     "globals": "^17.14.0",
-    "typescript-eslint": "^8.72.1"
+    "typescript-eslint": "^8.72.1",
+    "yaml": "^2.9.1"
   },
   "overrides": {
     "glob": "^14.0.3",
