@@ -76,16 +76,21 @@ test("coverage still loads YAML configuration with the maintained parser", async
 test("release OIDC permission is limited to npm publishing jobs", () => {
   const workflow = readFileSync(new URL("../.github/workflows/publish.yml", import.meta.url), "utf8");
   const topLevel = workflow.slice(0, workflow.indexOf("\njobs:\n"));
+  assert.doesNotMatch(topLevel, /^permissions:\s*write-all\s*$/m);
   assert.doesNotMatch(topLevel, /^\s+id-token:\s+write\s*$/m);
 
-  for (const [job, next] of [
-    ["publish-core", "publish-plugin-packages"],
-    ["publish-plugin-packages", "publish-bsb-schemas"]
-  ]) {
-    const start = workflow.indexOf(`\n  ${job}:\n`);
-    assert.notEqual(start, -1, `${job} must exist`);
-    const nextJob = workflow.indexOf(`\n  ${next}:\n`, start + job.length + 4);
-    const section = workflow.slice(start, nextJob);
-    assert.match(section, /^\s{6}id-token:\s+write\s*$/m, `${job} needs npm provenance OIDC`);
+  const jobs = [...workflow.matchAll(/^  ([a-zA-Z0-9_-]+):\s*$/gm)];
+  const oidcJobs = new Set(["publish-core", "publish-plugin-packages"]);
+  for (const [index, match] of jobs.entries()) {
+    const job = match[1];
+    const section = workflow.slice(match.index, jobs[index + 1]?.index ?? workflow.length);
+    if (oidcJobs.has(job)) {
+      assert.match(section, /^\s{6}id-token:\s+write\s*$/m, `${job} needs npm provenance OIDC`);
+      oidcJobs.delete(job);
+    } else {
+      assert.doesNotMatch(section, /^\s{4}permissions:\s*write-all\s*$/m, `${job} must not receive write-all`);
+      assert.doesNotMatch(section, /^\s{6}id-token:\s+write\s*$/m, `${job} must not receive OIDC`);
+    }
   }
+  assert.deepEqual([...oidcJobs], [], "all npm publishing jobs must exist");
 });
