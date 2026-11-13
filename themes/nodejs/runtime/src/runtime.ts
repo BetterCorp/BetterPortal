@@ -1433,18 +1433,22 @@ export function betterPortalShellRuntimeSource(): string {
         return fallback;
       };
 
+      const mergeUrlParameters = (destination: URL, incoming: URL): URL => {
+        for (const key of new Set(incoming.searchParams.keys())) destination.searchParams.delete(key);
+        for (const [key, value] of incoming.searchParams) destination.searchParams.append(key, value);
+        if (incoming.hash) destination.hash = incoming.hash;
+        return destination;
+      };
+
       const navigationUrl = (value: string): string => {
         const mapped = tenantUrlForServiceUrl(value);
         const url = new URL(mapped, window.location.origin);
         if (url.origin === window.location.origin && normalizePath(url.pathname) === "/" && !configuredRouteFor("/")) {
           const fallback = rootFallbackRoute();
           if (fallback?.href) {
-            const destination = new URL(fallback.href, window.location.origin);
             // Incoming root parameters override matching defaults, while keeping
             // unrelated defaults and repeated incoming values intact.
-            for (const key of new Set(url.searchParams.keys())) destination.searchParams.delete(key);
-            for (const [key, value] of url.searchParams) destination.searchParams.append(key, value);
-            if (url.hash) destination.hash = url.hash;
+            const destination = mergeUrlParameters(new URL(fallback.href, window.location.origin), url);
             return destination.pathname + destination.search + destination.hash;
           }
         }
@@ -1455,8 +1459,9 @@ export function betterPortalShellRuntimeSource(): string {
         if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
         const fallback = rootFallbackRoute();
         if (fallback?.href && fallback.requestUrl) {
-          const destination = navigationUrl(window.location.pathname + window.location.search + window.location.hash);
-          triggerShellLink(destination, undefined, true);
+          const destination = tenantUrlForServiceUrl(navigationUrl(window.location.pathname + window.location.search + window.location.hash));
+          const request = mergeUrlParameters(new URL(fallback.requestUrl, window.location.origin), new URL(destination, window.location.origin));
+          triggerShellLink(destination, request.href, true);
         }
       };
 

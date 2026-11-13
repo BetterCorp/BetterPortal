@@ -137,7 +137,9 @@ test("missing root skips auth and identity handlers in menus and page fallbacks"
       })),
       triggerShellLink: (...args: unknown[]) => redirects.push(args)
     });
-    assert.deepEqual(redirects, scenario.expected ? [[scenario.expected.href, undefined, true]] : [], scenario.name);
+    const endpoint = (value: string) => { const url = new URL(value); return url.origin + url.pathname; };
+    assert.deepEqual(redirects.map(([href, request, replace]) => [href, endpoint(String(request)), replace]),
+      scenario.expected ? [[scenario.expected.href, endpoint(scenario.expected.requestUrl), true]] : [], scenario.name);
   }
 });
 

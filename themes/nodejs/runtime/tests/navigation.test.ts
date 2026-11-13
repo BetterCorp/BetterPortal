@@ -15,7 +15,7 @@ import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 
-async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false, extraRoutes: Array<Record<string, unknown>> = [], menuHref = "/tools/dashboard") {
+async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false, extraRoutes: Array<Record<string, unknown>> = [], menuHref = "/tools/dashboard", menuRequestUrl = "https://service.test/dashboard") {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -36,7 +36,7 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
     <div data-bp-shell-root data-bp-menu-health="false" data-bp-auth-service="auth" data-bp-login-url="https://auth.test/login"
       data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test", themeTarget: "https://app.test", themeHttpTarget: "http://app.test" } : {}) })}'
       data-bp-routes='${JSON.stringify([{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }, { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" }, ...extraRoutes])}'>
-      <a id="menu" href="${menuHref}" data-bp-route-link data-bp-service="service" data-bp-route-request="https://service.test/dashboard" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
+      <a id="menu" href="${menuHref}" data-bp-route-link data-bp-service="service" data-bp-route-request="${menuRequestUrl}" hx-get="${menuRequestUrl}" hx-target="#bp-main">Dashboard</a>
       <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${requestUrl}" ${requestUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
     </div><script>${asset.body}</script></body></html>` });
   });
@@ -1238,23 +1238,28 @@ for (const navigation of ["initial", "ajax", "anchor", "location"]) {
 
 
 for (const incoming of [false, true]) {
-  test(`initial missing-root fallback preserves ${incoming ? "incoming root parameters" : "fallback query defaults"}`, async t => {
-    let requestUrl = "";
-    const path = incoming ? "/?tab=home&tag=one&tag=two#selected" : "/";
-    const { page, errors } = await shell(t, route => {
-      requestUrl = route.request().url();
-      return html(route, '<p id="landing">Dashboard</p>');
-    }, {}, "", path, false, [], "/tools/dashboard?tab=default&layout=compact#intro");
-    await page.waitForSelector("#landing");
-    for (const url of [new URL(requestUrl), new URL(page.url())]) {
-      assert.equal(url.searchParams.get("tab"), incoming ? "home" : "default");
-      assert.equal(url.searchParams.get("layout"), "compact");
-      assert.deepEqual(url.searchParams.getAll("tag"), incoming ? ["one", "two"] : []);
-    }
-    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
-    assert.equal(new URL(page.url()).hash, incoming ? "#selected" : "#intro");
-    assert.deepEqual(errors, []);
-  });
+  for (const requestOnly of [false, true]) {
+    test(`initial missing-root fallback preserves ${incoming ? "incoming root parameters" : "fallback query defaults"}${requestOnly ? " and request-only defaults" : ""}`, async t => {
+      let requestUrl = "";
+      const path = incoming ? "/?tab=home&tag=one&tag=two#selected" : "/";
+      const { page, errors } = await shell(t, route => {
+        requestUrl = route.request().url();
+        return html(route, '<p id="landing">Dashboard</p>');
+      }, {}, "", path, false, [], "/tools/dashboard?tab=default&layout=compact#intro",
+        requestOnly ? "https://service.test/dashboard?format=fragment&tab=request-default" : "https://service.test/dashboard");
+      await page.waitForSelector("#landing");
+      for (const url of [new URL(requestUrl), new URL(page.url())]) {
+        assert.equal(url.searchParams.get("tab"), incoming ? "home" : "default");
+        assert.equal(url.searchParams.get("layout"), "compact");
+        assert.deepEqual(url.searchParams.getAll("tag"), incoming ? ["one", "two"] : []);
+      }
+      assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+      assert.equal(new URL(page.url()).hash, incoming ? "#selected" : "#intro");
+      assert.equal(new URL(requestUrl).searchParams.get("format"), requestOnly ? "fragment" : null);
+      assert.equal(new URL(page.url()).searchParams.get("format"), null);
+      assert.deepEqual(errors, []);
+    });
+  }
 }
 
 test("query-bearing menu links remain active on initial load and after a page swap", async t => {
