@@ -1280,6 +1280,7 @@ export function betterPortalShellRuntimeSource(): string {
           const name = names[index].startsWith(":") ? names[index].slice(1)
             : /^\{[^}]+\}$/.test(names[index]) ? names[index].slice(1, -1) : null;
           if (name) {
+            if (!values[index]) return null;
             try { params[name] = decodeURIComponent(values[index]); } catch { return null; }
           } else {
             try { if (decodeURIComponent(names[index]) !== decodeURIComponent(values[index])) return null; } catch { return null; }
@@ -1368,8 +1369,9 @@ export function betterPortalShellRuntimeSource(): string {
 
       const triggerShellLink = (tenantUrl: string, serviceUrl?: string, replace = false) => {
         try {
-          const resolved = navigationUrl(tenantUrl);
-          if (resolved !== tenantUrl) { tenantUrl = resolved; serviceUrl = undefined; }
+          const fallback = resolveRootFallback(tenantUrl);
+          const resolved = fallback?.tenantUrl ?? navigationUrl(tenantUrl);
+          if (resolved !== tenantUrl) { tenantUrl = resolved; serviceUrl = fallback?.requestUrl; }
           const destination = new URL(tenantUrl, window.location.origin);
           if (destination.origin !== window.location.origin) return;
           tenantUrl = destination.pathname + destination.search + destination.hash;
@@ -1440,29 +1442,32 @@ export function betterPortalShellRuntimeSource(): string {
         return destination;
       };
 
-      const navigationUrl = (value: string): string => {
-        const mapped = tenantUrlForServiceUrl(value);
-        const url = new URL(mapped, window.location.origin);
-        if (url.origin === window.location.origin && normalizePath(url.pathname) === "/" && !configuredRouteFor("/")) {
-          const fallback = rootFallbackRoute();
-          if (fallback?.href) {
-            // Incoming root parameters override matching defaults, while keeping
-            // unrelated defaults and repeated incoming values intact.
-            const destination = mergeUrlParameters(new URL(fallback.href, window.location.origin), url);
-            return destination.pathname + destination.search + destination.hash;
-          }
-        }
-        return mapped;
+      // Keep browser and service destinations together so every root entry point
+      // preserves request-only defaults without copying them into history.
+      const resolveRootFallback = (value: string): { tenantUrl: string; requestUrl: string } | null => {
+        const url = new URL(tenantUrlForServiceUrl(value), window.location.origin);
+        if (url.origin !== window.location.origin || normalizePath(url.pathname) !== "/" || configuredRouteFor("/")) return null;
+        const fallback = rootFallbackRoute();
+        if (!fallback?.href || !fallback.requestUrl) return null;
+        const destination = mergeUrlParameters(new URL(fallback.href, window.location.origin), url);
+        const tenantUrl = tenantUrlForServiceUrl(destination.pathname + destination.search + destination.hash);
+        const request = mergeUrlParameters(new URL(fallback.requestUrl, window.location.origin), new URL(tenantUrl, window.location.origin));
+        return { tenantUrl, requestUrl: request.href };
+      };
+
+      const navigationUrl = (value: string): string => resolveRootFallback(value)?.tenantUrl ?? tenantUrlForServiceUrl(value);
+
+      const tenantUrlWithGetValues = (value: string, body: FormData | URLSearchParams | null | undefined): string => {
+        const destination = new URL(value, window.location.origin);
+        const incoming = new URL(window.location.origin);
+        for (const [key, entry] of body ?? []) incoming.searchParams.append(key, String(entry));
+        mergeUrlParameters(destination, incoming);
+        return destination.pathname + destination.search + destination.hash;
       };
 
       const redirectMissingRoot = () => {
-        if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
-        const fallback = rootFallbackRoute();
-        if (fallback?.href && fallback.requestUrl) {
-          const destination = tenantUrlForServiceUrl(navigationUrl(window.location.pathname + window.location.search + window.location.hash));
-          const request = mergeUrlParameters(new URL(fallback.requestUrl, window.location.origin), new URL(destination, window.location.origin));
-          triggerShellLink(destination, request.href, true);
-        }
+        const fallback = resolveRootFallback(window.location.pathname + window.location.search + window.location.hash);
+        if (fallback) triggerShellLink(fallback.tenantUrl, fallback.requestUrl, true);
       };
 
       // Survive full-page HX-Redirects without persisting credentials. A successful
@@ -2140,9 +2145,9 @@ export function betterPortalShellRuntimeSource(): string {
             const configuredMatch = !ownPage && !ownApi ? matchTenantRoute(pathOnly) : null;
             const configuredKind = configuredMatch?.route.kind
               ?? (configuredMatch?.route.tenantPath.startsWith("/_bp/") ? "api" : "page");
-            const rootNavigation = (!hxMethodAttr || hxMethodAttr === "hx-get") && pathOnly === "/" && !configuredRouteFor("/")
-              ? new URL(navigationUrl(resolvedPath.pathname + query), window.location.origin) : null;
-            const rootMatch = rootNavigation ? matchTenantRoute(rootNavigation.pathname) : null;
+            const rootNavigation = (!hxMethodAttr || hxMethodAttr === "hx-get")
+              ? resolveRootFallback(resolvedPath.pathname + query) : null;
+            const rootMatch = rootNavigation ? matchTenantRoute(new URL(rootNavigation.tenantUrl, window.location.origin).pathname) : null;
             const match = ownPage ?? (configuredKind === "page" ? configuredMatch : null) ?? rootMatch;
             const apiMatch = ownApi ?? (configuredKind === "api" ? configuredMatch : null);
 
@@ -2158,11 +2163,10 @@ export function betterPortalShellRuntimeSource(): string {
             if (match) {
               // Known route - keep/use its configured tenant path and request
               // the corresponding service path.
-              const navigationQuery = match === rootMatch && rootNavigation ? rootNavigation.search + rootNavigation.hash : query;
-              const tenantUrl = match.route.tenantPath + navigationQuery;
-              const absoluteServiceUrl = match.route.serviceOrigin
-                + match.route.servicePath
-                + navigationQuery;
+              const fallback = match === rootMatch ? rootNavigation : null;
+              const tenantUrl = fallback?.tenantUrl ?? match.route.tenantPath + query;
+              const absoluteServiceUrl = fallback?.requestUrl ?? match.route.serviceOrigin + match.route.servicePath + query;
+              if (fallback) el.setAttribute("data-bp-root-url", tenantUrl);
 
               if (isAnchor) el.setAttribute("href", tenantUrl);
               if (hxMethodAttr) {
@@ -2175,7 +2179,7 @@ export function betterPortalShellRuntimeSource(): string {
               if (!el.hasAttribute("hx-swap")) el.setAttribute("hx-swap", "innerHTML");
               // Controls add their selected/form values at request time. Map
               // that final request URL back to the mounted UI route in history.
-              if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", isAnchor ? tenantUrl : "true");
+              if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", isAnchor || fallback ? tenantUrl : "true");
               el.setAttribute("data-bp-shell-route", "page");
             } else if (hxMethodAttr === "hx-get" || elServiceOrigin === unresolvedServiceOrigin) {
               el.setAttribute("data-bp-route-error", "This page is not available in this app.");
@@ -2756,6 +2760,8 @@ export function betterPortalShellRuntimeSource(): string {
           try {
             const action = ctx.request?.action || "";
             if (!action) return;
+            const rootUrl = source?.getAttribute("data-bp-root-url");
+            if (rootUrl && ctx.request.method.toUpperCase() === "GET") ctx.push = tenantUrlWithGetValues(rootUrl, ctx.request.body);
             if (source?.closest?.(NO_ROUTE_SELECTOR)) {
               attachBpHeaders(ctx.request.headers, action, serviceContextFor(source).id);
               return;
@@ -2764,15 +2770,14 @@ export function betterPortalShellRuntimeSource(): string {
             const url = new URL(action, themeOrigin);
             if (url.origin === themeOrigin && mode === "page" && ctx.request.method.toUpperCase() === "GET"
               && normalizePath(url.pathname) === "/" && !configuredRouteFor("/") && !explicitServiceContextFor(source).origin) {
-              const destination = navigationUrl(action);
-              const match = matchTenantRoute(new URL(destination, themeOrigin).pathname);
-              if (!match) {
+              const fallback = resolveRootFallback(action);
+              if (!fallback) {
                 renderRouteError("Route Not Found", "No landing page is configured for this app.", undefined, source);
                 setLoading(false);
                 return false;
               }
-              ctx.request.action = serviceUrlForTenantUrl(destination);
-              ctx.push = destination;
+              ctx.request.action = fallback.requestUrl;
+              ctx.push = tenantUrlWithGetValues(fallback.tenantUrl, ctx.request.body);
             } else if (url.origin === themeOrigin) {
               const explicitContext = explicitServiceContextFor(source);
               if (explicitContext.origin) {
@@ -3070,17 +3075,20 @@ export function betterPortalShellRuntimeSource(): string {
               const raw = ctx.hx.location.trim();
               const config = raw.startsWith("{") ? JSON.parse(raw) : { path: raw };
               if (typeof config.path !== "string") throw new Error("Missing redirect path");
-              const destination = navigationUrl(config.path);
+              const fallback = resolveRootFallback(config.path);
+              const destination = fallback?.tenantUrl ?? navigationUrl(config.path);
               if (!allowRedirect(ctx, destination, credentialsChanged)) return false;
               ctx.hx.location = JSON.stringify({
                 ...config,
-                path: destination,
+                path: fallback?.requestUrl ?? destination,
                 target: "#bp-main",
                 swap: config.swap || "innerHTML",
-                push: typeof config.push === "string" && config.push !== "true" && config.push !== "false"
+                push: fallback && (config.push === true || config.push === "true") ? destination
+                  : typeof config.push === "string" && config.push !== "true" && config.push !== "false"
                   ? navigationUrl(config.push)
                   : config.push ?? (config.replace == null ? destination : undefined),
-                replace: typeof config.replace === "string" && !["true", "false"].includes(config.replace)
+                replace: fallback && (config.replace === true || config.replace === "true") ? destination
+                  : typeof config.replace === "string" && !["true", "false"].includes(config.replace)
                   ? navigationUrl(config.replace) : config.replace
               });
             }

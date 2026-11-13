@@ -1087,10 +1087,11 @@ test("password login without a next path uses the shell root fallback", async t 
     if (route.request().method() === "POST") return loginJson(route, { status: "ok" });
     if (route.request().url().includes("auth.test")) return html(route, '<form id="bp-login-form" hx-post="https://auth.test/login" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="user"><input name="password" value="password" type="password"><input name="next" value=""><div id="bp-login-error" class="d-none"></div><button>Sign in</button></form>');
     return html(route, '<p id="landing">Dashboard</p>');
-  }, {}, "https://auth.test/login", "/auth/login");
+  }, {}, "https://auth.test/login", "/auth/login", false, [], "/tools/dashboard", "https://service.test/dashboard?format=fragment");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForSelector("#landing");
-  assert.equal(requests.at(-1), "https://service.test/dashboard");
+  assert.equal(requests.at(-1), "https://service.test/dashboard?format=fragment");
+  assert.equal(new URL(page.url()).searchParams.get("format"), null);
   assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
   assert.deepEqual(errors, []);
 });
@@ -1118,13 +1119,17 @@ for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
   });
 }
 
-for (const navigation of ["ajax", "anchor", "location"]) {
+for (const navigation of ["ajax", "anchor", "location", "location-push", "location-replace"]) {
   test(`root ${navigation} merges fallback queries and fragments without corrupting values`, async t => {
     let requestUrl = "";
     const fallback = "/tools/dashboard?next=%2Flogin&tag=default&layout=compact#intro";
     const next = navigation === "anchor" ? "/?tab=home" : "/?tag=one&tag=two#updated";
     const { page, errors } = await shell(t, route => {
-      if (route.request().url().endsWith("/redirect")) return html(route, "", 200, { "HX-Location": next });
+      if (route.request().url().endsWith("/redirect")) {
+        const location = navigation === "location-push" ? JSON.stringify({ path: next, push: true })
+          : navigation === "location-replace" ? JSON.stringify({ path: next, replace: true }) : next;
+        return html(route, "", 200, { "HX-Location": location });
+      }
       if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
       requestUrl = route.request().url();
       return html(route, '<p id="landing">Dashboard</p>');
@@ -1132,7 +1137,7 @@ for (const navigation of ["ajax", "anchor", "location"]) {
     await page.waitForSelector("#signed-in");
     await page.evaluate(({ fallback, next, navigation }) => {
       document.getElementById("menu")!.setAttribute("href", fallback);
-      document.getElementById("menu")!.setAttribute("data-bp-route-request", "https://service.test/dashboard");
+      document.getElementById("menu")!.setAttribute("data-bp-route-request", "https://service.test/dashboard?format=fragment");
       if (navigation === "anchor") {
         const link = document.createElement("a");
         link.href = next;
@@ -1141,7 +1146,7 @@ for (const navigation of ["ajax", "anchor", "location"]) {
         window.htmx.process(link);
         link.click();
       } else {
-        void window.htmx.ajax("GET", navigation === "location" ? "https://service.test/redirect" : next, { target: "#bp-main", push: next });
+        void window.htmx.ajax("GET", navigation.startsWith("location") ? "https://service.test/redirect" : next, { target: "#bp-main", push: next });
       }
     }, { fallback, next, navigation });
     await page.waitForSelector("#landing");
@@ -1154,6 +1159,8 @@ for (const navigation of ["ajax", "anchor", "location"]) {
       assert.deepEqual(url.searchParams.getAll("tag"), navigation === "anchor" ? ["default"] : ["one", "two"]);
       if (navigation === "anchor") assert.equal(url.searchParams.get("tab"), "home");
     }
+    assert.equal(new URL(requestUrl).searchParams.get("format"), "fragment");
+    assert.equal(actual.searchParams.get("format"), null);
     assert.equal(actual.hash, navigation === "anchor" ? "#intro" : "#updated");
     assert.deepEqual(errors, []);
   });
@@ -1172,7 +1179,7 @@ for (const control of ["form", "select", "button"]) {
     await page.evaluate(control => {
       const menu = document.getElementById("menu")!;
       menu.setAttribute("href", "/tools/dashboard?tab=default&tag=default&layout=compact#intro");
-      menu.setAttribute("data-bp-route-request", "https://service.test/dashboard");
+      menu.setAttribute("data-bp-route-request", "https://service.test/dashboard?format=fragment");
       const container = document.createElement("div");
       container.innerHTML = control === "form"
         ? '<form id="root-form" action="/" method="get"><input name="tab" value="home"><input name="tag" value="one"><input name="tag" value="two"><button id="submit-root">Go</button></form>'
@@ -1192,6 +1199,8 @@ for (const control of ["form", "select", "button"]) {
     }
     assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
     assert.equal(new URL(page.url()).hash, "#intro");
+    assert.equal(new URL(requestUrl).searchParams.get("format"), "fragment");
+    assert.equal(new URL(page.url()).searchParams.get("format"), null);
     assert.deepEqual(errors, []);
   });
 }
@@ -1277,3 +1286,26 @@ test("query-bearing menu links remain active on initial load and after a page sw
   assert.ok(await page.locator("#menu").evaluate(link => link.classList.contains("active")));
   assert.deepEqual(errors, []);
 });
+
+
+for (const pattern of ["/:id", "/{id}"]) {
+  for (const navigation of ["initial", "ajax"]) {
+    test(`${pattern} cannot capture an empty root parameter during ${navigation} navigation`, async t => {
+      const requests: string[] = [];
+      const { page, errors } = await shell(t, route => {
+        requests.push(route.request().url());
+        return html(route, route.request().url().includes("auth.test") ? '<p id="signed-in">Signed in</p>' : '<p id="landing">Dashboard</p>');
+      }, {}, navigation === "initial" ? "" : "https://auth.test/login", navigation === "initial" ? "/" : "/auth/login", false, [
+        { href: pattern, requestUrl: "https://service.test/records/:id", serviceId: "service", kind: "page" }
+      ]);
+      if (navigation === "ajax") {
+        await page.waitForSelector("#signed-in");
+        await page.evaluate(() => window.htmx.ajax("GET", "/", { target: "#bp-main", push: "/" }));
+      }
+      await page.waitForSelector("#landing");
+      assert.equal(requests.at(-1), "https://service.test/dashboard");
+      assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+      assert.deepEqual(errors, []);
+    });
+  }
+}
