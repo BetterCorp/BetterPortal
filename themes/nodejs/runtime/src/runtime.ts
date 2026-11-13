@@ -1212,6 +1212,8 @@ export function betterPortalShellRuntimeSource(): string {
         window.setTimeout(poll, 750);
       };
 
+      // Query defaults and fragments customize a navigation, not its mount identity.
+      const tenantRoutePath = (value: string) => normalizePath((value || "/").split(/[?#]/, 1)[0]);
       const buildServiceRouteMap = (): ServiceRoute[] => {
         const routes: ServiceRoute[] = [];
         const addRoute = (tenantPathRaw: string, requestUrl: string, serviceId: string, kind?: "page" | "api", template?: string, methods?: string[], fixedParams?: Record<string, string>, baseUrl?: string) => {
@@ -1222,7 +1224,7 @@ export function betterPortalShellRuntimeSource(): string {
             const registered = new URL(origin);
             // Hosts reject service targets on the theme host, including template-only routes.
             if (registered.host.toLowerCase() === window.location.host.toLowerCase()) return;
-            const tenantPath = normalizePath(tenantPathRaw || "/");
+            const tenantPath = tenantRoutePath(tenantPathRaw);
             let prefix = trimTrailingSlashes(registered.pathname);
             if (baseUrl) {
               const base = new URL(baseUrl);
@@ -1253,7 +1255,7 @@ export function betterPortalShellRuntimeSource(): string {
         routeLinks().forEach((link) => {
           const href = link.getAttribute("href") || "/";
           const serviceId = link.getAttribute("data-bp-service") || "";
-          if (routes.some(route => route.tenantPath === normalizePath(href) && route.serviceId === serviceId)) return;
+          if (routes.some(route => route.tenantPath === tenantRoutePath(href) && route.serviceId === serviceId)) return;
           addRoute(
             link.getAttribute("href") || "/",
             link.getAttribute("data-bp-route-request") || "",

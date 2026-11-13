@@ -1158,3 +1158,40 @@ for (const navigation of ["ajax", "anchor", "location"]) {
     assert.deepEqual(errors, []);
   });
 }
+
+
+for (const control of ["form", "select", "button"]) {
+  test(`root GET ${control} submitted fields override fallback defaults without duplicates`, async t => {
+    let requestUrl = "";
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+      requestUrl = route.request().url();
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.waitForSelector("#signed-in");
+    await page.evaluate(control => {
+      const menu = document.getElementById("menu")!;
+      menu.setAttribute("href", "/tools/dashboard?tab=default&tag=default&layout=compact#intro");
+      menu.setAttribute("data-bp-route-request", "https://service.test/dashboard");
+      const container = document.createElement("div");
+      container.innerHTML = control === "form"
+        ? '<form id="root-form" action="/" method="get"><input name="tab" value="home"><input name="tag" value="one"><input name="tag" value="two"><button id="submit-root">Go</button></form>'
+        : control === "select"
+          ? '<select id="submit-root" name="tab" hx-get="/" hx-trigger="change"><option value="default">Default</option><option value="home">Home</option></select>'
+          : '<button id="submit-root" hx-get="/" name="tab" value="home">Go</button>';
+      document.getElementById("bp-main")!.appendChild(container);
+      window.htmx.process(container);
+    }, control);
+    if (control === "select") await page.locator("#submit-root").selectOption("home");
+    else await page.locator("#submit-root").click();
+    await page.waitForSelector("#landing");
+    for (const url of [new URL(requestUrl), new URL(page.url())]) {
+      assert.deepEqual(url.searchParams.getAll("tab"), ["home"]);
+      assert.equal(url.searchParams.get("layout"), "compact");
+      assert.deepEqual(url.searchParams.getAll("tag"), control === "form" ? ["one", "two"] : ["default"]);
+    }
+    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+    assert.equal(new URL(page.url()).hash, "#intro");
+    assert.deepEqual(errors, []);
+  });
+}
