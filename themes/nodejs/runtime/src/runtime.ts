@@ -1435,7 +1435,15 @@ export function betterPortalShellRuntimeSource(): string {
         const url = new URL(mapped, window.location.origin);
         if (url.origin === window.location.origin && normalizePath(url.pathname) === "/" && !configuredRouteFor("/")) {
           const fallback = rootFallbackRoute();
-          if (fallback?.href) return fallback.href + url.search + url.hash;
+          if (fallback?.href) {
+            const destination = new URL(fallback.href, window.location.origin);
+            // Incoming root parameters override matching defaults, while keeping
+            // unrelated defaults and repeated incoming values intact.
+            for (const key of new Set(url.searchParams.keys())) destination.searchParams.delete(key);
+            for (const [key, value] of url.searchParams) destination.searchParams.append(key, value);
+            if (url.hash) destination.hash = url.hash;
+            return destination.pathname + destination.search + destination.hash;
+          }
         }
         return mapped;
       };
@@ -2121,8 +2129,9 @@ export function betterPortalShellRuntimeSource(): string {
             const configuredMatch = !ownPage && !ownApi ? matchTenantRoute(pathOnly) : null;
             const configuredKind = configuredMatch?.route.kind
               ?? (configuredMatch?.route.tenantPath.startsWith("/_bp/") ? "api" : "page");
-            const rootMatch = pathOnly === "/" && !configuredRouteFor("/")
-              ? matchTenantRoute(new URL(navigationUrl(pathOnly), window.location.origin).pathname) : null;
+            const rootNavigation = (!hxMethodAttr || hxMethodAttr === "hx-get") && pathOnly === "/" && !configuredRouteFor("/")
+              ? new URL(navigationUrl(resolvedPath.pathname + query), window.location.origin) : null;
+            const rootMatch = rootNavigation ? matchTenantRoute(rootNavigation.pathname) : null;
             const match = ownPage ?? (configuredKind === "page" ? configuredMatch : null) ?? rootMatch;
             const apiMatch = ownApi ?? (configuredKind === "api" ? configuredMatch : null);
 
@@ -2138,10 +2147,11 @@ export function betterPortalShellRuntimeSource(): string {
             if (match) {
               // Known route - keep/use its configured tenant path and request
               // the corresponding service path.
-              const tenantUrl = match.route.tenantPath + query;
+              const navigationQuery = match === rootMatch && rootNavigation ? rootNavigation.search + rootNavigation.hash : query;
+              const tenantUrl = match.route.tenantPath + navigationQuery;
               const absoluteServiceUrl = match.route.serviceOrigin
                 + match.route.servicePath
-                + query;
+                + navigationQuery;
 
               if (isAnchor) el.setAttribute("href", tenantUrl);
               if (hxMethodAttr) {

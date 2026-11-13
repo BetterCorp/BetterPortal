@@ -1094,3 +1094,67 @@ test("password login without a next path uses the shell root fallback", async t 
   assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
   assert.deepEqual(errors, []);
 });
+
+
+for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+  test(`unmounted root ${method} keeps the owning service mutation endpoint`, async t => {
+    const mutations: string[] = [];
+    const { page, errors } = await shell(t, route => {
+      if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+        "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS", "access-control-allow-headers": "*"
+      } });
+      if (route.request().method() !== "GET") {
+        mutations.push(route.request().url());
+        return html(route, '<p id="saved">Saved</p>');
+      }
+      return html(route, method === "POST"
+        ? '<form method="post" action="/"><input name="value" value="edit"><button id="mutate">Save</button></form>'
+        : `<button id="mutate" hx-${method.toLowerCase()}="/">Save</button>`);
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.locator("#mutate").click();
+    await page.waitForSelector("#saved");
+    assert.deepEqual(mutations, ["https://auth.test/"]);
+    assert.deepEqual(errors, []);
+  });
+}
+
+for (const navigation of ["ajax", "anchor", "location"]) {
+  test(`root ${navigation} merges fallback queries and fragments without corrupting values`, async t => {
+    let requestUrl = "";
+    const fallback = "/tools/dashboard?next=%2Flogin&tag=default&layout=compact#intro";
+    const next = navigation === "anchor" ? "/?tab=home" : "/?tag=one&tag=two#updated";
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().endsWith("/redirect")) return html(route, "", 200, { "HX-Location": next });
+      if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+      requestUrl = route.request().url();
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.waitForSelector("#signed-in");
+    await page.evaluate(({ fallback, next, navigation }) => {
+      document.getElementById("menu")!.setAttribute("href", fallback);
+      document.getElementById("menu")!.setAttribute("data-bp-route-request", "https://service.test/dashboard");
+      if (navigation === "anchor") {
+        const link = document.createElement("a");
+        link.href = next;
+        link.textContent = "Continue";
+        document.getElementById("bp-main")!.appendChild(link);
+        window.htmx.process(link);
+        link.click();
+      } else {
+        void window.htmx.ajax("GET", navigation === "location" ? "https://service.test/redirect" : next, { target: "#bp-main", push: next });
+      }
+    }, { fallback, next, navigation });
+    await page.waitForSelector("#landing");
+    const actual = new URL(page.url());
+    const requested = new URL(requestUrl);
+    for (const url of [actual, requested]) {
+      assert.equal(url.pathname, url === actual ? "/tools/dashboard" : "/dashboard");
+      assert.equal(url.searchParams.get("next"), "/login");
+      assert.equal(url.searchParams.get("layout"), "compact");
+      assert.deepEqual(url.searchParams.getAll("tag"), navigation === "anchor" ? ["default"] : ["one", "two"]);
+      if (navigation === "anchor") assert.equal(url.searchParams.get("tab"), "home");
+    }
+    assert.equal(actual.hash, navigation === "anchor" ? "#intro" : "#updated");
+    assert.deepEqual(errors, []);
+  });
+}
