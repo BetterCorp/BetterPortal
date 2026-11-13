@@ -1404,3 +1404,100 @@ test("HTTP partial errors retain the original target when a response listener re
   assert.equal(await page.locator("#edit").inputValue(), "keep edits");
   assert.deepEqual(errors, []);
 });
+
+
+for (const header of ["HX-Push-Url", "HX-Replace-Url"]) {
+  for (const historySource of ["response", "request"]) {
+    for (const scenario of ["stale", "disabled", "fresh"]) {
+      test(`${header} ${historySource} ${scenario} persistent fragment preserves the current page history`, async t => {
+        let release: (() => Promise<void>) | undefined;
+        let started!: () => void;
+        const pending = new Promise<void>(resolve => { started = resolve; });
+        const { page, errors } = await shell(t, route => {
+          if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
+            release = async () => {
+              const headers = historySource === "response" || scenario === "disabled"
+                ? { [header]: scenario === "disabled" ? "false" : "/tools/dashboard?fragment", "access-control-expose-headers": header } : {};
+              await html(route, '<p id="fragment-updated">Updated</p>', 200, headers);
+              resolve();
+            };
+            started();
+          });
+          return html(route, '<p id="content">Main content</p>');
+        });
+        await page.waitForSelector("#content");
+        await page.evaluate(({ header, historySource }) => {
+          const scope = document.createElement("div");
+          scope.setAttribute("data-bp-fragment", "");
+          scope.setAttribute("data-bp-service", "service");
+          scope.innerHTML = '<button id="slow" hx-get="https://service.test/slow" hx-target="#persistent-fragment">Slow</button><div id="persistent-fragment">Before</div>';
+          if (historySource === "request") scope.querySelector("#slow")!.setAttribute(header === "HX-Push-Url" ? "hx-push-url" : "hx-replace-url", "/tools/dashboard?fragment");
+          document.body.appendChild(scope);
+          window.htmx.process(scope);
+          (window as any).fragmentFinished = false;
+          document.addEventListener("htmx:finally:request", (event: any) => {
+            if (event.detail.ctx?.request?.action?.endsWith("/slow")) (window as any).fragmentFinished = true;
+          });
+        }, { header, historySource });
+        await page.locator("#slow").click();
+        await pending;
+        if (scenario !== "fresh") {
+          await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { target: "#bp-main", push: "/tools/dashboard?new" }); });
+          await page.waitForURL("https://app.test/tools/dashboard?new");
+        }
+        assert.ok(release);
+        await release();
+        await page.waitForFunction(() => (window as any).fragmentFinished);
+        assert.equal(page.url(), "https://app.test/tools/dashboard?" + (scenario === "fresh" ? "fragment" : "new"));
+        if (scenario === "stale") assert.equal(await page.locator("#persistent-fragment").textContent(), "Before");
+        else assert.equal(await page.locator("#fragment-updated").textContent(), "Updated");
+        assert.equal(await page.locator("#persistent-fragment").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
+        assert.deepEqual(errors, []);
+      });
+    }
+  }
+}
+
+
+test("cancelling stale fragment navigation keeps a newer request's loading indicator", async t => {
+  let releaseOld!: () => Promise<void>, releaseNew!: () => Promise<void>;
+  let markOld!: () => void, markNew!: () => void;
+  const oldStarted = new Promise<void>(resolve => { markOld = resolve; });
+  const newStarted = new Promise<void>(resolve => { markNew = resolve; });
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/fragment-old")) return new Promise<void>(resolve => {
+      releaseOld = async () => { await html(route, "Old", 200, { "HX-Push-Url": "/tools/dashboard?old", "access-control-expose-headers": "HX-Push-Url" }); resolve(); }; markOld();
+    });
+    if (route.request().url().endsWith("/fragment-new")) return new Promise<void>(resolve => {
+      releaseNew = async () => { await html(route, '<p id="new-result">New result</p>'); resolve(); }; markNew();
+    });
+    return html(route, '<p id="content">Main page</p>');
+  });
+  await page.waitForSelector("#content");
+  await page.evaluate(() => {
+    const scope = document.createElement("div");
+    scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+    scope.innerHTML = '<button id="old-source">Old</button><button id="new-fragment-source">New</button><div id="persistent">Before</div>';
+    document.body.appendChild(scope);
+    (window as any).oldFinished = false; (window as any).newFinished = false;
+    document.addEventListener("htmx:finally:request", (event: any) => {
+      if (event.detail.ctx?.request?.action?.endsWith("/fragment-old")) (window as any).oldFinished = true;
+      if (event.detail.ctx?.request?.action?.endsWith("/fragment-new")) (window as any).newFinished = true;
+    });
+    void window.htmx.ajax("GET", "https://service.test/fragment-old", { source: "#old-source", target: "#persistent" });
+  });
+  await oldStarted;
+  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { target: "#bp-main", push: "/tools/dashboard?new" }); });
+  await page.waitForURL("https://app.test/tools/dashboard?new");
+  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/fragment-new", { source: "#new-fragment-source", target: "#persistent" }); });
+  await newStarted;
+  await releaseOld();
+  await page.waitForFunction(() => (window as any).oldFinished);
+  assert.equal(await page.locator("#persistent").evaluate(node => node.classList.contains("bp-fragment-loading")), true);
+  assert.equal(page.url(), "https://app.test/tools/dashboard?new");
+  await releaseNew();
+  await page.waitForFunction(() => (window as any).newFinished);
+  assert.equal(await page.locator("#new-result").textContent(), "New result");
+  assert.equal(await page.locator("#persistent").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
+  assert.deepEqual(errors, []);
+});

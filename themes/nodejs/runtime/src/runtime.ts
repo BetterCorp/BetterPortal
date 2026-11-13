@@ -2704,6 +2704,7 @@ export function betterPortalShellRuntimeSource(): string {
 
       // -- HTMX extension: bp-shell --
 
+      const fragmentRequests = new WeakMap<Element, unknown>();
       htmx.registerExtension("bp-shell", {
         // Resolve relative service URLs before htmx processes the element.
         // This catches elements with existing hx-methods that resolveServiceLinks
@@ -2876,6 +2877,7 @@ export function betterPortalShellRuntimeSource(): string {
             detail.ctx.__bpMainGeneration = ++mainRequestGeneration;
             if (hasLoaded()) setLoading(true);
           } else if (target instanceof Element) {
+            fragmentRequests.set(target, detail.ctx);
             target.classList.add("bp-fragment-loading");
           }
           // Fragments can later retarget main, so retain the page they began on.
@@ -3037,7 +3039,10 @@ export function betterPortalShellRuntimeSource(): string {
           if (ctx?.__bpMainGeneration !== undefined && ctx.__bpMainGeneration !== mainRequestGeneration) return false;
           const responseTarget = typeof ctx?.hx?.retarget === "string"
             ? resolvePolicyTarget(ctx.sourceElement || document.body, ctx.hx.retarget) : ctx?.target;
-          const navigatesMain = isMainTarget(responseTarget) || ctx?.hx?.redirect || ctx?.hx?.location || ctx?.hx?.refresh === "true";
+          const historyValues = ctx?.hx?.pushurl || ctx?.hx?.replaceurl
+            ? [ctx.hx.pushurl, ctx.hx.replaceurl] : [ctx?.push, ctx?.replace];
+          const changesHistory = historyValues.some(value => value && value !== "false");
+          const navigatesMain = isMainTarget(responseTarget) || ctx?.hx?.redirect || ctx?.hx?.location || ctx?.hx?.refresh === "true" || changesHistory;
           if (navigatesMain && ctx?.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return false;
           if (ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) return false;
           const previousAuthorization = readBpHeaders().authorization?.value;
@@ -3158,6 +3163,17 @@ export function betterPortalShellRuntimeSource(): string {
 
           // Sync profile mirror for mobile offcanvas
           if (target === profileSlot()) syncProfileMirror();
+        },
+
+        // Early-cancelled responses do not swap or settle. Clear only this
+        // request's loading state, leaving a newer request on the same target busy.
+        htmx_finally_request(_elt: any, detail: any) {
+          const ctx = detail.ctx;
+          const target = ctx?.__bpRequestTarget ?? ctx?.target;
+          if (target instanceof Element && fragmentRequests.get(target) === ctx) {
+            fragmentRequests.delete(target);
+            target.classList.remove("bp-fragment-loading");
+          }
         },
 
         // Belt-and-suspenders: clear loading after settle
