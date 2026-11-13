@@ -83,7 +83,7 @@ test("history keeps configured tenant routes before reverse-mapping service path
 
 test("missing root skips auth and identity handlers in menus and page fallbacks", () => {
   const source = betterPortalShellRuntimeSource();
-  const code = source.slice(source.indexOf("const redirectMissingRoot"), source.indexOf("const applyConfigToken"));
+  const code = source.slice(source.indexOf("const rootFallbackRoute"), source.indexOf("const redirectChainKey"));
   const login = { href: "/session/start", requestUrl: "https://shared.test/session/start", serviceId: "provider-123", kind: "page" };
   const logout = { ...login, href: "/session/end", requestUrl: "https://shared.test/session/end" };
   const dashboard = { href: "/dashboard", requestUrl: "https://shared.test/dashboard", serviceId: "app", kind: "page" };

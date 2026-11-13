@@ -1394,8 +1394,7 @@ export function betterPortalShellRuntimeSource(): string {
         window.setTimeout(cleanup, 30000);
       };
 
-      const redirectMissingRoot = () => {
-        if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
+      const rootFallbackRoute = () => {
         const routes = configuredRoutes();
         const loginUrl = shellRoot()?.getAttribute("data-bp-login-url");
         const authServiceIds = new Set([
@@ -1404,10 +1403,12 @@ export function betterPortalShellRuntimeSource(): string {
         ].filter(Boolean));
         const isSafeRootRoute = (route: ConfiguredRoute) => {
           if (!route.href || !route.requestUrl || authServiceIds.has(route.serviceId)) return false;
+          if (routes.some(candidate => candidate.href === route.href && candidate.kind === "api")
+            && !routes.some(candidate => candidate.href === route.href && candidate.kind !== "api")) return false;
           try {
             const tenantUrl = new URL(route.href, window.location.origin);
             const requestUrl = new URL(route.requestUrl, window.location.origin);
-            if (normalizePath(tenantUrl.pathname) === "/") return false;
+            if (normalizePath(tenantUrl.pathname) === "/" || /(^|\/)[:*]/.test(tenantUrl.pathname)) return false;
             if (route.requestUrl === loginUrl || route.href === loginUrl) return false;
             // ponytail: name heuristic only for the initial fallback; prefer explicit service metadata when available.
             return !/(^|[./_-])(auth|authentication|identity|login|logout|sign[-_]?in|sign[-_]?out)(?=$|[./_-])/i.test(
@@ -1421,7 +1422,51 @@ export function betterPortalShellRuntimeSource(): string {
           serviceId: link.getAttribute("data-bp-service") || ""
         })).find(isSafeRootRoute);
         const fallback = menuRoute ?? routes.find((route) => route.kind === "page" && isSafeRootRoute(route));
+        return fallback;
+      };
+
+      const navigationUrl = (value: string): string => {
+        const mapped = tenantUrlForServiceUrl(value);
+        const url = new URL(mapped, window.location.origin);
+        if (url.origin === window.location.origin && normalizePath(url.pathname) === "/" && !configuredRouteFor("/")) {
+          const fallback = rootFallbackRoute();
+          if (fallback?.href) return fallback.href + url.search + url.hash;
+        }
+        return mapped;
+      };
+
+      const redirectMissingRoot = () => {
+        if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
+        const fallback = rootFallbackRoute();
         if (fallback?.href && fallback.requestUrl) triggerShellLink(fallback.href, fallback.requestUrl, true);
+      };
+
+      // Survive full-page HX-Redirects without persisting credentials. A successful
+      // main swap ends a chain; the expiry also permits a later explicit retry.
+      const redirectChainKey = "bp:redirect-chain";
+      let redirectChain: { paths: string[]; time: number } = { paths: [], time: 0 };
+      try { redirectChain = JSON.parse(sessionStorage.getItem(redirectChainKey) || "null") || redirectChain; } catch { /* storage unavailable */ }
+      const clearRedirectChain = () => {
+        redirectChain = { paths: [], time: 0 };
+        try { sessionStorage.removeItem(redirectChainKey); } catch { /* storage unavailable */ }
+      };
+      const allowRedirect = (ctx: any, destination: string, credentialsChanged: boolean): boolean => {
+        const url = new URL(destination, window.location.origin);
+        if (url.origin !== window.location.origin) return true;
+        const path = url.pathname + url.search; // a fragment cannot change a service response
+        const source = new URL(tenantUrlForServiceUrl(ctx.request.action), window.location.origin);
+        const sourcePath = source.pathname + source.search;
+        if (credentialsChanged || !Array.isArray(redirectChain.paths) || Date.now() - redirectChain.time > 10000) clearRedirectChain();
+        const self = ctx.request.method.toUpperCase() === "GET" && source.origin === url.origin && sourcePath === path;
+        if (!credentialsChanged && (self || redirectChain.paths.includes(path) || redirectChain.paths.length >= 8)) {
+          clearRedirectChain();
+          renderRouteError("Redirect loop", "This page redirects back to a page that is already being loaded. Check the app's landing route and service redirect configuration.", undefined, ctx.sourceElement);
+          setLoading(false);
+          return false;
+        }
+        redirectChain = { paths: [...new Set([...redirectChain.paths, sourcePath, path])], time: Date.now() };
+        try { sessionStorage.setItem(redirectChainKey, JSON.stringify(redirectChain)); } catch { /* in-memory protection remains */ }
+        return true;
       };
 
       interface BpElementConfig {
@@ -2621,7 +2666,18 @@ export function betterPortalShellRuntimeSource(): string {
             }
             const themeOrigin = window.location.origin;
             const url = new URL(action, themeOrigin);
-            if (url.origin === themeOrigin) {
+            if (url.origin === themeOrigin && mode === "page" && ctx.request.method.toUpperCase() === "GET"
+              && normalizePath(url.pathname) === "/" && !configuredRouteFor("/") && !explicitServiceContextFor(source).origin) {
+              const destination = navigationUrl(action);
+              const match = matchTenantRoute(new URL(destination, themeOrigin).pathname);
+              if (!match) {
+                renderRouteError("Route Not Found", "No landing page is configured for this app.", undefined, source);
+                setLoading(false);
+                return false;
+              }
+              ctx.request.action = serviceUrlForTenantUrl(destination);
+              ctx.push = destination;
+            } else if (url.origin === themeOrigin) {
               const explicitContext = explicitServiceContextFor(source);
               if (explicitContext.origin) {
                 ctx.request.action = explicitContext.origin + url.pathname + url.search;
@@ -2853,9 +2909,15 @@ export function betterPortalShellRuntimeSource(): string {
 
         htmx_after_request(_elt: any, detail: any) {
           if (detail.ctx?.__bpElevationHandled) return false;
-          // HTMX follows these before before_swap. A 401 belongs to the
-          // shell's auth flow, not service-supplied redirects or retargeting.
-          if (detail.ctx?.response?.status === 401 && isMainTarget(detail.ctx?.target)) {
+          const ctx = detail.ctx;
+          // These checks must precede header directives and HTMX navigation, not
+          // just before_swap: obsolete requests must not redirect a newer page.
+          if (ctx?.__bpMainGeneration !== undefined && ctx.__bpMainGeneration !== mainRequestGeneration) return false;
+          if (ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) return false;
+          const previousAuthorization = readBpHeaders().authorization?.value;
+          // HTMX follows these before before_swap. Error responses belong to
+          // the shell's status/auth flow, not service-supplied navigation.
+          if (detail.ctx?.response?.status >= 400 && isMainTarget(detail.ctx?.target)) {
             for (const key of ["location", "redirect", "refresh", "pushurl", "replaceurl", "retarget", "reswap"]) {
               if (detail.ctx.hx) delete detail.ctx.hx[key];
             }
@@ -2888,33 +2950,38 @@ export function betterPortalShellRuntimeSource(): string {
             applyBpHeaderDirectives(detail.ctx?.response, detail.ctx?.request?.action || "");
           } catch { /* non-fatal */ }
 
-          // HX-Location with a bare path has no target in htmx4 - the follow-up
-          // ajax would swap document.body and blow away the shell. Rewrite it
-          // into a config object that swaps the main outlet and pushes the
-          // tenant path (config_request later maps the path to its service).
+          // HTMX processes redirect headers immediately after this hook. Normalize
+          // registered service URLs to tenant URLs and stop cycles before it does.
           try {
-            const loc = detail.ctx?.hx?.location;
-            if (typeof loc === "string" && loc && loc[0] !== "{" && !/[\s,]/.test(loc)) {
-              detail.ctx.hx.location = JSON.stringify({
-                path: loc,
+            const credentialsChanged = previousAuthorization !== readBpHeaders().authorization?.value;
+            const redirect = ctx?.hx?.redirect;
+            if (typeof redirect === "string" && redirect) {
+              const destination = navigationUrl(redirect);
+              if (!allowRedirect(ctx, destination, credentialsChanged)) return false;
+              ctx.hx.redirect = destination;
+            } else if (typeof ctx?.hx?.location === "string" && ctx.hx.location) {
+              const raw = ctx.hx.location.trim();
+              const config = raw.startsWith("{") ? JSON.parse(raw) : { path: raw };
+              if (typeof config.path !== "string") throw new Error("Missing redirect path");
+              const destination = navigationUrl(config.path);
+              if (!allowRedirect(ctx, destination, credentialsChanged)) return false;
+              ctx.hx.location = JSON.stringify({
+                ...config,
+                path: destination,
                 target: "#bp-main",
-                swap: "innerHTML",
-                push: tenantUrlForServiceUrl(loc)
-              });
-            } else if (typeof loc === "string" && loc.trim().startsWith("{")) {
-              const parsed = JSON.parse(loc);
-              detail.ctx.hx.location = JSON.stringify({
-                ...parsed,
-                target: "#bp-main",
-                swap: parsed.swap || "innerHTML",
-                push: typeof parsed.push === "string"
-                  ? tenantUrlForServiceUrl(parsed.push)
-                  : typeof parsed.path === "string"
-                    ? tenantUrlForServiceUrl(parsed.path)
-                    : parsed.push
+                swap: config.swap || "innerHTML",
+                push: typeof config.push === "string" && config.push !== "true" && config.push !== "false"
+                  ? navigationUrl(config.push)
+                  : config.push ?? (config.replace == null ? destination : undefined),
+                replace: typeof config.replace === "string" && !["true", "false"].includes(config.replace)
+                  ? navigationUrl(config.replace) : config.replace
               });
             }
-          } catch { /* non-fatal */ }
+          } catch {
+            renderRouteError("Route Configuration Error", "The service returned an invalid redirect destination.", undefined, ctx?.sourceElement);
+            setLoading(false);
+            return false;
+          }
 
         },
 
@@ -2931,6 +2998,7 @@ export function betterPortalShellRuntimeSource(): string {
           }
 
           if (isMainTarget(target)) {
+            clearRedirectChain();
             if (applyChromeFromResponse(detail)) {
               setActiveRoute(window.location.pathname);
             }

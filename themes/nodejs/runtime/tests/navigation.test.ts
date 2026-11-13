@@ -26,14 +26,20 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
   await page.addInitScript(value => localStorage.setItem("bp.headers", JSON.stringify(value)), stored);
   await page.route("https://service.test/**", respond);
   await page.route("https://auth.test/**", respond);
-  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html>
+  await page.route("https://app.test/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    const destination = extraRoutes.find(item => item.href === path);
+    const requestUrl = path === initialTenantPath ? initialUrl
+      : destination?.requestUrl as string || (path === "/tools/dashboard" ? "https://service.test/dashboard" : initialUrl);
+    return route.fulfill({ contentType: "text/html", body: `<!doctype html>
     <html><head><meta charset="utf-8"><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
     <div data-bp-shell-root data-bp-menu-health="false" data-bp-auth-service="auth" data-bp-login-url="https://auth.test/login"
       data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test", themeTarget: "https://app.test", themeHttpTarget: "http://app.test" } : {}) })}'
       data-bp-routes='${JSON.stringify([{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }, { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" }, ...extraRoutes])}'>
       <a id="menu" href="/tools/dashboard" data-bp-route-link data-bp-service="service" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
-      <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
-    </div><script>${asset.body}</script></body></html>` }));
+      <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${requestUrl}" ${requestUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
+    </div><script>${asset.body}</script></body></html>` });
+  });
   await page.goto("https://app.test" + initialTenantPath);
   return { page, errors };
 }
@@ -853,4 +859,189 @@ test("swap-only BPRoute and plain anchors retain outerHTML during main enhanceme
     assert.equal(requests, 2);
     assert.deepEqual(errors, []);
   }
+});
+
+
+test("root navigation from login uses a page fallback instead of the auth origin", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, route => {
+    requests.push(route.request().url());
+    return html(route, route.request().url().includes("auth.test") ? '<p id="signed-in">Signed in</p>' : '<p id="landing">Dashboard</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#signed-in");
+  await page.evaluate(() => window.htmx.ajax("GET", "/?tab=home#top", { target: "#bp-main", push: "/?tab=home#top" }));
+  await page.waitForSelector("#landing");
+  assert.equal(requests.at(-1), "https://service.test/dashboard?tab=home");
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.equal(new URL(page.url()).search, "?tab=home");
+  assert.deepEqual(errors, []);
+});
+
+for (const header of ["HX-Redirect", "HX-Location"]) {
+  for (const destination of ["/", "https://service.test/welcome"]) {
+    test(`${header} stops a self redirect through a root mount: ${destination}`, async t => {
+      let requests = 0;
+      const { page, errors } = await shell(t, route => {
+        requests++;
+        return html(route, "", 200, { [header]: destination });
+      }, {}, "https://service.test/welcome", "/", false, [
+        { href: "/", requestUrl: "https://service.test/welcome", serviceId: "service", kind: "page" }
+      ]);
+      await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Redirect loop"));
+      assert.equal(requests, 1);
+      assert.equal(new URL(page.url()).origin, "https://app.test");
+      assert.deepEqual(errors, []);
+    });
+  }
+  test(`${header} maps absolute service destinations to app URLs`, async t => {
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().includes("auth.test")) return html(route, "", 200, { [header]: "https://service.test/dashboard?tab=home#top" });
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.waitForSelector("#landing");
+    assert.equal(new URL(page.url()).origin, "https://app.test");
+    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+    assert.equal(new URL(page.url()).search, "?tab=home");
+    assert.deepEqual(errors, []);
+  });
+
+  test(`${header} detects cycles across two pages`, async t => {
+    let requests = 0;
+    const { page, errors } = await shell(t, route => {
+      requests++;
+      return html(route, "", 200, { [header]: route.request().url().endsWith("/dashboard") ? "/second" : "/tools/dashboard" });
+    }, {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+      { href: "/second", requestUrl: "https://service.test/second", serviceId: "service", kind: "page" }
+    ]);
+    await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Redirect loop"));
+    assert.equal(requests, 2);
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("a POST redirect to the current page still reloads the shell", async t => {
+  let gets = 0;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "POST") return html(route, "", 200, { "HX-Redirect": "/tools/dashboard" });
+    gets++;
+    return html(route, '<button id="save" hx-post="https://service.test/dashboard" hx-target="#bp-main">Save</button>');
+  });
+  await page.waitForSelector("#save");
+  const reloaded = page.waitForEvent("domcontentloaded");
+  await page.locator("#save").click();
+  await reloaded;
+  await page.waitForSelector("#save");
+  await page.waitForURL("https://app.test/tools/dashboard");
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.getAttribute("data-bp-loaded") === "yes");
+  assert.equal(gets, 2);
+  assert.deepEqual(errors, []);
+});
+
+test("fragment-only changes cannot bypass the redirect loop guard", async t => {
+  let requests = 0;
+  const { page } = await shell(t, route => {
+    requests++;
+    return html(route, "", 200, { "HX-Location": "/tools/dashboard#again" });
+  });
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Redirect loop"));
+  assert.equal(requests, 1);
+});
+
+
+test("a completed page clears redirect history for the next explicit navigation", async t => {
+  let landings = 0;
+  const { page } = await shell(t, route => {
+    if (route.request().url().includes("auth.test")) return html(route, "", 200, { "HX-Location": "/tools/dashboard" });
+    landings++;
+    return html(route, '<p id="landing">Dashboard</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#landing");
+  await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login", { target: "#bp-main" }));
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Dashboard"));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").filter(entry => entry.name === "https://service.test/dashboard").length === 2);
+  assert.equal(landings, 2);
+});
+
+test("a changed login token permits one same-page full redirect", async t => {
+  let requests = 0;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET,OPTIONS"
+    } });
+    requests++;
+    if (requests === 1) return html(route, "", 200, {
+      "HX-Redirect": "/tools/dashboard",
+      "BP-SetHeader": "Authorization=Bearer signed-in; locked=true"
+    });
+    return html(route, '<p id="landing">Signed in</p>');
+  });
+  await page.waitForSelector("#landing");
+  assert.equal(requests, 2);
+  assert.deepEqual(errors, []);
+});
+
+test("root without a usable page never falls back to auth or an API route", async t => {
+  const { page } = await shell(t, route => html(route, '<p id="login">Sign in</p>'), {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#login");
+  await page.evaluate(() => {
+    const root = document.querySelector("[data-bp-shell-root]")!;
+    root.setAttribute("data-bp-routes", JSON.stringify([
+      { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" },
+      { href: "/api/run", requestUrl: "https://service.test/run", serviceId: "service", kind: "api" },
+      { href: "/record/:id", requestUrl: "https://service.test/record/:id", serviceId: "service", kind: "page" }
+    ]));
+    document.getElementById("menu")?.remove();
+    window.htmx.ajax("GET", "/", { target: "#bp-main" });
+  });
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("No landing page is configured"));
+});
+
+test("a stale main response cannot redirect a newer navigation", async t => {
+  let release: (() => Promise<void>) | undefined;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
+      release = async () => { await html(route, "", 200, { "HX-Redirect": "/auth/login" }); resolve(); };
+    });
+    return html(route, '<p id="landing">Dashboard</p><button id="slow-source">Slow</button><button id="new-source">New</button>');
+  });
+  await page.waitForSelector("#landing");
+  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/slow", { source: "#slow-source", target: "#bp-main" }); });
+  await assert.doesNotReject(async () => {
+    for (let attempt = 0; !release && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(release);
+  });
+  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { source: "#new-source", target: "#bp-main" }); });
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.endsWith("/dashboard?new")));
+  assert.ok(release);
+  await release();
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.endsWith("/slow")));
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.equal(await page.locator("#landing").textContent(), "Dashboard");
+  assert.deepEqual(errors, []);
+});
+
+
+for (const status of [403, 500]) {
+  test(`HTTP ${status} cannot redirect away from the shell error handler`, async t => {
+    let requests = 0;
+    const { page } = await shell(t, route => {
+      requests++;
+      return html(route, "Failed", status, { "HX-Redirect": "/auth/login" });
+    });
+    await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Failed") || !!document.querySelector("[data-bp-error-action]"));
+    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+    assert.equal(requests, 1);
+  });
+}
+
+test("JSON HX-Location preserves replace history and maps the request destination", async t => {
+  const { page } = await shell(t, route => {
+    if (route.request().url().includes("auth.test")) return html(route, "", 200, {
+      "HX-Location": JSON.stringify({ path: "https://service.test/dashboard", replace: "/tools/dashboard" })
+    });
+    return html(route, '<p id="landing">Dashboard</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#landing");
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.equal(await page.evaluate(() => history.length), 2);
 });
