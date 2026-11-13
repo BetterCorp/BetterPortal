@@ -1552,3 +1552,46 @@ test("a response from the previous auth generation cannot emit an immediate trig
   assert.equal(await page.locator("#auth-target").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
   assert.deepEqual(errors, []);
 });
+
+
+for (const header of ["HX-Retarget", "HX-Location"]) {
+  for (const outlet of ["inline", "table", "configured"]) {
+    test(`${header} successful retry clears the original persistent ${outlet} error`, async t => {
+      let failed = true;
+      const { page, errors } = await shell(t, route => {
+        if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+          "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+        } });
+        if (route.request().method() === "POST") return failed ? html(route, "Failed", 500)
+          : html(route, '<p id="new-main">Success</p>', 200, { [header]: header === "HX-Retarget" ? "#bp-main" : "/tools/dashboard?done", "access-control-expose-headers": header });
+        return html(route, route.request().url().includes("?done") ? '<p id="new-main">Success</p>' : '<p id="old-main">Current page</p>');
+      });
+      await page.waitForSelector("#old-main");
+      await page.evaluate(outlet => {
+        const scope = document.createElement("div"); scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+        if (outlet === "configured") scope.setAttribute("data-bp-mutation-scope", "");
+        const target = outlet === "table" ? '<table><tbody id="partial"><tr id="existing-row"><td><input id="persistent-edit" value="original"></td></tr></tbody></table>'
+          : '<div id="partial"><input id="persistent-edit" value="original"></div>';
+        scope.innerHTML = '<button id="retry" hx-post="https://service.test/retry" hx-target="#partial">Retry</button>' + target
+          + (outlet === "configured" ? '<div data-bp-mutation-error hidden></div>' : '');
+        document.body.appendChild(scope); window.htmx.process(scope);
+      }, outlet);
+      await page.locator("#persistent-edit").fill("keep edits");
+      await page.locator("#retry").click();
+      const error = page.locator(outlet === "configured" ? "[data-bp-mutation-error]" : "[data-bp-partial-error]");
+      await error.waitFor({ state: "visible" });
+      assert.equal(await page.locator("#old-main").textContent(), "Current page");
+      failed = false;
+      await page.locator("#retry").click();
+      await page.waitForSelector("#new-main");
+      if (outlet === "configured") {
+        assert.equal(await error.isVisible(), false);
+        assert.equal(await error.textContent(), "");
+      } else assert.equal(await error.count(), 0);
+      assert.equal(await page.locator("[data-bp-partial-error-wrapper]").count(), 0);
+      if (outlet === "table") assert.equal(await page.locator("#partial > tr").count(), 1);
+      assert.equal(await page.locator("#persistent-edit").inputValue(), "keep edits");
+      assert.deepEqual(errors, []);
+    });
+  }
+}

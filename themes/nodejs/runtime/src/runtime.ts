@@ -1865,6 +1865,16 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const partialErrorOutlets = new WeakMap<Element, HTMLElement>();
+      const clearPartialErrors = (ctx: any) => {
+        const original = ctx?.__bpRequestTarget ?? ctx?.target;
+        if (!(original instanceof Element) || isMainTarget(original)) return;
+        const outlet = partialErrorOutlets.get(original);
+        (outlet?.closest("[data-bp-partial-error-wrapper]") ?? outlet)?.remove();
+        partialErrorOutlets.delete(original);
+        original.querySelectorAll("[data-bp-partial-error-wrapper], [data-bp-partial-error]").forEach(node => node.remove());
+        const localError = ctx?.sourceElement instanceof Element ? mutationErrorOutlet(ctx.sourceElement) : null;
+        if (localError) { localError.replaceChildren(); localError.hidden = true; }
+      };
       const renderPartialError = (ctx: any, status: number) => {
         const source = ctx?.sourceElement instanceof Element ? ctx.sourceElement : null;
         const target = source ? resolvePolicyTarget(source, null, ctx.__bpRequestTarget ?? ctx.target) : null;
@@ -2915,15 +2925,7 @@ export function betterPortalShellRuntimeSource(): string {
           if (detail.ctx?.response?.status >= 400 && detail.ctx?.sourceElement?.closest?.("#bp-login-form")) return false;
           const status = ctx?.response?.status;
           const target = ctx?.target;
-          if (status && status < 400 && !requestTargetsMain(detail)) {
-            const original = ctx.__bpRequestTarget;
-            if (original instanceof Element) {
-              const outlet = partialErrorOutlets.get(original);
-              (outlet?.closest("[data-bp-partial-error-wrapper]") ?? outlet)?.remove();
-              partialErrorOutlets.delete(original);
-              original.querySelectorAll("[data-bp-partial-error-wrapper], [data-bp-partial-error]").forEach(node => node.remove());
-            }
-          }
+          if (status >= 200 && status < 400) clearPartialErrors(ctx);
           const source = ctx?.sourceElement;
           if (source instanceof Element && (status === 401 || status === 403)) {
             const policy = source.getAttribute("data-bp-auth-status");
@@ -3088,6 +3090,10 @@ export function betterPortalShellRuntimeSource(): string {
               return false;
             }
           }
+          // A successful redirect/retarget may leave its original component in
+          // persistent shell chrome, so clear its error before HTMX navigates.
+          if (ctx?.response?.status >= 200 && ctx.response.status < 400) clearPartialErrors(ctx);
+
           // Apply BP-SetHeader / BP-RemoveHeader directives from EVERY response
           // (success or error) before anything else - e.g. login's Authorization.
           try {
