@@ -1,6 +1,8 @@
 using AnyVali;
 using BetterPortal;
 
+if (args.Length == 1 && args[0] == "--health") { await HealthChecks.Run(); return; }
+
 if (args.Length == 2 && args[0] == "--elevation") { ElevationChecks.Run(args[1]); return; }
 
 if (args.Length == 2 && args[0] == "--registry")

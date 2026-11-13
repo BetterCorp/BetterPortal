@@ -103,6 +103,7 @@ python framework/conformance/check_registry_tools.py
 python framework/conformance/check_export.py
 python framework/conformance/check_discovery.py
 python framework/conformance/check_docs.py
+dotnet framework/dotnet/Conformance/bin/Debug/net10.0/Conformance.dll --health
 dotnet pack framework/dotnet/BetterPortal --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.AspNetCore --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output .tmp-run/ports-packages
@@ -112,7 +113,10 @@ python framework/conformance/check_scaffold.py .tmp-run/ports-packages
 ```
 
 `check_discovery.py` executes the Node.js, Python and C# route-authoring examples.
-`check_docs.py` executes the native SDK README examples. Package checks compare
+`check_docs.py` executes the native SDK README examples. The .NET `--health` probe
+checks management-token diagnostics, HTTP/cache behavior, readiness, live policy
+revocation and cancellation using real loopback ASP.NET Core and JWKS servers.
+Package checks compare
 embedded contracts and exercise installed packages without the repository or Node
 in the consumer path. Scaffold checks run generated services against the existing
 Node config manager; complete Bootstrap shell integration remains delivery work.

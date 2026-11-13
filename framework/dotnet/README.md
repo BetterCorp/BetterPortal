@@ -3,7 +3,7 @@
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
 for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers
 and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
-The AnyVali 1.1.6 schema gate passes all 1,580 checks; see the ledger for results.
+The pinned AnyVali SDK is exercised by the [shared conformance checks](../conformance/README.md).
 
 Start a standalone service with the [native init commands](../../docs/building/route-authoring.md#create-a-standalone-service).
 
@@ -12,8 +12,9 @@ extension. A `Service` combines the registry, manifest declaration and optional
 validated `ScopedConfig`; dispose it with `await using`. With no snapshot, public
 health returns only `{"ok": false}` and status 503. A local snapshot enables
 request handling. `ControlPlaneSync` supplies automatic managed synchronization,
-described below. Authorized diagnostics remain pending; this prototype must not
-replace a deployed full BP runtime.
+described below. Verified management users can read health diagnostics as described
+in [Health and readiness](#health-and-readiness). The remaining runtime gaps are
+tracked in the capability ledger.
 
 The adapter enforces scope, local operation mounts, CORS and caller authentication,
 then decodes and validates handler inputs. Repeated query/form values and field-name
@@ -995,3 +996,56 @@ Embedded query values may contain raw question marks, for example `/items?q=what
 A dependency mount without a resolved service path cannot identify a service endpoint, so resolution returns null rather than guessing or throwing.
 
 Route results stringify to ApiPath in handlers and ViewPath in renderers. Immutable selector chaining uses `destination.Component("summary")` or `.Fragment("body.live")`. Route metadata is `RouteInfo`. The theme maps service controls to public UI mounts; do not prefer UiPath for service-renderer hrefs. JSX authors use BPRoute; native HTML can emit the same documented BPRoute state templates and service attributes.
+
+## Health and readiness
+
+`GET /.well-known/bp/health` returns `200` with `{"ok": true}` when ready and `503`
+with `{"ok": false}` otherwise. Public probes expose only `ok`; authentication
+failure never changes a probe into a login error. Managed services require an
+acknowledged manifest and a valid snapshot. A restored cache alone stays unready.
+The .NET host keeps an uninstalled service at 503 until installation and sync finish.
+
+To read diagnostics, send an access-token bearer issued for the snapshot's active
+`configManagement.adminTenantId` and `configManagement.managementAppId`. The
+runtime verifies its signature, issuer, audience, purpose, lifetime and tenant/app
+against that app's configured auth policy and trusted JWKS endpoint. Host, origin
+and scope headers cannot select a different management scope. Refresh tokens,
+service/delegated envelopes, invalid credentials and unavailable authentication
+receive the public representation. Ordinary application users cannot read diagnostics.
+
+Authorized responses add `ready`, `pluginId`, `version`, `config` (synced/local
+flags and tenant/app counts), and `manifestSync.state` (`local`, `awaiting-sync`
+or `synced`). They include no snapshot, settings, credentials or token claims.
+Operators can read these diagnostics even when a managed service has cached config
+and is awaiting sync. Snapshot replacement or shutdown during verification discards
+the old authorization result. Readiness and manifest-sync flags are captured together
+and rechecked after projection, including control-plane denial without a new snapshot.
+Readiness still determines the HTTP status.
+
+The host sets `Cache-Control: private, no-store` and `Vary: Authorization` on
+health responses, including HEAD, preflight and errors. HEAD sends no body;
+OPTIONS allows the Authorization request header and does not authenticate.
+Caller disconnects and host/service shutdown cancel pending authentication waits.
+
+Custom hosts use `await service.HealthAsync(headers, cancellation)` for the same
+policy, then return 200 or 503 from its `ok` value and apply the cache headers above.
+Invalid protocol versions or duplicate header names throw `RequestException` with
+status 400 even before readiness; custom hosts must preserve that status instead
+of treating request-validation errors as readiness or authentication failures.
+For example, an unsynchronized service returns only public readiness:
+
+```csharp
+using BetterPortal;
+
+await using var service = new Service(new Registry([]), new() {
+    PluginId = "com.example.health", Title = "Health", Description = "Health example", Version = "1.0.0"
+});
+var health = await service.HealthAsync(new Dictionary<string, string>());
+if (health.Count != 1 || health["ok"] is not false) throw new Exception("Unexpected public health");
+```
+
+After building the Conformance project, run the dedicated health checks:
+
+```sh
+dotnet framework/dotnet/Conformance/bin/Debug/net10.0/Conformance.dll --health
+```
