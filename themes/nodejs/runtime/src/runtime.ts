@@ -1862,9 +1862,10 @@ export function betterPortalShellRuntimeSource(): string {
           if (target.tagName === "TR") {
             const cell = target.querySelector("td, th");
             if (cell) cell.appendChild(outlet);
-            else { const cell = document.createElement("td"); cell.appendChild(outlet); target.appendChild(cell); }
+            else { const cell = document.createElement("td"); cell.setAttribute("data-bp-partial-error-wrapper", ""); cell.appendChild(outlet); target.appendChild(cell); }
           } else if (["TABLE", "TBODY", "THEAD", "TFOOT"].includes(target.tagName)) {
             const row = document.createElement("tr");
+            row.setAttribute("data-bp-partial-error-wrapper", "");
             const cell = document.createElement("td");
             cell.colSpan = 1000;
             cell.appendChild(outlet);
@@ -2866,9 +2867,10 @@ export function betterPortalShellRuntimeSource(): string {
           if (status && status < 400 && !requestTargetsMain(detail)) {
             const original = ctx.__bpRequestTarget;
             if (original instanceof Element) {
-              partialErrorOutlets.get(original)?.remove();
+              const outlet = partialErrorOutlets.get(original);
+              (outlet?.closest("[data-bp-partial-error-wrapper]") ?? outlet)?.remove();
               partialErrorOutlets.delete(original);
-              original.querySelectorAll("[data-bp-partial-error]").forEach(node => node.remove());
+              original.querySelectorAll("[data-bp-partial-error-wrapper], [data-bp-partial-error]").forEach(node => node.remove());
             }
           }
           const source = ctx?.sourceElement;

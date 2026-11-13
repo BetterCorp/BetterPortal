@@ -426,3 +426,27 @@ for (const failure of ["json", "network"]) {
     assert.deepEqual(errors, []);
   });
 }
+
+
+for (const swap of ["none", "beforeend"]) {
+  test(`a successful ${swap} retry removes the generated table error row`, async t => {
+    let failed = true;
+    const { page, errors } = await shell(t, [list], route => {
+      if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+        "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+      } });
+      if (route.request().method() === "POST") return response(route, failed ? "Failed" : '<tr id="added"><td>Added</td></tr>', {}, failed ? 500 : 200, "fragment");
+      return response(route, `<button id="retry" hx-post="/update" hx-target="#rows" hx-swap="${swap}">Update</button><table><tbody id="rows"><tr id="existing"><td>Existing row</td></tr></tbody></table>`);
+    });
+    await page.locator("#retry").click();
+    await page.locator("#rows [data-bp-partial-error]").waitFor();
+    assert.equal(await page.locator("#rows > tr").count(), 2);
+    failed = false;
+    await page.locator("#retry").click();
+    await page.locator("[data-bp-partial-error-wrapper]").waitFor({ state: "detached" });
+    if (swap === "beforeend") await page.locator("#added").waitFor();
+    assert.equal(await page.locator("#rows > tr").count(), swap === "none" ? 1 : 2);
+    assert.equal(await page.locator("#existing").textContent(), "Existing row");
+    assert.deepEqual(errors, []);
+  });
+}
