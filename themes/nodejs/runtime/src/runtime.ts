@@ -1330,11 +1330,11 @@ export function betterPortalShellRuntimeSource(): string {
         const best = matches.reduce((best, match) => compare(match.specificity, best) < 0 ? match.specificity : best, matches[0].specificity);
         return matches.filter(match => compare(match.specificity, best) === 0);
       };
-      const matchServiceRoute = (serviceId: string, path: string, kind: "page" | "api" = "page", origin?: string): { route: ServiceRoute; suffix: string } | null => {
+      const matchServiceRoute = (serviceId: string, path: string, kind: "page" | "api" = "page", origin?: string, includeNonGetRoot = false): { route: ServiceRoute; suffix: string } | null => {
         const matches = buildServiceRouteMap().filter(route => (!serviceId || route.serviceId === serviceId)
           && (!origin || new URL(route.serviceOrigin).origin === origin)
           && (route.kind ?? (route.tenantPath.startsWith("/_bp/") ? "api" : "page")) === kind
-          && (kind !== "page" || !route.methods || route.methods.includes("GET")))
+          && (kind !== "page" || !route.methods || route.methods.includes("GET") || (includeNonGetRoot && route.tenantPath === "/")))
           .flatMap(route => { const resolved = resolveRoutePattern(route, path, true, !origin) ?? (!origin ? resolveRoutePattern(route, path, true) : null); return resolved ? [resolved] : []; });
         const unique = new Map(mostSpecificMatches(matches).map(match => [`${match.route.serviceId}\0${match.route.tenantPath}`, match]));
         return unique.size === 1 ? [...unique.values()][0] : null;
@@ -1348,14 +1348,14 @@ export function betterPortalShellRuntimeSource(): string {
         return unique.size === 1 ? [...unique.values()][0] : null;
       };
 
-      const tenantUrlForServiceUrl = (value: string, serviceId = ""): string => {
+      const tenantUrlForServiceUrl = (value: string, serviceId = "", includeNonGetRoot = false): string => {
         try {
           const url = new URL(value, window.location.origin);
           const tenantMatch = url.origin === window.location.origin ? matchTenantRoute(url.pathname) : null;
           if (tenantMatch) {
             return tenantMatch.route.tenantPath + url.search + url.hash;
           }
-          const match = matchServiceRoute(serviceId, url.pathname, "page", url.origin) || matchServiceRoute(serviceId, url.pathname, "api", url.origin);
+          const match = matchServiceRoute(serviceId, url.pathname, "page", url.origin, includeNonGetRoot) || matchServiceRoute(serviceId, url.pathname, "api", url.origin);
           if (!match) return value;
           return match.route.tenantPath + url.search + url.hash;
         } catch {
@@ -1452,7 +1452,8 @@ export function betterPortalShellRuntimeSource(): string {
       // Keep browser and service destinations together so every root entry point
       // preserves request-only defaults without copying them into history.
       const resolveRootFallback = (value: string): { tenantUrl: string; requestUrl: string } | null => {
-        const url = new URL(tenantUrlForServiceUrl(value), window.location.origin);
+        // Recognize non-GET root aliases only to select a valid GET landing page.
+        const url = new URL(tenantUrlForServiceUrl(value, "", true), window.location.origin);
         if (url.origin !== window.location.origin || normalizePath(url.pathname) !== "/" || configuredRouteFor("/")) return null;
         const fallback = rootFallbackRoute();
         if (!fallback?.href || !fallback.requestUrl) return null;
@@ -1879,7 +1880,6 @@ export function betterPortalShellRuntimeSource(): string {
         const outlet = partialErrorOutlets.get(original);
         (outlet?.closest("[data-bp-partial-error-wrapper]") ?? outlet)?.remove();
         partialErrorOutlets.delete(original);
-        original.querySelectorAll("[data-bp-partial-error-wrapper], [data-bp-partial-error]").forEach(node => node.remove());
         const localError = ctx?.sourceElement instanceof Element ? mutationErrorOutlet(ctx.sourceElement) : null;
         if (localError) { localError.replaceChildren(); localError.hidden = true; }
       };
@@ -1897,7 +1897,7 @@ export function betterPortalShellRuntimeSource(): string {
           return;
         }
         const previous = partialErrorOutlets.get(target);
-        let outlet = configured ?? (previous?.isConnected ? previous : null) ?? target.querySelector<HTMLElement>("[data-bp-partial-error]");
+        let outlet = configured ?? (previous?.isConnected ? previous : null);
         if (!outlet) {
           outlet = document.createElement("div");
           outlet.setAttribute("data-bp-partial-error", "");

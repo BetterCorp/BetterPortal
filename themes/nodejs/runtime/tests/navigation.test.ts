@@ -1712,3 +1712,49 @@ test("fallback skips non-GET pages and accepts legacy GET page metadata", async 
   assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
   assert.deepEqual(errors, []);
 });
+
+for (const header of ["HX-Location", "HX-Redirect"]) {
+  test(`${header} maps an absolute POST-only root mount to the GET fallback`, async t => {
+    const requests: string[] = [];
+    const { page, errors } = await shell(t, route => {
+      requests.push(route.request().url());
+      if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+      if (route.request().url().endsWith("/redirect")) return html(route, "", 200, { [header]: "https://service.test/action?next=landing#section" });
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login", false, [
+      { href: "/", requestUrl: "https://service.test/action", serviceId: "service", kind: "page", methods: ["POST"] }
+    ]);
+    await page.waitForSelector("#signed-in");
+    await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/redirect", { target: "#bp-main" }); });
+    await page.waitForSelector("#landing");
+    await page.waitForURL("https://app.test/tools/dashboard?next=landing#section");
+    assert.equal(requests.some(url => url.includes("/action")), false);
+    assert.deepEqual(errors, []);
+  });
+}
+
+for (const swap of ["none", "beforeend"]) {
+  test(`${swap} parent retry clears only its own error and preserves a nested component error`, async t => {
+    const { page, errors } = await shell(t, route => html(route,
+      route.request().url().endsWith("/dashboard")
+        ? '<div id="outer"><button id="outer-source">Outer</button><div id="inner"><button id="inner-source">Inner</button><input value="unsaved"></div></div>'
+        : route.request().url().endsWith("/fail") ? "Failed" : '<span id="success">Success</span>',
+      route.request().url().endsWith("/fail") ? 500 : 200));
+    await page.waitForSelector("#inner");
+    await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/fail", { source: "#inner-source", target: "#inner" }); });
+    await page.waitForSelector("#inner [data-bp-partial-error]");
+    await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/fail", { source: "#outer-source", target: "#outer" }); });
+    await page.waitForFunction(() => document.querySelectorAll("[data-bp-partial-error]").length === 2);
+    await page.evaluate(swap => {
+      document.addEventListener("htmx:finally:request", (event: any) => {
+        if (event.detail.ctx?.request?.action?.endsWith("/success")) (window as any).retryFinished = true;
+      });
+      void window.htmx.ajax("GET", "https://service.test/success", { source: "#outer-source", target: "#outer", swap });
+    }, swap);
+    await page.waitForFunction(() => (window as any).retryFinished);
+    assert.equal(await page.locator("#inner [data-bp-partial-error]").count(), 1);
+    assert.equal(await page.locator("#outer > [data-bp-partial-error]").count(), 0);
+    assert.equal(await page.locator("#inner input").inputValue(), "unsaved");
+    assert.deepEqual(errors, []);
+  });
+}
