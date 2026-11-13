@@ -1873,7 +1873,7 @@ export function betterPortalShellRuntimeSource(): string {
         if (!configured && source?.closest("[data-bp-error-modal]")) {
           const contentType = ctx?.response?.headers?.get?.("content-type") || "";
           showRequestErrorModal(status, contentType.includes("text/html") ? ctx.text || "" : "", source);
-          target.classList.remove("bp-fragment-loading");
+          clearFragmentLoading(ctx, target);
           ctx.__bpPartialErrorHandled = true;
           return;
         }
@@ -1916,7 +1916,7 @@ export function betterPortalShellRuntimeSource(): string {
         outlet.setAttribute("tabindex", "-1");
         htmx.process(outlet);
         outlet.focus({ preventScroll: true });
-        target.classList.remove("bp-fragment-loading");
+        clearFragmentLoading(ctx, target);
         ctx.__bpPartialErrorHandled = true;
       };
 
@@ -2666,8 +2666,8 @@ export function betterPortalShellRuntimeSource(): string {
         if (challenge.version !== 1 || !["confirm", "mfa"].includes(challenge.minimum) || !claims || claims.tenantId !== challenge.tenantId || claims.appId !== challenge.appId) return response;
         const blocked = (message: string) => {
           if (ctx) ctx.__bpElevationHandled = true;
-          if (ctx?.target instanceof Element) ctx.target.classList.remove("bp-fragment-loading");
-          setLoading(false);
+          clearFragmentLoading(ctx);
+          if (ctx && requestTargetsMain(ctx) && ctx.__bpMainGeneration === mainRequestGeneration) setLoading(false);
           triggerBodyEvent("bp:auth:elevation-cancelled", { message });
           if (ctx?.sourceElement instanceof Element) {
             const outlet = mutationErrorOutlet(ctx.sourceElement);
@@ -2704,7 +2704,20 @@ export function betterPortalShellRuntimeSource(): string {
 
       // -- HTMX extension: bp-shell --
 
+      const discardStaleResponse = (ctx: any): false => {
+        // HTMX emits the immediate trigger from finally, even after cancellation.
+        if (ctx?.hx) delete ctx.hx.trigger;
+        return false;
+      };
       const fragmentRequests = new WeakMap<Element, unknown>();
+      const clearFragmentLoading = (ctx: any, target?: Element | null) => {
+        const requestTarget = ctx?.__bpRequestTarget ?? ctx?.target;
+        target ??= requestTarget;
+        if (!(target instanceof Element) || isMainTarget(target)) return;
+        if (requestTarget instanceof Element && fragmentRequests.has(requestTarget) && fragmentRequests.get(requestTarget) !== ctx) return;
+        if (fragmentRequests.has(target) && fragmentRequests.get(target) !== ctx) return;
+        target.classList.remove("bp-fragment-loading");
+      };
       htmx.registerExtension("bp-shell", {
         // Resolve relative service URLs before htmx processes the element.
         // This catches elements with existing hx-methods that resolveServiceLinks
@@ -2889,7 +2902,7 @@ export function betterPortalShellRuntimeSource(): string {
         htmx_before_swap(_elt: any, detail: any) {
           const ctx = detail.ctx;
           if (isMainTarget(ctx?.target)) {
-            if (ctx.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return false;
+            if (ctx.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return discardStaleResponse(ctx);
             if (typeof ctx.target === "string") ctx.target = mainOutlet();
             if (ctx.response?.status < 400 && ctx.__bpMainGeneration === undefined) {
               ctx.__bpMainGeneration = ++mainRequestGeneration;
@@ -2897,7 +2910,7 @@ export function betterPortalShellRuntimeSource(): string {
             }
           }
           if (!isMainTarget(detail.ctx?.target) && detail.ctx?.__bpAuthGeneration !== undefined
-            && detail.ctx.__bpAuthGeneration !== authGeneration) return false;
+            && detail.ctx.__bpAuthGeneration !== authGeneration) return discardStaleResponse(ctx);
           if (detail.ctx?.__bpElevationHandled) return false;
           if (detail.ctx?.response?.status >= 400 && detail.ctx?.sourceElement?.closest?.("#bp-login-form")) return false;
           const status = ctx?.response?.status;
@@ -2931,7 +2944,7 @@ export function betterPortalShellRuntimeSource(): string {
             localError.setAttribute("tabindex", "-1");
             htmx.process(localError);
             localError.focus({ preventScroll: true });
-            if (target instanceof Element) target.classList.remove("bp-fragment-loading");
+            if (target instanceof Element) clearFragmentLoading(ctx, target);
             return false;
           }
           if (localError && (!status || status < 400)) {
@@ -2963,7 +2976,7 @@ export function betterPortalShellRuntimeSource(): string {
           const swapContentType = ctx?.response?.headers?.get?.("content-type") || "";
           const isJson = swapContentType.includes("application/json");
           if (status && status >= 400 && source instanceof Element && source.closest("[data-bp-error-modal]") && !isMainTarget(target)) {
-            if (target instanceof Element) target.classList.remove("bp-fragment-loading");
+            if (target instanceof Element) clearFragmentLoading(ctx, target);
             showRequestErrorModal(status, isJson ? "" : (ctx?.text || ""), source);
             return false;
           }
@@ -3032,19 +3045,19 @@ export function betterPortalShellRuntimeSource(): string {
         },
 
         htmx_after_request(_elt: any, detail: any) {
-          if (detail.ctx?.__bpElevationHandled) return false;
           const ctx = detail.ctx;
           // These checks must precede header directives and HTMX navigation, not
           // just before_swap: obsolete requests must not redirect a newer page.
-          if (ctx?.__bpMainGeneration !== undefined && ctx.__bpMainGeneration !== mainRequestGeneration) return false;
+          if (ctx?.__bpMainGeneration !== undefined && ctx.__bpMainGeneration !== mainRequestGeneration) return discardStaleResponse(ctx);
           const responseTarget = typeof ctx?.hx?.retarget === "string"
             ? resolvePolicyTarget(ctx.sourceElement || document.body, ctx.hx.retarget) : ctx?.target;
           const historyValues = ctx?.hx?.pushurl || ctx?.hx?.replaceurl
             ? [ctx.hx.pushurl, ctx.hx.replaceurl] : [ctx?.push, ctx?.replace];
           const changesHistory = historyValues.some(value => value && value !== "false");
           const navigatesMain = isMainTarget(responseTarget) || ctx?.hx?.redirect || ctx?.hx?.location || ctx?.hx?.refresh === "true" || changesHistory;
-          if (navigatesMain && ctx?.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return false;
-          if (ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) return false;
+          if (navigatesMain && ctx?.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return discardStaleResponse(ctx);
+          if (ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) return discardStaleResponse(ctx);
+          if (ctx?.__bpElevationHandled) return false;
           const previousAuthorization = readBpHeaders().authorization?.value;
           // HTMX follows these before before_swap. Error responses belong to
           // the shell's status/auth flow, not service-supplied navigation.
@@ -3069,7 +3082,7 @@ export function betterPortalShellRuntimeSource(): string {
                 });
               } else renderBpElementState(bpElement, detail.ctx.response.status, detail.ctx?.text || "");
               if (requestTargetsMain(detail)) setLoading(false);
-              else detail.ctx?.target?.classList?.remove("bp-fragment-loading");
+              else clearFragmentLoading(ctx);
               // A state replacement detaches the initiating control. Stop its response
               // here, before HTMX can swap the original body into another target.
               return false;
@@ -3147,7 +3160,7 @@ export function betterPortalShellRuntimeSource(): string {
             if (shouldScrollMainSwap(detail)) scrollPageToTop();
             scheduleBootstrapOverlaySync();
           } else if (target instanceof Element) {
-            target.classList.remove("bp-fragment-loading");
+            clearFragmentLoading(detail.ctx, target);
             restoreSplitPaneState(target, detail.ctx?.__bpSplitPaneState);
           }
 
@@ -3171,15 +3184,15 @@ export function betterPortalShellRuntimeSource(): string {
           const ctx = detail.ctx;
           const target = ctx?.__bpRequestTarget ?? ctx?.target;
           if (target instanceof Element && fragmentRequests.get(target) === ctx) {
+            clearFragmentLoading(ctx, target);
             fragmentRequests.delete(target);
-            target.classList.remove("bp-fragment-loading");
           }
         },
 
         // Belt-and-suspenders: clear loading after settle
         htmx_after_settle(elt: any) {
           if (isMainTarget(elt)) setLoading(false);
-          else if (elt instanceof Element) elt.classList.remove("bp-fragment-loading");
+          else if (elt instanceof Element && !fragmentRequests.has(elt)) elt.classList.remove("bp-fragment-loading");
           scheduleBootstrapOverlaySync();
         },
 
@@ -3225,7 +3238,7 @@ export function betterPortalShellRuntimeSource(): string {
 
           // Clear fragment loading on error
           if (target instanceof Element && !isMainTarget(target)) {
-            target.classList.remove("bp-fragment-loading");
+            clearFragmentLoading(ctx, target);
           }
 
           if (!requestTargetsMain(detail)) {

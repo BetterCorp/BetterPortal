@@ -67,3 +67,5 @@ HTTP and network errors from partial requests stay with the original request tar
 The root fallback applies only to GET navigation; unmatched root mutations keep their owning service endpoint. Fallback query defaults are preserved, incoming root parameters override matching defaults (including repeated values), and an incoming fragment overrides the fallback fragment. Query defaults used only by the configured service request are retained on that request and stay out of browser history.
 
 Successful fragment responses may retarget the main outlet. The runtime tracks the page generation when each request starts, so a delayed retarget or redirect cannot replace a newer page. HTTP partial failures continue to use the original target.
+
+Responses discarded as stale do not emit `HX-Trigger` events. Fragment loading indicators belong to the latest request for that target, so an older success, failure, or cancellation cannot clear a newer request's indicator.

@@ -1321,21 +1321,27 @@ for (const retarget of ["header", "status"]) {
         if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
           release = async () => {
             await route.fulfill({ status: 200, contentType: "text/html; mode=page; bp-chrome-title=Retargeted",
-              body: '<p id="retargeted">Retargeted page</p>', headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "HX-Retarget", ...(retarget === "header" ? { "HX-Retarget": "#bp-main" } : {}) } });
+              body: '<p id="retargeted">Retargeted page</p>', headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "HX-Retarget,HX-Trigger", "HX-Trigger": "retarget-event", ...(retarget === "header" ? { "HX-Retarget": "#bp-main" } : {}) } });
             resolve();
           };
           started();
         });
         if (route.request().url().includes("?new")) return html(route, '<p id="new-page">New page</p>');
-        return html(route, `<button id="slow" hx-get="https://service.test/slow" hx-target="#row" ${retarget === "status" ? `hx-status:200='{"target":"#bp-main","swap":"innerHTML"}'` : ''}>Slow</button><div id="row">Row</div><button id="new-source">New</button>`);
+        return html(route, '<p>Current page</p><button id="new-source">New</button>');
       });
-      await page.waitForSelector("#slow");
-      await page.evaluate(() => {
+      await page.waitForSelector("#new-source");
+      await page.evaluate(retarget => {
+        const scope = document.createElement("div"); scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+        scope.innerHTML = '<button id="slow" hx-get="https://service.test/slow" hx-target="#row">Slow</button><div id="row">Row</div>';
+        if (retarget === "status") scope.querySelector("#slow")!.setAttribute("hx-status:200", JSON.stringify({ target: "#bp-main", swap: "innerHTML" }));
+        document.body.appendChild(scope); window.htmx.process(scope);
         (window as any).retargetFinished = false;
+        (window as any).retargetEvents = 0;
+        document.addEventListener("retarget-event", () => { (window as any).retargetEvents++; });
         document.addEventListener("htmx:finally:request", (event: any) => {
           if (event.detail.ctx?.request?.action?.endsWith("/slow")) (window as any).retargetFinished = true;
         });
-      });
+      }, retarget);
       await page.locator("#slow").click();
       await pending;
       if (stale) {
@@ -1345,6 +1351,7 @@ for (const retarget of ["header", "status"]) {
       assert.ok(release);
       await release();
       await page.waitForFunction(() => (window as any).retargetFinished);
+      assert.equal(await page.evaluate(() => (window as any).retargetEvents), stale ? 0 : 1);
       if (stale) {
         assert.equal(await page.locator("#new-page").textContent(), "New page");
         assert.equal(await page.locator("#retargeted").count(), 0);
@@ -1418,7 +1425,7 @@ for (const header of ["HX-Push-Url", "HX-Replace-Url"]) {
             release = async () => {
               const headers = historySource === "response" || scenario === "disabled"
                 ? { [header]: scenario === "disabled" ? "false" : "/tools/dashboard?fragment", "access-control-expose-headers": header } : {};
-              await html(route, '<p id="fragment-updated">Updated</p>', 200, headers);
+              await html(route, '<p id="fragment-updated">Updated</p>', 200, { ...headers, "HX-Trigger": "fragment-event", "access-control-expose-headers": header + ",HX-Trigger" });
               resolve();
             };
             started();
@@ -1435,6 +1442,8 @@ for (const header of ["HX-Push-Url", "HX-Replace-Url"]) {
           document.body.appendChild(scope);
           window.htmx.process(scope);
           (window as any).fragmentFinished = false;
+          (window as any).fragmentEvents = 0;
+          document.addEventListener("fragment-event", () => { (window as any).fragmentEvents++; });
           document.addEventListener("htmx:finally:request", (event: any) => {
             if (event.detail.ctx?.request?.action?.endsWith("/slow")) (window as any).fragmentFinished = true;
           });
@@ -1448,6 +1457,7 @@ for (const header of ["HX-Push-Url", "HX-Replace-Url"]) {
         assert.ok(release);
         await release();
         await page.waitForFunction(() => (window as any).fragmentFinished);
+        assert.equal(await page.evaluate(() => (window as any).fragmentEvents), scenario === "stale" ? 0 : 1);
         assert.equal(page.url(), "https://app.test/tools/dashboard?" + (scenario === "fresh" ? "fragment" : "new"));
         if (scenario === "stale") assert.equal(await page.locator("#persistent-fragment").textContent(), "Before");
         else assert.equal(await page.locator("#fragment-updated").textContent(), "Updated");
@@ -1459,45 +1469,86 @@ for (const header of ["HX-Push-Url", "HX-Replace-Url"]) {
 }
 
 
-test("cancelling stale fragment navigation keeps a newer request's loading indicator", async t => {
-  let releaseOld!: () => Promise<void>, releaseNew!: () => Promise<void>;
-  let markOld!: () => void, markNew!: () => void;
-  const oldStarted = new Promise<void>(resolve => { markOld = resolve; });
-  const newStarted = new Promise<void>(resolve => { markNew = resolve; });
-  const { page, errors } = await shell(t, route => {
-    if (route.request().url().endsWith("/fragment-old")) return new Promise<void>(resolve => {
-      releaseOld = async () => { await html(route, "Old", 200, { "HX-Push-Url": "/tools/dashboard?old", "access-control-expose-headers": "HX-Push-Url" }); resolve(); }; markOld();
+for (const outcome of ["cancelled", "success", "network", "http"]) {
+  test(`older ${outcome} fragment completion keeps a newer request's loading indicator`, async t => {
+    let releaseOld!: () => Promise<void>, releaseNew!: () => Promise<void>;
+    let markOld!: () => void, markNew!: () => void;
+    const oldStarted = new Promise<void>(resolve => { markOld = resolve; });
+    const newStarted = new Promise<void>(resolve => { markNew = resolve; });
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().endsWith("/fragment-old")) return new Promise<void>(resolve => {
+        releaseOld = async () => {
+          if (outcome === "network") await route.abort("failed");
+          else await html(route, "Old", outcome === "http" ? 500 : 200, outcome === "cancelled" ? { "HX-Push-Url": "/tools/dashboard?old", "access-control-expose-headers": "HX-Push-Url" } : {});
+          resolve();
+        }; markOld();
+      });
+      if (route.request().url().endsWith("/fragment-new")) return new Promise<void>(resolve => {
+        releaseNew = async () => { await html(route, '<p id="new-result">New result</p>'); resolve(); }; markNew();
+      });
+      return html(route, '<p id="content">Main page</p>');
     });
-    if (route.request().url().endsWith("/fragment-new")) return new Promise<void>(resolve => {
-      releaseNew = async () => { await html(route, '<p id="new-result">New result</p>'); resolve(); }; markNew();
+    await page.waitForSelector("#content");
+    await page.evaluate(() => {
+      const scope = document.createElement("div");
+      scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+      scope.innerHTML = '<button id="old-source">Old</button><button id="new-fragment-source">New</button><div id="persistent">Before</div>';
+      document.body.appendChild(scope);
+      (window as any).oldFinished = false; (window as any).newFinished = false;
+      document.addEventListener("htmx:finally:request", (event: any) => {
+        if (event.detail.ctx?.request?.action?.endsWith("/fragment-old")) (window as any).oldFinished = true;
+        if (event.detail.ctx?.request?.action?.endsWith("/fragment-new")) (window as any).newFinished = true;
+      });
+      void window.htmx.ajax("GET", "https://service.test/fragment-old", { source: "#old-source", target: "#persistent" });
+    });
+    await oldStarted;
+    if (outcome === "cancelled") {
+      await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { target: "#bp-main", push: "/tools/dashboard?new" }); });
+      await page.waitForURL("https://app.test/tools/dashboard?new");
+    }
+    await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/fragment-new", { source: "#new-fragment-source", target: "#persistent" }); });
+    await newStarted;
+    await releaseOld();
+    await page.waitForFunction(() => (window as any).oldFinished);
+    assert.equal(await page.locator("#persistent").evaluate(node => node.classList.contains("bp-fragment-loading")), true);
+    assert.equal(page.url(), "https://app.test/tools/dashboard" + (outcome === "cancelled" ? "?new" : ""));
+    await releaseNew();
+    await page.waitForFunction(() => (window as any).newFinished);
+    assert.equal(await page.locator("#new-result").textContent(), "New result");
+    assert.equal(await page.locator("#persistent").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("a response from the previous auth generation cannot emit an immediate trigger", async t => {
+  let release!: () => Promise<void>, started!: () => void;
+  const pending = new Promise<void>(resolve => { started = resolve; });
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/auth-stale")) return new Promise<void>(resolve => {
+      release = async () => { await html(route, "Old", 200, { "HX-Trigger": "auth-event" }); resolve(); }; started();
     });
     return html(route, '<p id="content">Main page</p>');
   });
   await page.waitForSelector("#content");
   await page.evaluate(() => {
-    const scope = document.createElement("div");
-    scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
-    scope.innerHTML = '<button id="old-source">Old</button><button id="new-fragment-source">New</button><div id="persistent">Before</div>';
-    document.body.appendChild(scope);
-    (window as any).oldFinished = false; (window as any).newFinished = false;
+    const scope = document.createElement("div"); scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+    scope.innerHTML = '<button id="auth-source">Slow</button><div id="auth-target">Before</div>'; document.body.appendChild(scope);
+    (window as any).authEvents = 0; (window as any).authFinished = false;
+    document.addEventListener("auth-event", () => { (window as any).authEvents++; });
     document.addEventListener("htmx:finally:request", (event: any) => {
-      if (event.detail.ctx?.request?.action?.endsWith("/fragment-old")) (window as any).oldFinished = true;
-      if (event.detail.ctx?.request?.action?.endsWith("/fragment-new")) (window as any).newFinished = true;
+      if (event.detail.ctx?.request?.action?.endsWith("/auth-stale")) (window as any).authFinished = true;
     });
-    void window.htmx.ajax("GET", "https://service.test/fragment-old", { source: "#old-source", target: "#persistent" });
+    void window.htmx.ajax("GET", "https://service.test/auth-stale", { source: "#auth-source", target: "#auth-target" });
   });
-  await oldStarted;
-  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { target: "#bp-main", push: "/tools/dashboard?new" }); });
-  await page.waitForURL("https://app.test/tools/dashboard?new");
-  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/fragment-new", { source: "#new-fragment-source", target: "#persistent" }); });
-  await newStarted;
-  await releaseOld();
-  await page.waitForFunction(() => (window as any).oldFinished);
-  assert.equal(await page.locator("#persistent").evaluate(node => node.classList.contains("bp-fragment-loading")), true);
-  assert.equal(page.url(), "https://app.test/tools/dashboard?new");
-  await releaseNew();
-  await page.waitForFunction(() => (window as any).newFinished);
-  assert.equal(await page.locator("#new-result").textContent(), "New result");
-  assert.equal(await page.locator("#persistent").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
+  await pending;
+  await page.evaluate(() => {
+    localStorage.setItem("bp.headers", JSON.stringify({ authorization: { value: "Bearer newer", owner: "service", scope: null } }));
+    window.dispatchEvent(new StorageEvent("storage", { key: "bp.headers" }));
+  });
+  await release();
+  await page.waitForFunction(() => (window as any).authFinished);
+  assert.equal(await page.evaluate(() => (window as any).authEvents), 0);
+  assert.equal(await page.locator("#auth-target").textContent(), "Before");
+  assert.equal(await page.locator("#auth-target").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
   assert.deepEqual(errors, []);
 });
