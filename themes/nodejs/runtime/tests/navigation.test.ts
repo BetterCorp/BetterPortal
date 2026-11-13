@@ -1660,3 +1660,55 @@ test("older partial failure cannot reintroduce an error after a newer success", 
   assert.equal(await page.locator("#partial").textContent(), "New data");
   assert.deepEqual(errors, []);
 });
+
+
+for (const rootType of ["api", "post-only"]) {
+  for (const navigation of ["initial", "ajax", "anchor", "location"]) {
+    test(`${rootType} root metadata cannot suppress the GET page fallback during ${navigation}`, async t => {
+      const requests: string[] = [];
+      const { page, errors } = await shell(t, route => {
+        requests.push(route.request().url());
+        if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+        if (route.request().url().endsWith("/redirect")) return html(route, "", 200, { "HX-Location": "/" });
+        if (route.request().url().endsWith("/not-a-page")) return html(route, '<p id="wrong">Wrong endpoint</p>');
+        return html(route, '<p id="landing">Dashboard</p>');
+      }, {}, navigation === "initial" ? "" : "https://auth.test/login", navigation === "initial" ? "/" : "/auth/login", false, [
+        { href: "/", requestUrl: "https://service.test/not-a-page", serviceId: "service", kind: rootType === "api" ? "api" : "page", methods: rootType === "api" ? ["GET"] : ["POST"] }
+      ]);
+      if (navigation !== "initial") {
+        await page.waitForSelector("#signed-in");
+        await page.evaluate(navigation => {
+          if (navigation === "anchor") {
+            const link = document.createElement("a"); link.href = "/"; link.textContent = "Home";
+            document.getElementById("bp-main")!.appendChild(link); window.htmx.process(link); link.click();
+          } else void window.htmx.ajax("GET", navigation === "location" ? "https://service.test/redirect" : "/", { target: "#bp-main", push: "/" });
+        }, navigation);
+      }
+      await page.waitForSelector("#landing");
+      assert.equal(requests.some(url => url.endsWith("/not-a-page")), false);
+      assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+test("fallback skips non-GET pages and accepts legacy GET page metadata", async t => {
+  let requestUrl = "";
+  const { page, errors } = await shell(t, route => {
+    requestUrl = route.request().url();
+    return html(route, route.request().url().includes("auth.test") ? '<p id="signed-in">Signed in</p>' : '<p id="landing">Landing</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#signed-in");
+  await page.evaluate(() => {
+    document.getElementById("menu")!.remove();
+    document.querySelector("[data-bp-shell-root]")!.setAttribute("data-bp-routes", JSON.stringify([
+      { href: "/do-work", requestUrl: "https://service.test/do-work", serviceId: "service", kind: "page", methods: ["POST"] },
+      { href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service" }
+    ]));
+    void window.htmx.ajax("GET", "/", { target: "#bp-main", push: "/" });
+  });
+  await page.waitForSelector("#landing");
+  assert.equal(requestUrl, "https://service.test/dashboard");
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.deepEqual(errors, []);
+});

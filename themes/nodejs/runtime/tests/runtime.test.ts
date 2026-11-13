@@ -84,6 +84,7 @@ test("history keeps configured tenant routes before reverse-mapping service path
 test("missing root skips auth and identity handlers in menus and page fallbacks", () => {
   const source = betterPortalShellRuntimeSource();
   const code = source.slice(source.indexOf("const rootFallbackRoute"), source.indexOf("const redirectChainKey"));
+  const pageEligibility = source.slice(source.indexOf("const isGetPageRoute"), source.indexOf("const configuredRoutes"));
   const login = { href: "/session/start", requestUrl: "https://shared.test/session/start", serviceId: "provider-123", kind: "page" };
   const logout = { ...login, href: "/session/end", requestUrl: "https://shared.test/session/end" };
   const dashboard = { href: "/dashboard", requestUrl: "https://shared.test/dashboard", serviceId: "app", kind: "page" };
@@ -122,11 +123,12 @@ test("missing root skips auth and identity handlers in menus and page fallbacks"
     { name: "non-root navigation", menu: [login, dashboard], routes: [login, dashboard], path: "/sign-in" }
   ]) {
     const redirects: unknown[][] = [];
-    runInNewContext(`var __name = f => f; ${code} redirectMissingRoot();`, {
+    runInNewContext(`var __name = f => f; ${pageEligibility} ${code} redirectMissingRoot();`, {
       URL,
       window: { location: { pathname: scenario.path ?? "/", search: "", hash: "", origin: "https://portal.test" } },
       tenantUrlForServiceUrl: (value: string) => value,
       normalizePath: (path: string) => path.replace(/\/+$/, "") || "/",
+      tenantRoutePath: (path: string) => path.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/",
       configuredRouteFor: (path: string) => scenario.routes.find(route => route.href === path),
       configuredRoutes: () => scenario.routes,
       shellRoot: () => ({ getAttribute: (name: string) => name === "data-bp-auth-service" ? scenario.auth ?? "provider-123" : scenario.loginUrl ?? null }),

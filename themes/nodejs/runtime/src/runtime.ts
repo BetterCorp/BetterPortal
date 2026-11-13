@@ -253,6 +253,12 @@ export function betterPortalShellRuntimeSource(): string {
         kind?: "page" | "api";
       };
 
+      const isGetPageRoute = (route: ConfiguredRoute) => {
+        const path = tenantRoutePath(route.href || "/");
+        const kind = route.kind ?? (path.startsWith("/_bp/") ? "api" : "page");
+        return kind === "page" && (!route.methods || route.methods.includes("GET"));
+      };
+
       const configuredRoutes = (): ConfiguredRoute[] => {
         try {
           const routes = JSON.parse(shellRoot()?.getAttribute("data-bp-routes") || "[]");
@@ -265,6 +271,7 @@ export function betterPortalShellRuntimeSource(): string {
       const configuredRouteFor = (path: string) => {
         const normalized = tenantRoutePath(path);
         const matches = configuredRoutes().flatMap(route => {
+          if (!isGetPageRoute(route)) return [];
           const template = tenantRoutePath(route.href || "/");
           return patternValues(template, normalized) ? [{ route, specificity: template.split("/").map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 1 : 0) }] : [];
         });
@@ -1410,9 +1417,9 @@ export function betterPortalShellRuntimeSource(): string {
           ...routes.filter((route) => loginUrl && (route.requestUrl === loginUrl || route.href === loginUrl)).map((route) => route.serviceId)
         ].filter(Boolean));
         const isSafeRootRoute = (route: ConfiguredRoute) => {
-          if (!route.href || !route.requestUrl || authServiceIds.has(route.serviceId)) return false;
-          if (routes.some(candidate => candidate.href === route.href && candidate.kind === "api")
-            && !routes.some(candidate => candidate.href === route.href && candidate.kind !== "api")) return false;
+          if (!route.href || !route.requestUrl || !isGetPageRoute(route) || authServiceIds.has(route.serviceId)) return false;
+          const matchingRoutes = routes.filter(candidate => tenantRoutePath(candidate.href || "/") === tenantRoutePath(route.href!));
+          if (matchingRoutes.length && !matchingRoutes.some(isGetPageRoute)) return false;
           try {
             const pattern = route.href.split(/[?#]/, 1)[0];
             if (pattern.split("/").some(segment => /^[:*]/.test(segment) || /^\{[^}]+\}$/.test(segment))) return false;
@@ -1431,7 +1438,7 @@ export function betterPortalShellRuntimeSource(): string {
           requestUrl: link.getAttribute("data-bp-route-request") || "",
           serviceId: link.getAttribute("data-bp-service") || ""
         })).find(isSafeRootRoute);
-        const fallback = menuRoute ?? routes.find((route) => route.kind === "page" && isSafeRootRoute(route));
+        const fallback = menuRoute ?? routes.find(isSafeRootRoute);
         return fallback;
       };
 
@@ -2160,7 +2167,7 @@ export function betterPortalShellRuntimeSource(): string {
             const rootNavigation = (!hxMethodAttr || hxMethodAttr === "hx-get")
               ? resolveRootFallback(resolvedPath.pathname + query) : null;
             const rootMatch = rootNavigation ? matchTenantRoute(new URL(rootNavigation.tenantUrl, window.location.origin).pathname) : null;
-            const match = ownPage ?? (configuredKind === "page" ? configuredMatch : null) ?? rootMatch;
+            const match = rootMatch ?? ownPage ?? (configuredKind === "page" ? configuredMatch : null);
             const apiMatch = ownApi ?? (configuredKind === "api" ? configuredMatch : null);
 
             if (!match && apiMatch && (!apiMatch.route.methods || apiMatch.route.methods.includes("GET")) && isAnchor && !hxMethodAttr) {
