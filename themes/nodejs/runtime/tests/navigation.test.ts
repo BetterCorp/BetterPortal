@@ -1195,3 +1195,43 @@ for (const control of ["form", "select", "button"]) {
     assert.deepEqual(errors, []);
   });
 }
+
+
+for (const navigation of ["initial", "ajax", "anchor", "location"]) {
+  test(`query-bearing explicit root mount wins over fallback during ${navigation} navigation`, async t => {
+    const requests: string[] = [];
+    const { page, errors } = await shell(t, route => {
+      requests.push(route.request().url());
+      if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+      if (route.request().url().endsWith("/redirect")) return html(route, "", 200, { "HX-Location": "/?mode=chosen#root" });
+      return html(route, new URL(route.request().url()).pathname === "/welcome" ? '<p id="root-content">Root page</p>' : '<p id="fallback-content">Unrelated fallback</p>');
+    }, {}, navigation === "initial" ? "https://service.test/welcome" : "https://auth.test/login",
+    navigation === "initial" ? "/" : "/auth/login", false, [
+      { href: "/?mode=default#intro", requestUrl: "https://service.test/welcome", serviceId: "service", kind: "page" }
+    ]);
+    if (navigation !== "initial") {
+      await page.waitForSelector("#signed-in");
+      await page.evaluate(navigation => {
+        if (navigation === "anchor") {
+          const link = document.createElement("a");
+          link.href = "/?mode=chosen#root";
+          link.textContent = "Home";
+          document.getElementById("bp-main")!.appendChild(link);
+          window.htmx.process(link);
+          link.click();
+        } else {
+          void window.htmx.ajax("GET", navigation === "location" ? "https://service.test/redirect" : "/?mode=chosen#root", { target: "#bp-main", push: "/?mode=chosen#root" });
+        }
+      }, navigation);
+    }
+    await page.waitForSelector("#root-content");
+    await page.waitForLoadState("networkidle");
+    assert.equal(requests.some(url => new URL(url).pathname === "/dashboard"), false);
+    assert.equal(new URL(page.url()).pathname, "/");
+    if (navigation !== "initial") {
+      assert.equal(new URL(requests.at(-1)!).searchParams.get("mode"), "chosen");
+      assert.equal(new URL(page.url()).searchParams.get("mode"), "chosen");
+    }
+    assert.deepEqual(errors, []);
+  });
+}

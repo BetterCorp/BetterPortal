@@ -237,6 +237,9 @@ export function betterPortalShellRuntimeSource(): string {
         return normalized === "" ? "/" : normalized;
       };
 
+      // Query defaults and fragments customize a navigation, not its mount identity.
+      const tenantRoutePath = (value: string) => normalizePath((value || "/").split(/[?#]/, 1)[0]);
+
       type ConfiguredRoute = {
         href?: string;
         requestUrl?: string;
@@ -260,9 +263,9 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const configuredRouteFor = (path: string) => {
-        const normalized = normalizePath(path);
+        const normalized = tenantRoutePath(path);
         const matches = configuredRoutes().flatMap(route => {
-          const template = route.href || "/";
+          const template = tenantRoutePath(route.href || "/");
           return patternValues(template, normalized) ? [{ route, specificity: template.split("/").map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 1 : 0) }] : [];
         });
         return mostSpecificMatches(matches)[0]?.route ?? null;
@@ -1212,8 +1215,6 @@ export function betterPortalShellRuntimeSource(): string {
         window.setTimeout(poll, 750);
       };
 
-      // Query defaults and fragments customize a navigation, not its mount identity.
-      const tenantRoutePath = (value: string) => normalizePath((value || "/").split(/[?#]/, 1)[0]);
       const buildServiceRouteMap = (): ServiceRoute[] => {
         const routes: ServiceRoute[] = [];
         const addRoute = (tenantPathRaw: string, requestUrl: string, serviceId: string, kind?: "page" | "api", template?: string, methods?: string[], fixedParams?: Record<string, string>, baseUrl?: string) => {
