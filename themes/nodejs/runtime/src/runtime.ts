@@ -279,6 +279,7 @@ export function betterPortalShellRuntimeSource(): string {
       const requestTargetsMain = (detail: any) => {
         const ctx = detail && (detail.ctx || detail);
         if (!ctx) return false;
+        if (ctx.__bpRequestTarget !== undefined) return isMainTarget(ctx.__bpRequestTarget);
         if (isMainTarget(ctx.target) || isMainTarget(detail?.target)) return true;
         const source = ctx.sourceElement || detail?.elt;
         const sel = source && source.getAttribute ? source.getAttribute("hx-target") : null;
@@ -1364,6 +1365,8 @@ export function betterPortalShellRuntimeSource(): string {
 
       const triggerShellLink = (tenantUrl: string, serviceUrl?: string, replace = false) => {
         try {
+          const resolved = navigationUrl(tenantUrl);
+          if (resolved !== tenantUrl) { tenantUrl = resolved; serviceUrl = undefined; }
           const destination = new URL(tenantUrl, window.location.origin);
           if (destination.origin !== window.location.origin) return;
           tenantUrl = destination.pathname + destination.search + destination.hash;
@@ -1406,6 +1409,8 @@ export function betterPortalShellRuntimeSource(): string {
           if (routes.some(candidate => candidate.href === route.href && candidate.kind === "api")
             && !routes.some(candidate => candidate.href === route.href && candidate.kind !== "api")) return false;
           try {
+            const pattern = route.href.split(/[?#]/, 1)[0];
+            if (pattern.split("/").some(segment => /^[:*]/.test(segment) || /^\{[^}]+\}$/.test(segment))) return false;
             const tenantUrl = new URL(route.href, window.location.origin);
             const requestUrl = new URL(route.requestUrl, window.location.origin);
             if (normalizePath(tenantUrl.pathname) === "/" || /(^|\/)[:*]/.test(tenantUrl.pathname)) return false;
@@ -1793,12 +1798,22 @@ export function betterPortalShellRuntimeSource(): string {
         try { return document.querySelector(spec); } catch { return null; }
       };
 
+      const explicitTargetOwner = (el: Element): Element | null => {
+        if (el.hasAttribute("hx-target") || el.hasAttribute("hx-target:inherited")) return el;
+        const inherited = "[" + CSS.escape("hx-target:inherited") + "]";
+        return el.parentElement?.closest(htmx.config.implicitInheritance ? "[hx-target], " + inherited : inherited) ?? null;
+      };
+      const explicitTargetSpec = (el: Element) => {
+        const owner = explicitTargetOwner(el);
+        return owner?.getAttribute("hx-target") ?? owner?.getAttribute("hx-target:inherited") ?? null;
+      };
+
       const sanitizeHtmxTarget = (el: Element) => {
         if (el.closest(NO_ROUTE_SELECTOR) || el.hasAttribute("data-bp-route-link")) return false;
         if (!el.hasAttribute("data-bp-explicit-target")) return false;
         const lane = sourceLaneRoot(el);
         if (!lane) return false;
-        const targetSpec = el.getAttribute("hx-target");
+        const targetSpec = explicitTargetSpec(el);
         if (!targetSpec) return false;
         const target = resolvePolicyTarget(el, targetSpec);
         if (target && targetWithinLane(el, target)) return false;
@@ -1821,8 +1836,63 @@ export function betterPortalShellRuntimeSource(): string {
         const lane = sourceLaneRoot(source);
         if (!lane) return false;
         if (!source.hasAttribute("data-bp-explicit-target")) return false;
-        const target = resolvePolicyTarget(source, source.getAttribute("hx-target"), detail?.ctx?.target);
+        const target = resolvePolicyTarget(source, explicitTargetSpec(source), detail?.ctx?.target);
         return !!target && !targetWithinLane(source, target);
+      };
+
+      const partialErrorOutlets = new WeakMap<Element, HTMLElement>();
+      const renderPartialError = (ctx: any, status: number) => {
+        const source = ctx?.sourceElement instanceof Element ? ctx.sourceElement : null;
+        const target = source ? resolvePolicyTarget(source, null, ctx.__bpRequestTarget ?? ctx.target) : null;
+        if (!target || isMainTarget(target)) return;
+        const configured = mutationErrorOutlet(source);
+        if (!configured && source?.closest("[data-bp-error-modal]")) {
+          const contentType = ctx?.response?.headers?.get?.("content-type") || "";
+          showRequestErrorModal(status, contentType.includes("text/html") ? ctx.text || "" : "", source);
+          target.classList.remove("bp-fragment-loading");
+          ctx.__bpPartialErrorHandled = true;
+          return;
+        }
+        const previous = partialErrorOutlets.get(target);
+        let outlet = configured ?? (previous?.isConnected ? previous : null) ?? target.querySelector<HTMLElement>("[data-bp-partial-error]");
+        if (!outlet) {
+          outlet = document.createElement("div");
+          outlet.setAttribute("data-bp-partial-error", "");
+          outlet.setAttribute("role", "alert");
+          if (target.tagName === "TR") {
+            const cell = target.querySelector("td, th");
+            if (cell) cell.appendChild(outlet);
+            else { const cell = document.createElement("td"); cell.appendChild(outlet); target.appendChild(cell); }
+          } else if (["TABLE", "TBODY", "THEAD", "TFOOT"].includes(target.tagName)) {
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+            cell.colSpan = 1000;
+            cell.appendChild(outlet);
+            row.appendChild(cell);
+            (target.tagName === "TABLE" ? target.querySelector("tbody") ?? target : target).appendChild(row);
+          } else if (["INPUT", "BUTTON", "SELECT", "TEXTAREA", "IMG"].includes(target.tagName)) target.insertAdjacentElement("afterend", outlet);
+          else target.appendChild(outlet);
+        }
+        if (!configured) partialErrorOutlets.set(target, outlet);
+        const contentType = ctx?.response?.headers?.get?.("content-type") || "";
+        // An explicit local outlet may render fragment validation HTML. Full-page
+        // status documents and JSON remain data; they must not run OOB swaps.
+        if (configured && contentType.includes("text/html") && !isThemedStatusResponse(ctx) && ctx.text) {
+          outlet.innerHTML = ctx.text;
+          for (const node of outlet.querySelectorAll("[hx-swap-oob], [data-hx-swap-oob], [hx-select-oob], template[hx], hx-partial, hx-oob")) node.remove();
+        } else {
+          let message = status ? errorMessage(status) : "Service unavailable or blocked by network policy. Try the action again.";
+          if (contentType.includes("application/json")) {
+            try { const body = JSON.parse(ctx.text); if (typeof body.message === "string") message = body.message; } catch { /* use default */ }
+          }
+          outlet.textContent = message;
+        }
+        outlet.hidden = false;
+        outlet.setAttribute("tabindex", "-1");
+        htmx.process(outlet);
+        outlet.focus({ preventScroll: true });
+        target.classList.remove("bp-fragment-loading");
+        ctx.__bpPartialErrorHandled = true;
       };
 
       const rewriteSseUrl = (el: Element, serviceId: string): boolean => {
@@ -1982,7 +2052,8 @@ export function betterPortalShellRuntimeSource(): string {
           // Nothing to resolve
           if (!hasHref && !hxMethodAttr) continue;
 
-          const hadExplicitTarget = el.hasAttribute("hx-target");
+          const targetOwner = explicitTargetOwner(el);
+          const hadExplicitTarget = !!targetOwner && (targetOwner === el || targetOwner !== mainOutlet());
           if (hadExplicitTarget) el.setAttribute("data-bp-explicit-target", "");
 
           // -- Shell default targeting --
@@ -2049,7 +2120,9 @@ export function betterPortalShellRuntimeSource(): string {
             const configuredMatch = !ownPage && !ownApi ? matchTenantRoute(pathOnly) : null;
             const configuredKind = configuredMatch?.route.kind
               ?? (configuredMatch?.route.tenantPath.startsWith("/_bp/") ? "api" : "page");
-            const match = ownPage ?? (configuredKind === "page" ? configuredMatch : null);
+            const rootMatch = pathOnly === "/" && !configuredRouteFor("/")
+              ? matchTenantRoute(new URL(navigationUrl(pathOnly), window.location.origin).pathname) : null;
+            const match = ownPage ?? (configuredKind === "page" ? configuredMatch : null) ?? rootMatch;
             const apiMatch = ownApi ?? (configuredKind === "api" ? configuredMatch : null);
 
             if (!match && apiMatch && (!apiMatch.route.methods || apiMatch.route.methods.includes("GET")) && isAnchor && !hxMethodAttr) {
@@ -2635,6 +2708,7 @@ export function betterPortalShellRuntimeSource(): string {
         htmx_config_request(elt: any, detail: any) {
           const ctx = detail.ctx;
           if (!ctx || !ctx.request) return;
+          ctx.__bpRequestTarget = ctx.target;
           liveBpHeaders();
           ctx.__bpAuthGeneration = authGeneration;
           const source = ctx.sourceElement instanceof Element
@@ -2760,6 +2834,7 @@ export function betterPortalShellRuntimeSource(): string {
             return false;
           }
           const target = detail.ctx?.target;
+          detail.ctx.__bpRequestTarget = target;
           if (requestTargetsMain(detail)) {
             closeContainingOffcanvas(detail.ctx?.sourceElement);
             if (isMainTarget(detail.ctx?.sourceElement)) disableInitialMainLoad();
@@ -2788,6 +2863,14 @@ export function betterPortalShellRuntimeSource(): string {
           const ctx = detail.ctx;
           const status = ctx?.response?.status;
           const target = ctx?.target;
+          if (status && status < 400 && !requestTargetsMain(detail)) {
+            const original = ctx.__bpRequestTarget;
+            if (original instanceof Element) {
+              partialErrorOutlets.get(original)?.remove();
+              partialErrorOutlets.delete(original);
+              original.querySelectorAll("[data-bp-partial-error]").forEach(node => node.remove());
+            }
+          }
           const source = ctx?.sourceElement;
           if (source instanceof Element && (status === 401 || status === 403)) {
             const policy = source.getAttribute("data-bp-auth-status");
@@ -2798,6 +2881,7 @@ export function betterPortalShellRuntimeSource(): string {
             }
           }
 
+          if (ctx?.__bpPartialErrorHandled) return false;
           const localError = source instanceof Element ? mutationErrorOutlet(source) : null;
           if (status && status >= 400 && localError && !isMainTarget(target)) {
             const contentType = ctx?.response?.headers?.get?.("content-type") || "";
@@ -2917,7 +3001,7 @@ export function betterPortalShellRuntimeSource(): string {
           const previousAuthorization = readBpHeaders().authorization?.value;
           // HTMX follows these before before_swap. Error responses belong to
           // the shell's status/auth flow, not service-supplied navigation.
-          if (detail.ctx?.response?.status >= 400 && isMainTarget(detail.ctx?.target)) {
+          if (detail.ctx?.response?.status >= 400) {
             for (const key of ["location", "redirect", "refresh", "pushurl", "replaceurl", "retarget", "reswap"]) {
               if (detail.ctx.hx) delete detail.ctx.hx[key];
             }
@@ -3048,7 +3132,10 @@ export function betterPortalShellRuntimeSource(): string {
           if (bpElement && bpElement.getAttribute("data-bp-state") === "loading") {
             renderBpElementState(bpElement, ctx?.response?.status || 0, ctx?.text || "");
           }
-          if (!requestTargetsMain(detail)) return;
+          if (!requestTargetsMain(detail)) {
+            if (!bpElement && !ctx?.sourceElement?.closest?.("#bp-login-form")) renderPartialError(ctx, ctx?.response?.status || 0);
+            return;
+          }
           setLoading(false);
 
           const status = ctx?.response?.status || 0;
@@ -3080,16 +3167,10 @@ export function betterPortalShellRuntimeSource(): string {
             target.classList.remove("bp-fragment-loading");
           }
 
-          const localError = ctx?.sourceElement instanceof Element ? mutationErrorOutlet(ctx.sourceElement) : null;
-          if (localError && !isMainTarget(target)) {
-            localError.textContent = "Service unavailable or blocked by network policy. Try the action again.";
-            localError.hidden = false;
-            localError.setAttribute("tabindex", "-1");
-            localError.focus({ preventScroll: true });
+          if (!requestTargetsMain(detail)) {
+            if (!bpElement) renderPartialError(ctx, 0);
             return;
           }
-
-          if (!requestTargetsMain(detail)) return;
 
           // Themed status views already swapped meaningful content - no banner.
           setLoading(false);

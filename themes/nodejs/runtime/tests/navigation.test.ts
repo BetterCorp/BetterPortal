@@ -1045,3 +1045,52 @@ test("JSON HX-Location preserves replace history and maps the request destinatio
   assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
   assert.equal(await page.evaluate(() => history.length), 2);
 });
+
+
+for (const control of ["anchor", "form"]) {
+  test(`an upgraded root ${control} uses the landing fallback`, async t => {
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().includes("auth.test")) return html(route, control === "anchor"
+        ? '<a id="continue" href="/">Continue</a>'
+        : '<form id="continue" method="get" action="/"><button>Continue</button></form>');
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.getByText("Continue", { exact: true }).click();
+    await page.waitForSelector("#landing");
+    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("the landing fallback excludes brace-style route parameters", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<p id="login">Signed in</p>'), {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#login");
+  await page.evaluate(() => {
+    document.querySelector("[data-bp-shell-root]")!.setAttribute("data-bp-routes", JSON.stringify([
+      { href: "/record/{id}", requestUrl: "https://service.test/record/{id}", serviceId: "service", kind: "page" },
+      { href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }
+    ]));
+    document.getElementById("menu")?.remove();
+    window.htmx.ajax("GET", "/", { target: "#bp-main", push: "/" });
+  });
+  await page.waitForURL("https://app.test/tools/dashboard");
+  assert.deepEqual(errors, []);
+});
+
+test("password login without a next path uses the shell root fallback", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    requests.push(route.request().url());
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok" });
+    if (route.request().url().includes("auth.test")) return html(route, '<form id="bp-login-form" hx-post="https://auth.test/login" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="user"><input name="password" value="password" type="password"><input name="next" value=""><div id="bp-login-error" class="d-none"></div><button>Sign in</button></form>');
+    return html(route, '<p id="landing">Dashboard</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForSelector("#landing");
+  assert.equal(requests.at(-1), "https://service.test/dashboard");
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.deepEqual(errors, []);
+});

@@ -15,7 +15,7 @@ const response = (route: Route, body: string, chrome = {}, status = 200, mode = 
   contentType: `text/html; mode=${mode}` + Object.entries(chrome).map(([key, value]) => `; bp-chrome-${key}=${encodeURIComponent(Array.isArray(value) ? JSON.stringify(value) : String(value))}` + (Array.isArray(value) ? `; bp-array-chrome-${key}=true` : "")).join(""),
   headers: { "access-control-allow-origin": "*" }
 });
-async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches", errorOutlet = false, requests?: string[]) {
+async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches", errorOutlet = false, requests?: string[], implicitInheritance = false) {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -32,7 +32,7 @@ async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) =>
     const mount = resolveAppRoute(app, url.pathname);
     if (!mount) return route.fulfill({ status: 404, body: "No page mount" });
     const action = buildServiceViewUrl({ hostname: "https://service.test" }, mount, url.pathname)! + url.search;
-    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><title>App</title><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
+    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><title>App</title><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse","implicitInheritance":${implicitInheritance}}'></head><body>
       <div data-bp-shell-root data-bp-menu-health="false" data-bp-document-title="App" data-bp-services='${JSON.stringify(Object.fromEntries(mounts.map(mount => [mount.serviceId, "https://service.test"])))}' data-bp-routes='${JSON.stringify(mounts)}'>
       <h1 data-bp-current-title></h1><div data-bp-current-breadcrumb></div><a data-bp-up hidden>Up</a><button data-bp-back>Back</button>
       <main id="bp-main" data-bp-service="service" hx-get="${action}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></main></div><div id="error-outlet"></div><script>window.BetterPortalShellAdapter = { applyChrome: chrome => { window.appliedChrome = chrome; } ${errorOutlet ? ', showRequestError: (status, html) => { document.getElementById("error-outlet").innerHTML = html; }' : ''} };</script><script>${asset.body}</script></body></html>` });
@@ -352,3 +352,77 @@ test("custom chrome arrays retain their type without converting literal JSON str
   assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-array-chrome-tabs"), null);
   assert.deepEqual(errors, []);
 });
+
+
+for (const status of [400, 500]) {
+  for (const inheritance of ["explicit", "inherited", "implicit"]) {
+    const inherited = inheritance !== "explicit";
+    const suffix = inheritance === "inherited" ? ":inherited" : "";
+    test(`row HTTP ${status} stays local with ${inheritance} targets and page-level error directives`, async t => {
+      let failed = true, pages = 0;
+      let accept = "", requestType = "";
+      const markup = `<p id="sibling">Other row</p><input id="unsaved" value="original"><table><tbody>
+        <tr id="edited" ${inherited ? `hx-target${suffix}="closest tr" hx-swap${suffix}="outerHTML"` : ''}><td>
+          <input id="row-value" value="original"><button id="save-row" hx-post="/update"
+            ${inherited ? '' : 'hx-target="closest tr" hx-swap="outerHTML"'}
+            hx-status:${status}='{"target":"#bp-main","swap":"innerHTML"}'>Save row</button>
+        </td></tr></tbody></table>`;
+      const { page, errors } = await shell(t, [list], route => {
+        if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+          "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+        } });
+        if (route.request().method() === "POST") {
+          accept = route.request().headers().accept;
+          requestType = route.request().headers()["hx-request-type"];
+          if (!failed) return response(route, '<tr id="edited"><td id="saved">Saved row</td></tr>', {}, 200, "fragment");
+          return route.fulfill({ status, contentType: "text/html; mode=status", body:
+            '<div id="bp-main" hx-swap-oob="true">Wrong full page</div><main id="error-page">Full error page</main>',
+            headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "HX-Retarget,HX-Reswap,HX-Redirect,HX-Location",
+              "HX-Retarget": "#bp-main", "HX-Reswap": "innerHTML", "HX-Redirect": "/ui/batches", "HX-Location": "/ui/batches" }
+          });
+        }
+        pages++;
+        return response(route, markup, { title: "Existing page" });
+      }, "/ui/batches", false, undefined, inheritance === "implicit");
+      await page.locator("#unsaved").fill("keep page edits");
+      await page.locator("#row-value").fill("keep row edits");
+      await page.locator("#save-row").click();
+      await page.locator("#edited [data-bp-partial-error]").waitFor();
+      assert.match(accept, /mode=fragment/);
+      assert.equal(requestType, "partial");
+      assert.equal(await page.locator("#unsaved").inputValue(), "keep page edits");
+      assert.equal(await page.locator("#row-value").inputValue(), "keep row edits");
+      assert.equal(await page.locator("#sibling").textContent(), "Other row");
+      assert.equal(await page.locator("#error-page").count(), 0);
+      assert.equal(page.url(), "https://app.test/ui/batches");
+      assert.equal(pages, 1);
+      failed = false;
+      await page.locator("#save-row").click();
+      await page.locator("#saved").waitFor();
+      await page.locator("[data-bp-partial-error]").waitFor({ state: "detached" });
+      assert.equal(await page.locator("#unsaved").inputValue(), "keep page edits");
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+for (const failure of ["json", "network"]) {
+  test(`a row ${failure} failure preserves the page and entered values`, async t => {
+    const { page, errors } = await shell(t, [list], route => {
+      if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+        "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+      } });
+      if (route.request().method() === "POST") return failure === "network" ? route.abort("failed")
+        : route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ message: "Row validation failed" }), headers: { "access-control-allow-origin": "*" } });
+      return response(route, '<p id="sibling">Other content</p><form id="row-form" hx-target="this" hx-swap="outerHTML" hx-post="/update"><input id="edited" value="original"><button>Save row</button></form>');
+    });
+    await page.locator("#edited").fill("keep edits");
+    await page.getByRole("button", { name: "Save row" }).click();
+    await page.locator("[data-bp-partial-error]").waitFor();
+    assert.equal(await page.locator("#edited").inputValue(), "keep edits");
+    assert.equal(await page.locator("#sibling").textContent(), "Other content");
+    assert.equal(page.url(), "https://app.test/ui/batches");
+    if (failure === "json") assert.equal(await page.locator("[data-bp-partial-error]").textContent(), "Row validation failed");
+    assert.deepEqual(errors, []);
+  });
+}
