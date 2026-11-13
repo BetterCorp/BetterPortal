@@ -1309,3 +1309,98 @@ for (const pattern of ["/:id", "/{id}"]) {
     });
   }
 }
+
+
+for (const retarget of ["header", "status"]) {
+  for (const stale of [false, true]) {
+    test(`${retarget} fragment retarget ${stale ? "cannot overwrite a newer page" : "updates the main page and chrome"}`, async t => {
+      let release: (() => Promise<void>) | undefined;
+      let started!: () => void;
+      const pending = new Promise<void>(resolve => { started = resolve; });
+      const { page, errors } = await shell(t, route => {
+        if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
+          release = async () => {
+            await route.fulfill({ status: 200, contentType: "text/html; mode=page; bp-chrome-title=Retargeted",
+              body: '<p id="retargeted">Retargeted page</p>', headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "HX-Retarget", ...(retarget === "header" ? { "HX-Retarget": "#bp-main" } : {}) } });
+            resolve();
+          };
+          started();
+        });
+        if (route.request().url().includes("?new")) return html(route, '<p id="new-page">New page</p>');
+        return html(route, `<button id="slow" hx-get="https://service.test/slow" hx-target="#row" ${retarget === "status" ? `hx-status:200='{"target":"#bp-main","swap":"innerHTML"}'` : ''}>Slow</button><div id="row">Row</div><button id="new-source">New</button>`);
+      });
+      await page.waitForSelector("#slow");
+      await page.evaluate(() => {
+        (window as any).retargetFinished = false;
+        document.addEventListener("htmx:finally:request", (event: any) => {
+          if (event.detail.ctx?.request?.action?.endsWith("/slow")) (window as any).retargetFinished = true;
+        });
+      });
+      await page.locator("#slow").click();
+      await pending;
+      if (stale) {
+        await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { source: "#new-source", target: "#bp-main", push: "/tools/dashboard?new" }); });
+        await page.waitForSelector("#new-page");
+      }
+      assert.ok(release);
+      await release();
+      await page.waitForFunction(() => (window as any).retargetFinished);
+      if (stale) {
+        assert.equal(await page.locator("#new-page").textContent(), "New page");
+        assert.equal(await page.locator("#retargeted").count(), 0);
+        assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-chrome-title"), null);
+      } else {
+        await page.waitForSelector("#retargeted");
+        assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-chrome-title"), "Retargeted");
+      }
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+test("a stale fragment response cannot redirect a newer main page", async t => {
+  let release: (() => Promise<void>) | undefined;
+  let started!: () => void;
+  const pending = new Promise<void>(resolve => { started = resolve; });
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
+      release = async () => { await html(route, "", 200, { "HX-Redirect": "/auth/login" }); resolve(); }; started();
+    });
+    return html(route, '<p id="content">Content</p><button id="slow" hx-get="https://service.test/slow" hx-target="#row">Slow</button><div id="row">Row</div><button id="new-source">New</button>');
+  });
+  await page.locator("#slow").click();
+  await pending;
+  await page.evaluate(() => {
+    (window as any).slowFinished = false;
+    document.addEventListener("htmx:finally:request", (event: any) => {
+      if (event.detail.ctx?.request?.action?.endsWith("/slow")) (window as any).slowFinished = true;
+    });
+    void window.htmx.ajax("GET", "https://service.test/dashboard?new", { source: "#new-source", target: "#bp-main", push: "/tools/dashboard?new" });
+  });
+  await page.waitForURL("https://app.test/tools/dashboard?new");
+  assert.ok(release);
+  await release();
+  await page.waitForFunction(() => (window as any).slowFinished);
+  assert.equal(page.url(), "https://app.test/tools/dashboard?new");
+  assert.deepEqual(errors, []);
+});
+
+
+test("HTTP partial errors retain the original target when a response listener retargets main", async t => {
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    if (route.request().method() === "POST") return html(route, "Failed", 500);
+    return html(route, '<p id="outside">Keep page</p><div id="row"><input id="edit" value="original"><button hx-post="https://service.test/fail" hx-target="#row">Save</button></div>');
+  });
+  await page.locator("#edit").fill("keep edits");
+  await page.evaluate(() => document.addEventListener("htmx:after:request", (event: any) => {
+    if (event.detail.ctx?.response?.status >= 400) event.detail.ctx.target = document.getElementById("bp-main");
+  }));
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.locator("#row [data-bp-partial-error]").waitFor();
+  assert.equal(await page.locator("#outside").textContent(), "Keep page");
+  assert.equal(await page.locator("#edit").inputValue(), "keep edits");
+  assert.deepEqual(errors, []);
+});

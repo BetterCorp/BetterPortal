@@ -282,8 +282,8 @@ export function betterPortalShellRuntimeSource(): string {
       const requestTargetsMain = (detail: any) => {
         const ctx = detail && (detail.ctx || detail);
         if (!ctx) return false;
-        if (ctx.__bpRequestTarget !== undefined) return isMainTarget(ctx.__bpRequestTarget);
         if (isMainTarget(ctx.target) || isMainTarget(detail?.target)) return true;
+        if (ctx.__bpRequestTarget !== undefined) return isMainTarget(ctx.__bpRequestTarget);
         const source = ctx.sourceElement || detail?.elt;
         const sel = source && source.getAttribute ? source.getAttribute("hx-target") : null;
         return sel === "#bp-main";
@@ -2878,16 +2878,26 @@ export function betterPortalShellRuntimeSource(): string {
           } else if (target instanceof Element) {
             target.classList.add("bp-fragment-loading");
           }
+          // Fragments can later retarget main, so retain the page they began on.
+          detail.ctx.__bpPageGeneration = mainRequestGeneration;
         },
 
         // Only explicit themed status HTML may replace the main outlet on an
         // HTTP error. All other error bodies are data, not trusted shell UI.
         htmx_before_swap(_elt: any, detail: any) {
+          const ctx = detail.ctx;
+          if (isMainTarget(ctx?.target)) {
+            if (ctx.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return false;
+            if (typeof ctx.target === "string") ctx.target = mainOutlet();
+            if (ctx.response?.status < 400 && ctx.__bpMainGeneration === undefined) {
+              ctx.__bpMainGeneration = ++mainRequestGeneration;
+              ctx.__bpPageGeneration = mainRequestGeneration;
+            }
+          }
           if (!isMainTarget(detail.ctx?.target) && detail.ctx?.__bpAuthGeneration !== undefined
             && detail.ctx.__bpAuthGeneration !== authGeneration) return false;
           if (detail.ctx?.__bpElevationHandled) return false;
           if (detail.ctx?.response?.status >= 400 && detail.ctx?.sourceElement?.closest?.("#bp-login-form")) return false;
-          const ctx = detail.ctx;
           const status = ctx?.response?.status;
           const target = ctx?.target;
           if (status && status < 400 && !requestTargetsMain(detail)) {
@@ -3025,6 +3035,10 @@ export function betterPortalShellRuntimeSource(): string {
           // These checks must precede header directives and HTMX navigation, not
           // just before_swap: obsolete requests must not redirect a newer page.
           if (ctx?.__bpMainGeneration !== undefined && ctx.__bpMainGeneration !== mainRequestGeneration) return false;
+          const responseTarget = typeof ctx?.hx?.retarget === "string"
+            ? resolvePolicyTarget(ctx.sourceElement || document.body, ctx.hx.retarget) : ctx?.target;
+          const navigatesMain = isMainTarget(responseTarget) || ctx?.hx?.redirect || ctx?.hx?.location || ctx?.hx?.refresh === "true";
+          if (navigatesMain && ctx?.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return false;
           if (ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) return false;
           const previousAuthorization = readBpHeaders().authorization?.value;
           // HTMX follows these before before_swap. Error responses belong to
@@ -3163,7 +3177,7 @@ export function betterPortalShellRuntimeSource(): string {
           if (bpElement && bpElement.getAttribute("data-bp-state") === "loading") {
             renderBpElementState(bpElement, ctx?.response?.status || 0, ctx?.text || "");
           }
-          if (!requestTargetsMain(detail)) {
+          if (!isMainTarget(ctx?.__bpRequestTarget ?? ctx?.target)) {
             if (!bpElement && !ctx?.sourceElement?.closest?.("#bp-login-form")) renderPartialError(ctx, ctx?.response?.status || 0);
             return;
           }
