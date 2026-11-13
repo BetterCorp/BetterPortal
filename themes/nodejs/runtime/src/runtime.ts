@@ -1133,8 +1133,8 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const activeRouteLink = () => {
-        const path = normalizePath(window.location.pathname);
-        return routeLinks().find((link) => normalizePath(link.getAttribute("href") || "/") === path) || null;
+        const path = tenantRoutePath(window.location.pathname);
+        return routeLinks().find((link) => tenantRoutePath(link.getAttribute("href") || "/") === path) || null;
       };
 
       const currentServiceId = () =>
@@ -1454,7 +1454,10 @@ export function betterPortalShellRuntimeSource(): string {
       const redirectMissingRoot = () => {
         if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
         const fallback = rootFallbackRoute();
-        if (fallback?.href && fallback.requestUrl) triggerShellLink(fallback.href, fallback.requestUrl, true);
+        if (fallback?.href && fallback.requestUrl) {
+          const destination = navigationUrl(window.location.pathname + window.location.search + window.location.hash);
+          triggerShellLink(destination, undefined, true);
+        }
       };
 
       // Survive full-page HX-Redirects without persisting credentials. A successful
@@ -2202,10 +2205,10 @@ export function betterPortalShellRuntimeSource(): string {
 
       const setActiveRoute = (path: string) => {
         let activeLink: Element | null = null;
-        const normalizedPath = normalizePath(path);
+        const normalizedPath = tenantRoutePath(path);
 
         routeLinks().forEach((link) => {
-          const isActive = normalizePath(link.getAttribute("href") || "/") === normalizedPath;
+          const isActive = tenantRoutePath(link.getAttribute("href") || "/") === normalizedPath;
           link.classList.toggle("active", isActive);
           link.setAttribute("aria-current", isActive ? "page" : "false");
           if (isActive) activeLink = link;

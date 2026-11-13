@@ -124,7 +124,8 @@ test("missing root skips auth and identity handlers in menus and page fallbacks"
     const redirects: unknown[][] = [];
     runInNewContext(`var __name = f => f; ${code} redirectMissingRoot();`, {
       URL,
-      window: { location: { pathname: scenario.path ?? "/", origin: "https://portal.test" } },
+      window: { location: { pathname: scenario.path ?? "/", search: "", hash: "", origin: "https://portal.test" } },
+      tenantUrlForServiceUrl: (value: string) => value,
       normalizePath: (path: string) => path.replace(/\/+$/, "") || "/",
       configuredRouteFor: (path: string) => scenario.routes.find(route => route.href === path),
       configuredRoutes: () => scenario.routes,
@@ -136,7 +137,7 @@ test("missing root skips auth and identity handlers in menus and page fallbacks"
       })),
       triggerShellLink: (...args: unknown[]) => redirects.push(args)
     });
-    assert.deepEqual(redirects, scenario.expected ? [[scenario.expected.href, scenario.expected.requestUrl, true]] : [], scenario.name);
+    assert.deepEqual(redirects, scenario.expected ? [[scenario.expected.href, undefined, true]] : [], scenario.name);
   }
 });
 
