@@ -237,6 +237,9 @@ export function betterPortalShellRuntimeSource(): string {
         return normalized === "" ? "/" : normalized;
       };
 
+      // Query defaults and fragments customize a navigation, not its mount identity.
+      const tenantRoutePath = (value: string) => normalizePath((value || "/").split(/[?#]/, 1)[0]);
+
       type ConfiguredRoute = {
         href?: string;
         requestUrl?: string;
@@ -250,6 +253,12 @@ export function betterPortalShellRuntimeSource(): string {
         kind?: "page" | "api";
       };
 
+      const isGetPageRoute = (route: ConfiguredRoute) => {
+        const path = tenantRoutePath(route.href || "/");
+        const kind = route.kind ?? (path.startsWith("/_bp/") ? "api" : "page");
+        return kind === "page" && (!route.methods || route.methods.includes("GET"));
+      };
+
       const configuredRoutes = (): ConfiguredRoute[] => {
         try {
           const routes = JSON.parse(shellRoot()?.getAttribute("data-bp-routes") || "[]");
@@ -260,9 +269,10 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const configuredRouteFor = (path: string) => {
-        const normalized = normalizePath(path);
+        const normalized = tenantRoutePath(path);
         const matches = configuredRoutes().flatMap(route => {
-          const template = route.href || "/";
+          if (!isGetPageRoute(route)) return [];
+          const template = tenantRoutePath(route.href || "/");
           return patternValues(template, normalized) ? [{ route, specificity: template.split("/").map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 1 : 0) }] : [];
         });
         return mostSpecificMatches(matches)[0]?.route ?? null;
@@ -280,6 +290,7 @@ export function betterPortalShellRuntimeSource(): string {
         const ctx = detail && (detail.ctx || detail);
         if (!ctx) return false;
         if (isMainTarget(ctx.target) || isMainTarget(detail?.target)) return true;
+        if (ctx.__bpRequestTarget !== undefined) return isMainTarget(ctx.__bpRequestTarget);
         const source = ctx.sourceElement || detail?.elt;
         const sel = source && source.getAttribute ? source.getAttribute("hx-target") : null;
         return sel === "#bp-main";
@@ -1129,8 +1140,8 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const activeRouteLink = () => {
-        const path = normalizePath(window.location.pathname);
-        return routeLinks().find((link) => normalizePath(link.getAttribute("href") || "/") === path) || null;
+        const path = tenantRoutePath(window.location.pathname);
+        return routeLinks().find((link) => tenantRoutePath(link.getAttribute("href") || "/") === path) || null;
       };
 
       const currentServiceId = () =>
@@ -1221,7 +1232,7 @@ export function betterPortalShellRuntimeSource(): string {
             const registered = new URL(origin);
             // Hosts reject service targets on the theme host, including template-only routes.
             if (registered.host.toLowerCase() === window.location.host.toLowerCase()) return;
-            const tenantPath = normalizePath(tenantPathRaw || "/");
+            const tenantPath = tenantRoutePath(tenantPathRaw);
             let prefix = trimTrailingSlashes(registered.pathname);
             if (baseUrl) {
               const base = new URL(baseUrl);
@@ -1252,7 +1263,7 @@ export function betterPortalShellRuntimeSource(): string {
         routeLinks().forEach((link) => {
           const href = link.getAttribute("href") || "/";
           const serviceId = link.getAttribute("data-bp-service") || "";
-          if (routes.some(route => route.tenantPath === normalizePath(href) && route.serviceId === serviceId)) return;
+          if (routes.some(route => route.tenantPath === tenantRoutePath(href) && route.serviceId === serviceId)) return;
           addRoute(
             link.getAttribute("href") || "/",
             link.getAttribute("data-bp-route-request") || "",
@@ -1276,6 +1287,7 @@ export function betterPortalShellRuntimeSource(): string {
           const name = names[index].startsWith(":") ? names[index].slice(1)
             : /^\{[^}]+\}$/.test(names[index]) ? names[index].slice(1, -1) : null;
           if (name) {
+            if (!values[index]) return null;
             try { params[name] = decodeURIComponent(values[index]); } catch { return null; }
           } else {
             try { if (decodeURIComponent(names[index]) !== decodeURIComponent(values[index])) return null; } catch { return null; }
@@ -1318,11 +1330,11 @@ export function betterPortalShellRuntimeSource(): string {
         const best = matches.reduce((best, match) => compare(match.specificity, best) < 0 ? match.specificity : best, matches[0].specificity);
         return matches.filter(match => compare(match.specificity, best) === 0);
       };
-      const matchServiceRoute = (serviceId: string, path: string, kind: "page" | "api" = "page", origin?: string): { route: ServiceRoute; suffix: string } | null => {
+      const matchServiceRoute = (serviceId: string, path: string, kind: "page" | "api" = "page", origin?: string, includeNonGetRoot = false): { route: ServiceRoute; suffix: string } | null => {
         const matches = buildServiceRouteMap().filter(route => (!serviceId || route.serviceId === serviceId)
           && (!origin || new URL(route.serviceOrigin).origin === origin)
           && (route.kind ?? (route.tenantPath.startsWith("/_bp/") ? "api" : "page")) === kind
-          && (kind !== "page" || !route.methods || route.methods.includes("GET")))
+          && (kind !== "page" || !route.methods || route.methods.includes("GET") || (includeNonGetRoot && route.tenantPath === "/")))
           .flatMap(route => { const resolved = resolveRoutePattern(route, path, true, !origin) ?? (!origin ? resolveRoutePattern(route, path, true) : null); return resolved ? [resolved] : []; });
         const unique = new Map(mostSpecificMatches(matches).map(match => [`${match.route.serviceId}\0${match.route.tenantPath}`, match]));
         return unique.size === 1 ? [...unique.values()][0] : null;
@@ -1336,14 +1348,14 @@ export function betterPortalShellRuntimeSource(): string {
         return unique.size === 1 ? [...unique.values()][0] : null;
       };
 
-      const tenantUrlForServiceUrl = (value: string, serviceId = ""): string => {
+      const tenantUrlForServiceUrl = (value: string, serviceId = "", includeNonGetRoot = false): string => {
         try {
           const url = new URL(value, window.location.origin);
           const tenantMatch = url.origin === window.location.origin ? matchTenantRoute(url.pathname) : null;
           if (tenantMatch) {
             return tenantMatch.route.tenantPath + url.search + url.hash;
           }
-          const match = matchServiceRoute(serviceId, url.pathname, "page", url.origin) || matchServiceRoute(serviceId, url.pathname, "api", url.origin);
+          const match = matchServiceRoute(serviceId, url.pathname, "page", url.origin, includeNonGetRoot) || matchServiceRoute(serviceId, url.pathname, "api", url.origin);
           if (!match) return value;
           return match.route.tenantPath + url.search + url.hash;
         } catch {
@@ -1364,6 +1376,9 @@ export function betterPortalShellRuntimeSource(): string {
 
       const triggerShellLink = (tenantUrl: string, serviceUrl?: string, replace = false) => {
         try {
+          const fallback = resolveRootFallback(tenantUrl);
+          const resolved = fallback?.tenantUrl ?? navigationUrl(tenantUrl);
+          if (resolved !== tenantUrl) { tenantUrl = resolved; serviceUrl = fallback?.requestUrl; }
           const destination = new URL(tenantUrl, window.location.origin);
           if (destination.origin !== window.location.origin) return;
           tenantUrl = destination.pathname + destination.search + destination.hash;
@@ -1394,8 +1409,7 @@ export function betterPortalShellRuntimeSource(): string {
         window.setTimeout(cleanup, 30000);
       };
 
-      const redirectMissingRoot = () => {
-        if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
+      const rootFallbackRoute = () => {
         const routes = configuredRoutes();
         const loginUrl = shellRoot()?.getAttribute("data-bp-login-url");
         const authServiceIds = new Set([
@@ -1403,11 +1417,15 @@ export function betterPortalShellRuntimeSource(): string {
           ...routes.filter((route) => loginUrl && (route.requestUrl === loginUrl || route.href === loginUrl)).map((route) => route.serviceId)
         ].filter(Boolean));
         const isSafeRootRoute = (route: ConfiguredRoute) => {
-          if (!route.href || !route.requestUrl || authServiceIds.has(route.serviceId)) return false;
+          if (!route.href || !route.requestUrl || !isGetPageRoute(route) || authServiceIds.has(route.serviceId)) return false;
+          const matchingRoutes = routes.filter(candidate => tenantRoutePath(candidate.href || "/") === tenantRoutePath(route.href!));
+          if (matchingRoutes.length && !matchingRoutes.some(isGetPageRoute)) return false;
           try {
+            const pattern = route.href.split(/[?#]/, 1)[0];
+            if (pattern.split("/").some(segment => /^[:*]/.test(segment) || /^\{[^}]+\}$/.test(segment))) return false;
             const tenantUrl = new URL(route.href, window.location.origin);
             const requestUrl = new URL(route.requestUrl, window.location.origin);
-            if (normalizePath(tenantUrl.pathname) === "/") return false;
+            if (normalizePath(tenantUrl.pathname) === "/" || /(^|\/)[:*]/.test(tenantUrl.pathname)) return false;
             if (route.requestUrl === loginUrl || route.href === loginUrl) return false;
             // ponytail: name heuristic only for the initial fallback; prefer explicit service metadata when available.
             return !/(^|[./_-])(auth|authentication|identity|login|logout|sign[-_]?in|sign[-_]?out)(?=$|[./_-])/i.test(
@@ -1420,8 +1438,72 @@ export function betterPortalShellRuntimeSource(): string {
           requestUrl: link.getAttribute("data-bp-route-request") || "",
           serviceId: link.getAttribute("data-bp-service") || ""
         })).find(isSafeRootRoute);
-        const fallback = menuRoute ?? routes.find((route) => route.kind === "page" && isSafeRootRoute(route));
-        if (fallback?.href && fallback.requestUrl) triggerShellLink(fallback.href, fallback.requestUrl, true);
+        const fallback = menuRoute ?? routes.find(isSafeRootRoute);
+        return fallback;
+      };
+
+      const mergeUrlParameters = (destination: URL, incoming: URL): URL => {
+        for (const key of new Set(incoming.searchParams.keys())) destination.searchParams.delete(key);
+        for (const [key, value] of incoming.searchParams) destination.searchParams.append(key, value);
+        if (incoming.hash) destination.hash = incoming.hash;
+        return destination;
+      };
+
+      // Keep browser and service destinations together so every root entry point
+      // preserves request-only defaults without copying them into history.
+      const resolveRootFallback = (value: string): { tenantUrl: string; requestUrl: string } | null => {
+        // Recognize non-GET root aliases only to select a valid GET landing page.
+        const url = new URL(tenantUrlForServiceUrl(value, "", true), window.location.origin);
+        if (url.origin !== window.location.origin || normalizePath(url.pathname) !== "/" || configuredRouteFor("/")) return null;
+        const fallback = rootFallbackRoute();
+        if (!fallback?.href || !fallback.requestUrl) return null;
+        const destination = mergeUrlParameters(new URL(fallback.href, window.location.origin), url);
+        const tenantUrl = tenantUrlForServiceUrl(destination.pathname + destination.search + destination.hash);
+        const request = mergeUrlParameters(new URL(fallback.requestUrl, window.location.origin), new URL(tenantUrl, window.location.origin));
+        return { tenantUrl, requestUrl: request.href };
+      };
+
+      const navigationUrl = (value: string): string => resolveRootFallback(value)?.tenantUrl ?? tenantUrlForServiceUrl(value);
+
+      const tenantUrlWithGetValues = (value: string, body: FormData | URLSearchParams | null | undefined): string => {
+        const destination = new URL(value, window.location.origin);
+        const incoming = new URL(window.location.origin);
+        for (const [key, entry] of body ?? []) incoming.searchParams.append(key, String(entry));
+        mergeUrlParameters(destination, incoming);
+        return destination.pathname + destination.search + destination.hash;
+      };
+
+      const redirectMissingRoot = () => {
+        const fallback = resolveRootFallback(window.location.pathname + window.location.search + window.location.hash);
+        if (fallback) triggerShellLink(fallback.tenantUrl, fallback.requestUrl, true);
+      };
+
+      // Survive full-page HX-Redirects without persisting credentials. A successful
+      // main swap ends a chain; the expiry also permits a later explicit retry.
+      const redirectChainKey = "bp:redirect-chain";
+      let redirectChain: { paths: string[]; time: number } = { paths: [], time: 0 };
+      try { redirectChain = JSON.parse(sessionStorage.getItem(redirectChainKey) || "null") || redirectChain; } catch { /* storage unavailable */ }
+      const clearRedirectChain = () => {
+        redirectChain = { paths: [], time: 0 };
+        try { sessionStorage.removeItem(redirectChainKey); } catch { /* storage unavailable */ }
+      };
+      const allowRedirect = (ctx: any, destination: string, credentialsChanged: boolean): boolean => {
+        const url = new URL(destination, window.location.origin);
+        if (url.origin !== window.location.origin) return true;
+        const path = url.pathname + url.search; // a fragment cannot change a service response
+        const source = new URL(tenantUrlForServiceUrl(ctx.request.action), window.location.origin);
+        const sourcePath = source.pathname + source.search;
+        if (credentialsChanged || !Array.isArray(redirectChain.paths) || Date.now() - redirectChain.time > 10000) clearRedirectChain();
+        const self = ctx.request.method.toUpperCase() === "GET" && source.origin === url.origin && sourcePath === path;
+        if (!credentialsChanged && (self || redirectChain.paths.includes(path) || redirectChain.paths.length >= 8)) {
+          clearRedirectChain();
+          renderRouteError("Redirect loop", "This page redirects back to a page that is already being loaded. Check the app's landing route and service redirect configuration.", undefined, ctx.sourceElement);
+          setLoading(false);
+          return false;
+        }
+        redirectChain = { paths: [...new Set([...redirectChain.paths, sourcePath, path])], time: Date.now() };
+        try { sessionStorage.setItem(redirectChainKey, JSON.stringify(redirectChain)); } catch { /* in-memory protection remains */ }
+        return true;
       };
 
       interface BpElementConfig {
@@ -1748,12 +1830,22 @@ export function betterPortalShellRuntimeSource(): string {
         try { return document.querySelector(spec); } catch { return null; }
       };
 
+      const explicitTargetOwner = (el: Element): Element | null => {
+        if (el.hasAttribute("hx-target") || el.hasAttribute("hx-target:inherited")) return el;
+        const inherited = "[" + CSS.escape("hx-target:inherited") + "]";
+        return el.parentElement?.closest(htmx.config.implicitInheritance ? "[hx-target], " + inherited : inherited) ?? null;
+      };
+      const explicitTargetSpec = (el: Element) => {
+        const owner = explicitTargetOwner(el);
+        return owner?.getAttribute("hx-target") ?? owner?.getAttribute("hx-target:inherited") ?? null;
+      };
+
       const sanitizeHtmxTarget = (el: Element) => {
         if (el.closest(NO_ROUTE_SELECTOR) || el.hasAttribute("data-bp-route-link")) return false;
         if (!el.hasAttribute("data-bp-explicit-target")) return false;
         const lane = sourceLaneRoot(el);
         if (!lane) return false;
-        const targetSpec = el.getAttribute("hx-target");
+        const targetSpec = explicitTargetSpec(el);
         if (!targetSpec) return false;
         const target = resolvePolicyTarget(el, targetSpec);
         if (target && targetWithinLane(el, target)) return false;
@@ -1776,8 +1868,75 @@ export function betterPortalShellRuntimeSource(): string {
         const lane = sourceLaneRoot(source);
         if (!lane) return false;
         if (!source.hasAttribute("data-bp-explicit-target")) return false;
-        const target = resolvePolicyTarget(source, source.getAttribute("hx-target"), detail?.ctx?.target);
+        const target = resolvePolicyTarget(source, explicitTargetSpec(source), detail?.ctx?.target);
         return !!target && !targetWithinLane(source, target);
+      };
+
+      const partialErrorOutlets = new WeakMap<Element, HTMLElement>();
+      const clearPartialErrors = (ctx: any) => {
+        if (!isCurrentFragmentRequest(ctx)) return;
+        const original = ctx?.__bpRequestTarget ?? ctx?.target;
+        if (!(original instanceof Element) || isMainTarget(original)) return;
+        const outlet = partialErrorOutlets.get(original);
+        (outlet?.closest("[data-bp-partial-error-wrapper]") ?? outlet)?.remove();
+        partialErrorOutlets.delete(original);
+        const localError = ctx?.sourceElement instanceof Element ? mutationErrorOutlet(ctx.sourceElement) : null;
+        if (localError) { localError.replaceChildren(); localError.hidden = true; }
+      };
+      const renderPartialError = (ctx: any, status: number) => {
+        if (!isCurrentFragmentRequest(ctx)) { ctx.__bpPartialErrorHandled = true; return; }
+        const source = ctx?.sourceElement instanceof Element ? ctx.sourceElement : null;
+        const target = source ? resolvePolicyTarget(source, null, ctx.__bpRequestTarget ?? ctx.target) : null;
+        if (!target || isMainTarget(target)) return;
+        const configured = mutationErrorOutlet(source);
+        if (!configured && source?.closest("[data-bp-error-modal]")) {
+          const contentType = ctx?.response?.headers?.get?.("content-type") || "";
+          showRequestErrorModal(status, contentType.includes("text/html") ? ctx.text || "" : "", source);
+          clearFragmentLoading(ctx, target);
+          ctx.__bpPartialErrorHandled = true;
+          return;
+        }
+        const previous = partialErrorOutlets.get(target);
+        let outlet = configured ?? (previous?.isConnected ? previous : null);
+        if (!outlet) {
+          outlet = document.createElement("div");
+          outlet.setAttribute("data-bp-partial-error", "");
+          outlet.setAttribute("role", "alert");
+          if (target.tagName === "TR") {
+            const cell = target.querySelector("td, th");
+            if (cell) cell.appendChild(outlet);
+            else { const cell = document.createElement("td"); cell.setAttribute("data-bp-partial-error-wrapper", ""); cell.appendChild(outlet); target.appendChild(cell); }
+          } else if (["TABLE", "TBODY", "THEAD", "TFOOT"].includes(target.tagName)) {
+            const row = document.createElement("tr");
+            row.setAttribute("data-bp-partial-error-wrapper", "");
+            const cell = document.createElement("td");
+            cell.colSpan = 1000;
+            cell.appendChild(outlet);
+            row.appendChild(cell);
+            (target.tagName === "TABLE" ? target.querySelector("tbody") ?? target : target).appendChild(row);
+          } else if (["INPUT", "BUTTON", "SELECT", "TEXTAREA", "IMG"].includes(target.tagName)) target.insertAdjacentElement("afterend", outlet);
+          else target.appendChild(outlet);
+        }
+        if (!configured) partialErrorOutlets.set(target, outlet);
+        const contentType = ctx?.response?.headers?.get?.("content-type") || "";
+        // An explicit local outlet may render fragment validation HTML. Full-page
+        // status documents and JSON remain data; they must not run OOB swaps.
+        if (configured && contentType.includes("text/html") && !isThemedStatusResponse(ctx) && ctx.text) {
+          outlet.innerHTML = ctx.text;
+          for (const node of outlet.querySelectorAll("[hx-swap-oob], [data-hx-swap-oob], [hx-select-oob], template[hx], hx-partial, hx-oob")) node.remove();
+        } else {
+          let message = status ? errorMessage(status) : "Service unavailable or blocked by network policy. Try the action again.";
+          if (contentType.includes("application/json")) {
+            try { const body = JSON.parse(ctx.text); if (typeof body.message === "string") message = body.message; } catch { /* use default */ }
+          }
+          outlet.textContent = message;
+        }
+        outlet.hidden = false;
+        outlet.setAttribute("tabindex", "-1");
+        htmx.process(outlet);
+        outlet.focus({ preventScroll: true });
+        clearFragmentLoading(ctx, target);
+        ctx.__bpPartialErrorHandled = true;
       };
 
       const rewriteSseUrl = (el: Element, serviceId: string): boolean => {
@@ -1937,7 +2096,8 @@ export function betterPortalShellRuntimeSource(): string {
           // Nothing to resolve
           if (!hasHref && !hxMethodAttr) continue;
 
-          const hadExplicitTarget = el.hasAttribute("hx-target");
+          const targetOwner = explicitTargetOwner(el);
+          const hadExplicitTarget = !!targetOwner && (targetOwner === el || targetOwner !== mainOutlet());
           if (hadExplicitTarget) el.setAttribute("data-bp-explicit-target", "");
 
           // -- Shell default targeting --
@@ -2004,7 +2164,10 @@ export function betterPortalShellRuntimeSource(): string {
             const configuredMatch = !ownPage && !ownApi ? matchTenantRoute(pathOnly) : null;
             const configuredKind = configuredMatch?.route.kind
               ?? (configuredMatch?.route.tenantPath.startsWith("/_bp/") ? "api" : "page");
-            const match = ownPage ?? (configuredKind === "page" ? configuredMatch : null);
+            const rootNavigation = (!hxMethodAttr || hxMethodAttr === "hx-get")
+              ? resolveRootFallback(resolvedPath.pathname + query) : null;
+            const rootMatch = rootNavigation ? matchTenantRoute(new URL(rootNavigation.tenantUrl, window.location.origin).pathname) : null;
+            const match = rootMatch ?? ownPage ?? (configuredKind === "page" ? configuredMatch : null);
             const apiMatch = ownApi ?? (configuredKind === "api" ? configuredMatch : null);
 
             if (!match && apiMatch && (!apiMatch.route.methods || apiMatch.route.methods.includes("GET")) && isAnchor && !hxMethodAttr) {
@@ -2019,10 +2182,10 @@ export function betterPortalShellRuntimeSource(): string {
             if (match) {
               // Known route - keep/use its configured tenant path and request
               // the corresponding service path.
-              const tenantUrl = match.route.tenantPath + query;
-              const absoluteServiceUrl = match.route.serviceOrigin
-                + match.route.servicePath
-                + query;
+              const fallback = match === rootMatch ? rootNavigation : null;
+              const tenantUrl = fallback?.tenantUrl ?? match.route.tenantPath + query;
+              const absoluteServiceUrl = fallback?.requestUrl ?? match.route.serviceOrigin + match.route.servicePath + query;
+              if (fallback) el.setAttribute("data-bp-root-url", tenantUrl);
 
               if (isAnchor) el.setAttribute("href", tenantUrl);
               if (hxMethodAttr) {
@@ -2035,7 +2198,7 @@ export function betterPortalShellRuntimeSource(): string {
               if (!el.hasAttribute("hx-swap")) el.setAttribute("hx-swap", "innerHTML");
               // Controls add their selected/form values at request time. Map
               // that final request URL back to the mounted UI route in history.
-              if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", isAnchor ? tenantUrl : "true");
+              if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", isAnchor || fallback ? tenantUrl : "true");
               el.setAttribute("data-bp-shell-route", "page");
             } else if (hxMethodAttr === "hx-get" || elServiceOrigin === unresolvedServiceOrigin) {
               el.setAttribute("data-bp-route-error", "This page is not available in this app.");
@@ -2070,10 +2233,10 @@ export function betterPortalShellRuntimeSource(): string {
 
       const setActiveRoute = (path: string) => {
         let activeLink: Element | null = null;
-        const normalizedPath = normalizePath(path);
+        const normalizedPath = tenantRoutePath(path);
 
         routeLinks().forEach((link) => {
-          const isActive = normalizePath(link.getAttribute("href") || "/") === normalizedPath;
+          const isActive = tenantRoutePath(link.getAttribute("href") || "/") === normalizedPath;
           link.classList.toggle("active", isActive);
           link.setAttribute("aria-current", isActive ? "page" : "false");
           if (isActive) activeLink = link;
@@ -2522,10 +2685,10 @@ export function betterPortalShellRuntimeSource(): string {
         if (challenge.version !== 1 || !["confirm", "mfa"].includes(challenge.minimum) || !claims || claims.tenantId !== challenge.tenantId || claims.appId !== challenge.appId) return response;
         const blocked = (message: string) => {
           if (ctx) ctx.__bpElevationHandled = true;
-          if (ctx?.target instanceof Element) ctx.target.classList.remove("bp-fragment-loading");
-          setLoading(false);
+          clearFragmentLoading(ctx);
+          if (ctx && requestTargetsMain(ctx) && ctx.__bpMainGeneration === mainRequestGeneration) setLoading(false);
           triggerBodyEvent("bp:auth:elevation-cancelled", { message });
-          if (ctx?.sourceElement instanceof Element) {
+          if (ctx?.sourceElement instanceof Element && isCurrentFragmentRequest(ctx)) {
             const outlet = mutationErrorOutlet(ctx.sourceElement);
             if (outlet) { outlet.textContent = message; outlet.hidden = false; }
           }
@@ -2560,6 +2723,27 @@ export function betterPortalShellRuntimeSource(): string {
 
       // -- HTMX extension: bp-shell --
 
+      const discardStaleResponse = (ctx: any): false => {
+        // HTMX emits the immediate trigger from finally, even after cancellation.
+        if (ctx?.hx) delete ctx.hx.trigger;
+        return false;
+      };
+      const fragmentRequests = new WeakMap<Element, unknown>();
+      // Retain ordering after completion without retaining request/response data.
+      const fragmentGenerations = new WeakMap<Element, number>();
+      const isCurrentFragmentRequest = (ctx: any): boolean => {
+        const target = ctx?.__bpRequestTarget ?? ctx?.target;
+        return !(target instanceof Element) || ctx?.__bpFragmentGeneration === undefined
+          || fragmentGenerations.get(target) === ctx.__bpFragmentGeneration;
+      };
+      const clearFragmentLoading = (ctx: any, target?: Element | null) => {
+        const requestTarget = ctx?.__bpRequestTarget ?? ctx?.target;
+        target ??= requestTarget;
+        if (!(target instanceof Element) || isMainTarget(target)) return;
+        if (requestTarget instanceof Element && fragmentRequests.has(requestTarget) && fragmentRequests.get(requestTarget) !== ctx) return;
+        if (fragmentRequests.has(target) && fragmentRequests.get(target) !== ctx) return;
+        target.classList.remove("bp-fragment-loading");
+      };
       htmx.registerExtension("bp-shell", {
         // Resolve relative service URLs before htmx processes the element.
         // This catches elements with existing hx-methods that resolveServiceLinks
@@ -2590,6 +2774,7 @@ export function betterPortalShellRuntimeSource(): string {
         htmx_config_request(elt: any, detail: any) {
           const ctx = detail.ctx;
           if (!ctx || !ctx.request) return;
+          ctx.__bpRequestTarget = ctx.target;
           liveBpHeaders();
           ctx.__bpAuthGeneration = authGeneration;
           const source = ctx.sourceElement instanceof Element
@@ -2615,13 +2800,25 @@ export function betterPortalShellRuntimeSource(): string {
           try {
             const action = ctx.request?.action || "";
             if (!action) return;
+            const rootUrl = source?.getAttribute("data-bp-root-url");
+            if (rootUrl && ctx.request.method.toUpperCase() === "GET") ctx.push = tenantUrlWithGetValues(rootUrl, ctx.request.body);
             if (source?.closest?.(NO_ROUTE_SELECTOR)) {
               attachBpHeaders(ctx.request.headers, action, serviceContextFor(source).id);
               return;
             }
             const themeOrigin = window.location.origin;
             const url = new URL(action, themeOrigin);
-            if (url.origin === themeOrigin) {
+            if (url.origin === themeOrigin && mode === "page" && ctx.request.method.toUpperCase() === "GET"
+              && normalizePath(url.pathname) === "/" && !configuredRouteFor("/") && !explicitServiceContextFor(source).origin) {
+              const fallback = resolveRootFallback(action);
+              if (!fallback) {
+                renderRouteError("Route Not Found", "No landing page is configured for this app.", undefined, source);
+                setLoading(false);
+                return false;
+              }
+              ctx.request.action = fallback.requestUrl;
+              ctx.push = tenantUrlWithGetValues(fallback.tenantUrl, ctx.request.body);
+            } else if (url.origin === themeOrigin) {
               const explicitContext = explicitServiceContextFor(source);
               if (explicitContext.origin) {
                 ctx.request.action = explicitContext.origin + url.pathname + url.search;
@@ -2704,6 +2901,7 @@ export function betterPortalShellRuntimeSource(): string {
             return false;
           }
           const target = detail.ctx?.target;
+          detail.ctx.__bpRequestTarget = target;
           if (requestTargetsMain(detail)) {
             closeContainingOffcanvas(detail.ctx?.sourceElement);
             if (isMainTarget(detail.ctx?.sourceElement)) disableInitialMainLoad();
@@ -2718,20 +2916,35 @@ export function betterPortalShellRuntimeSource(): string {
             detail.ctx.__bpMainGeneration = ++mainRequestGeneration;
             if (hasLoaded()) setLoading(true);
           } else if (target instanceof Element) {
+            fragmentRequests.set(target, detail.ctx);
+            const generation = (fragmentGenerations.get(target) ?? 0) + 1;
+            fragmentGenerations.set(target, generation);
+            detail.ctx.__bpFragmentGeneration = generation;
             target.classList.add("bp-fragment-loading");
           }
+          // Fragments can later retarget main, so retain the page they began on.
+          detail.ctx.__bpPageGeneration = mainRequestGeneration;
         },
 
         // Only explicit themed status HTML may replace the main outlet on an
         // HTTP error. All other error bodies are data, not trusted shell UI.
         htmx_before_swap(_elt: any, detail: any) {
+          const ctx = detail.ctx;
+          if (isMainTarget(ctx?.target)) {
+            if (ctx.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return discardStaleResponse(ctx);
+            if (typeof ctx.target === "string") ctx.target = mainOutlet();
+            if (ctx.response?.status < 400 && ctx.__bpMainGeneration === undefined) {
+              ctx.__bpMainGeneration = ++mainRequestGeneration;
+              ctx.__bpPageGeneration = mainRequestGeneration;
+            }
+          }
           if (!isMainTarget(detail.ctx?.target) && detail.ctx?.__bpAuthGeneration !== undefined
-            && detail.ctx.__bpAuthGeneration !== authGeneration) return false;
+            && detail.ctx.__bpAuthGeneration !== authGeneration) return discardStaleResponse(ctx);
           if (detail.ctx?.__bpElevationHandled) return false;
           if (detail.ctx?.response?.status >= 400 && detail.ctx?.sourceElement?.closest?.("#bp-login-form")) return false;
-          const ctx = detail.ctx;
           const status = ctx?.response?.status;
           const target = ctx?.target;
+          if (status >= 200 && status < 400) clearPartialErrors(ctx);
           const source = ctx?.sourceElement;
           if (source instanceof Element && (status === 401 || status === 403)) {
             const policy = source.getAttribute("data-bp-auth-status");
@@ -2742,6 +2955,7 @@ export function betterPortalShellRuntimeSource(): string {
             }
           }
 
+          if (ctx?.__bpPartialErrorHandled) return false;
           const localError = source instanceof Element ? mutationErrorOutlet(source) : null;
           if (status && status >= 400 && localError && !isMainTarget(target)) {
             const contentType = ctx?.response?.headers?.get?.("content-type") || "";
@@ -2751,10 +2965,10 @@ export function betterPortalShellRuntimeSource(): string {
             localError.setAttribute("tabindex", "-1");
             htmx.process(localError);
             localError.focus({ preventScroll: true });
-            if (target instanceof Element) target.classList.remove("bp-fragment-loading");
+            if (target instanceof Element) clearFragmentLoading(ctx, target);
             return false;
           }
-          if (localError && (!status || status < 400)) {
+          if (localError && (!status || status < 400) && isCurrentFragmentRequest(ctx)) {
             localError.replaceChildren();
             localError.hidden = true;
           }
@@ -2783,7 +2997,7 @@ export function betterPortalShellRuntimeSource(): string {
           const swapContentType = ctx?.response?.headers?.get?.("content-type") || "";
           const isJson = swapContentType.includes("application/json");
           if (status && status >= 400 && source instanceof Element && source.closest("[data-bp-error-modal]") && !isMainTarget(target)) {
-            if (target instanceof Element) target.classList.remove("bp-fragment-loading");
+            if (target instanceof Element) clearFragmentLoading(ctx, target);
             showRequestErrorModal(status, isJson ? "" : (ctx?.text || ""), source);
             return false;
           }
@@ -2852,10 +3066,23 @@ export function betterPortalShellRuntimeSource(): string {
         },
 
         htmx_after_request(_elt: any, detail: any) {
-          if (detail.ctx?.__bpElevationHandled) return false;
-          // HTMX follows these before before_swap. A 401 belongs to the
-          // shell's auth flow, not service-supplied redirects or retargeting.
-          if (detail.ctx?.response?.status === 401 && isMainTarget(detail.ctx?.target)) {
+          const ctx = detail.ctx;
+          // These checks must precede header directives and HTMX navigation, not
+          // just before_swap: obsolete requests must not redirect a newer page.
+          if (ctx?.__bpMainGeneration !== undefined && ctx.__bpMainGeneration !== mainRequestGeneration) return discardStaleResponse(ctx);
+          const responseTarget = typeof ctx?.hx?.retarget === "string"
+            ? resolvePolicyTarget(ctx.sourceElement || document.body, ctx.hx.retarget) : ctx?.target;
+          const historyValues = ctx?.hx?.pushurl || ctx?.hx?.replaceurl
+            ? [ctx.hx.pushurl, ctx.hx.replaceurl] : [ctx?.push, ctx?.replace];
+          const changesHistory = historyValues.some(value => value && value !== "false");
+          const navigatesMain = isMainTarget(responseTarget) || ctx?.hx?.redirect || ctx?.hx?.location || ctx?.hx?.refresh === "true" || changesHistory;
+          if (navigatesMain && ctx?.__bpPageGeneration !== undefined && ctx.__bpPageGeneration !== mainRequestGeneration) return discardStaleResponse(ctx);
+          if (ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) return discardStaleResponse(ctx);
+          if (ctx?.__bpElevationHandled) return false;
+          const previousAuthorization = readBpHeaders().authorization?.value;
+          // HTMX follows these before before_swap. Error responses belong to
+          // the shell's status/auth flow, not service-supplied navigation.
+          if (detail.ctx?.response?.status >= 400) {
             for (const key of ["location", "redirect", "refresh", "pushurl", "replaceurl", "retarget", "reswap"]) {
               if (detail.ctx.hx) delete detail.ctx.hx[key];
             }
@@ -2876,45 +3103,57 @@ export function betterPortalShellRuntimeSource(): string {
                 });
               } else renderBpElementState(bpElement, detail.ctx.response.status, detail.ctx?.text || "");
               if (requestTargetsMain(detail)) setLoading(false);
-              else detail.ctx?.target?.classList?.remove("bp-fragment-loading");
+              else clearFragmentLoading(ctx);
               // A state replacement detaches the initiating control. Stop its response
               // here, before HTMX can swap the original body into another target.
               return false;
             }
           }
+          // A successful redirect/retarget may leave its original component in
+          // persistent shell chrome, so clear its error before HTMX navigates.
+          if (ctx?.response?.status >= 200 && ctx.response.status < 400) clearPartialErrors(ctx);
+
           // Apply BP-SetHeader / BP-RemoveHeader directives from EVERY response
           // (success or error) before anything else - e.g. login's Authorization.
           try {
             applyBpHeaderDirectives(detail.ctx?.response, detail.ctx?.request?.action || "");
           } catch { /* non-fatal */ }
 
-          // HX-Location with a bare path has no target in htmx4 - the follow-up
-          // ajax would swap document.body and blow away the shell. Rewrite it
-          // into a config object that swaps the main outlet and pushes the
-          // tenant path (config_request later maps the path to its service).
+          // HTMX processes redirect headers immediately after this hook. Normalize
+          // registered service URLs to tenant URLs and stop cycles before it does.
           try {
-            const loc = detail.ctx?.hx?.location;
-            if (typeof loc === "string" && loc && loc[0] !== "{" && !/[\s,]/.test(loc)) {
-              detail.ctx.hx.location = JSON.stringify({
-                path: loc,
+            const credentialsChanged = previousAuthorization !== readBpHeaders().authorization?.value;
+            const redirect = ctx?.hx?.redirect;
+            if (typeof redirect === "string" && redirect) {
+              const destination = navigationUrl(redirect);
+              if (!allowRedirect(ctx, destination, credentialsChanged)) return false;
+              ctx.hx.redirect = destination;
+            } else if (typeof ctx?.hx?.location === "string" && ctx.hx.location) {
+              const raw = ctx.hx.location.trim();
+              const config = raw.startsWith("{") ? JSON.parse(raw) : { path: raw };
+              if (typeof config.path !== "string") throw new Error("Missing redirect path");
+              const fallback = resolveRootFallback(config.path);
+              const destination = fallback?.tenantUrl ?? navigationUrl(config.path);
+              if (!allowRedirect(ctx, destination, credentialsChanged)) return false;
+              ctx.hx.location = JSON.stringify({
+                ...config,
+                path: fallback?.requestUrl ?? destination,
                 target: "#bp-main",
-                swap: "innerHTML",
-                push: tenantUrlForServiceUrl(loc)
-              });
-            } else if (typeof loc === "string" && loc.trim().startsWith("{")) {
-              const parsed = JSON.parse(loc);
-              detail.ctx.hx.location = JSON.stringify({
-                ...parsed,
-                target: "#bp-main",
-                swap: parsed.swap || "innerHTML",
-                push: typeof parsed.push === "string"
-                  ? tenantUrlForServiceUrl(parsed.push)
-                  : typeof parsed.path === "string"
-                    ? tenantUrlForServiceUrl(parsed.path)
-                    : parsed.push
+                swap: config.swap || "innerHTML",
+                push: fallback && (config.push === true || config.push === "true") ? destination
+                  : typeof config.push === "string" && config.push !== "true" && config.push !== "false"
+                  ? navigationUrl(config.push)
+                  : config.push ?? (config.replace == null ? destination : undefined),
+                replace: fallback && (config.replace === true || config.replace === "true") ? destination
+                  : typeof config.replace === "string" && !["true", "false"].includes(config.replace)
+                  ? navigationUrl(config.replace) : config.replace
               });
             }
-          } catch { /* non-fatal */ }
+          } catch {
+            renderRouteError("Route Configuration Error", "The service returned an invalid redirect destination.", undefined, ctx?.sourceElement);
+            setLoading(false);
+            return false;
+          }
 
         },
 
@@ -2931,6 +3170,7 @@ export function betterPortalShellRuntimeSource(): string {
           }
 
           if (isMainTarget(target)) {
+            clearRedirectChain();
             if (applyChromeFromResponse(detail)) {
               setActiveRoute(window.location.pathname);
             }
@@ -2945,7 +3185,7 @@ export function betterPortalShellRuntimeSource(): string {
             if (shouldScrollMainSwap(detail)) scrollPageToTop();
             scheduleBootstrapOverlaySync();
           } else if (target instanceof Element) {
-            target.classList.remove("bp-fragment-loading");
+            clearFragmentLoading(detail.ctx, target);
             restoreSplitPaneState(target, detail.ctx?.__bpSplitPaneState);
           }
 
@@ -2963,10 +3203,21 @@ export function betterPortalShellRuntimeSource(): string {
           if (target === profileSlot()) syncProfileMirror();
         },
 
+        // Early-cancelled responses do not swap or settle. Clear only this
+        // request's loading state, leaving a newer request on the same target busy.
+        htmx_finally_request(_elt: any, detail: any) {
+          const ctx = detail.ctx;
+          const target = ctx?.__bpRequestTarget ?? ctx?.target;
+          if (target instanceof Element && fragmentRequests.get(target) === ctx) {
+            clearFragmentLoading(ctx, target);
+            fragmentRequests.delete(target);
+          }
+        },
+
         // Belt-and-suspenders: clear loading after settle
         htmx_after_settle(elt: any) {
           if (isMainTarget(elt)) setLoading(false);
-          else if (elt instanceof Element) elt.classList.remove("bp-fragment-loading");
+          else if (elt instanceof Element && !fragmentRequests.has(elt)) elt.classList.remove("bp-fragment-loading");
           scheduleBootstrapOverlaySync();
         },
 
@@ -2980,7 +3231,10 @@ export function betterPortalShellRuntimeSource(): string {
           if (bpElement && bpElement.getAttribute("data-bp-state") === "loading") {
             renderBpElementState(bpElement, ctx?.response?.status || 0, ctx?.text || "");
           }
-          if (!requestTargetsMain(detail)) return;
+          if (!isMainTarget(ctx?.__bpRequestTarget ?? ctx?.target)) {
+            if (!bpElement && !ctx?.sourceElement?.closest?.("#bp-login-form")) renderPartialError(ctx, ctx?.response?.status || 0);
+            return;
+          }
           setLoading(false);
 
           const status = ctx?.response?.status || 0;
@@ -3009,19 +3263,13 @@ export function betterPortalShellRuntimeSource(): string {
 
           // Clear fragment loading on error
           if (target instanceof Element && !isMainTarget(target)) {
-            target.classList.remove("bp-fragment-loading");
+            clearFragmentLoading(ctx, target);
           }
 
-          const localError = ctx?.sourceElement instanceof Element ? mutationErrorOutlet(ctx.sourceElement) : null;
-          if (localError && !isMainTarget(target)) {
-            localError.textContent = "Service unavailable or blocked by network policy. Try the action again.";
-            localError.hidden = false;
-            localError.setAttribute("tabindex", "-1");
-            localError.focus({ preventScroll: true });
+          if (!requestTargetsMain(detail)) {
+            if (!bpElement) renderPartialError(ctx, 0);
             return;
           }
-
-          if (!requestTargetsMain(detail)) return;
 
           // Themed status views already swapped meaningful content - no banner.
           setLoading(false);
