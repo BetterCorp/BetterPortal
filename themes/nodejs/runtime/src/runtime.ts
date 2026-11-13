@@ -1866,6 +1866,7 @@ export function betterPortalShellRuntimeSource(): string {
 
       const partialErrorOutlets = new WeakMap<Element, HTMLElement>();
       const clearPartialErrors = (ctx: any) => {
+        if (!isCurrentFragmentRequest(ctx)) return;
         const original = ctx?.__bpRequestTarget ?? ctx?.target;
         if (!(original instanceof Element) || isMainTarget(original)) return;
         const outlet = partialErrorOutlets.get(original);
@@ -1876,6 +1877,7 @@ export function betterPortalShellRuntimeSource(): string {
         if (localError) { localError.replaceChildren(); localError.hidden = true; }
       };
       const renderPartialError = (ctx: any, status: number) => {
+        if (!isCurrentFragmentRequest(ctx)) { ctx.__bpPartialErrorHandled = true; return; }
         const source = ctx?.sourceElement instanceof Element ? ctx.sourceElement : null;
         const target = source ? resolvePolicyTarget(source, null, ctx.__bpRequestTarget ?? ctx.target) : null;
         if (!target || isMainTarget(target)) return;
@@ -2679,7 +2681,7 @@ export function betterPortalShellRuntimeSource(): string {
           clearFragmentLoading(ctx);
           if (ctx && requestTargetsMain(ctx) && ctx.__bpMainGeneration === mainRequestGeneration) setLoading(false);
           triggerBodyEvent("bp:auth:elevation-cancelled", { message });
-          if (ctx?.sourceElement instanceof Element) {
+          if (ctx?.sourceElement instanceof Element && isCurrentFragmentRequest(ctx)) {
             const outlet = mutationErrorOutlet(ctx.sourceElement);
             if (outlet) { outlet.textContent = message; outlet.hidden = false; }
           }
@@ -2720,6 +2722,13 @@ export function betterPortalShellRuntimeSource(): string {
         return false;
       };
       const fragmentRequests = new WeakMap<Element, unknown>();
+      // Retain ordering after completion without retaining request/response data.
+      const fragmentGenerations = new WeakMap<Element, number>();
+      const isCurrentFragmentRequest = (ctx: any): boolean => {
+        const target = ctx?.__bpRequestTarget ?? ctx?.target;
+        return !(target instanceof Element) || ctx?.__bpFragmentGeneration === undefined
+          || fragmentGenerations.get(target) === ctx.__bpFragmentGeneration;
+      };
       const clearFragmentLoading = (ctx: any, target?: Element | null) => {
         const requestTarget = ctx?.__bpRequestTarget ?? ctx?.target;
         target ??= requestTarget;
@@ -2901,6 +2910,9 @@ export function betterPortalShellRuntimeSource(): string {
             if (hasLoaded()) setLoading(true);
           } else if (target instanceof Element) {
             fragmentRequests.set(target, detail.ctx);
+            const generation = (fragmentGenerations.get(target) ?? 0) + 1;
+            fragmentGenerations.set(target, generation);
+            detail.ctx.__bpFragmentGeneration = generation;
             target.classList.add("bp-fragment-loading");
           }
           // Fragments can later retarget main, so retain the page they began on.
@@ -2949,7 +2961,7 @@ export function betterPortalShellRuntimeSource(): string {
             if (target instanceof Element) clearFragmentLoading(ctx, target);
             return false;
           }
-          if (localError && (!status || status < 400)) {
+          if (localError && (!status || status < 400) && isCurrentFragmentRequest(ctx)) {
             localError.replaceChildren();
             localError.hidden = true;
           }

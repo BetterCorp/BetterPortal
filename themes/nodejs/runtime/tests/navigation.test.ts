@@ -1595,3 +1595,68 @@ for (const header of ["HX-Retarget", "HX-Location"]) {
     });
   }
 }
+
+
+for (const outlet of ["inline", "configured"]) {
+  for (const swap of ["none", "beforeend"]) {
+    test(`older ${swap} success cannot clear a newer ${outlet} partial error`, async t => {
+      let releaseOld!: () => Promise<void>, started!: () => void;
+      const pending = new Promise<void>(resolve => { started = resolve; });
+      const { page, errors } = await shell(t, route => {
+        if (route.request().url().endsWith("/old")) return new Promise<void>(resolve => {
+          releaseOld = async () => { await html(route, '<p id="older-data">Old success</p>'); resolve(); }; started();
+        });
+        if (route.request().url().endsWith("/new-error")) return html(route, "Newer failure", 500);
+        return html(route, '<div id="scope"' + (outlet === "configured" ? ' data-bp-mutation-scope' : '') + '><button id="old">Old</button><button id="new-error">New</button><div id="partial"><input id="edit" value="original"></div>' + (outlet === "configured" ? '<div data-bp-mutation-error hidden></div>' : '') + '</div>');
+      });
+      await page.locator("#edit").fill("keep edits");
+      await page.evaluate(swap => {
+        (window as any).oldFinished = false;
+        document.addEventListener("htmx:finally:request", (event: any) => {
+          if (event.detail.ctx?.request?.action?.endsWith("/old")) (window as any).oldFinished = true;
+        });
+        void window.htmx.ajax("GET", "https://service.test/old", { source: "#old", target: "#partial", swap });
+      }, swap);
+      await pending;
+      await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/new-error", { source: "#new-error", target: "#partial" }); });
+      const error = page.locator(outlet === "configured" ? "[data-bp-mutation-error]" : "[data-bp-partial-error]");
+      await error.waitFor({ state: "visible" });
+      const message = await error.textContent();
+      await releaseOld();
+      await page.waitForFunction(() => (window as any).oldFinished);
+      assert.equal(await error.isVisible(), true);
+      assert.equal(await error.textContent(), message);
+      assert.equal(await page.locator("#edit").inputValue(), "keep edits");
+      if (swap === "beforeend") assert.equal(await page.locator("#older-data").textContent(), "Old success");
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+test("older partial failure cannot reintroduce an error after a newer success", async t => {
+  let releaseOld!: () => Promise<void>, started!: () => void;
+  const pending = new Promise<void>(resolve => { started = resolve; });
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/old-error")) return new Promise<void>(resolve => {
+      releaseOld = async () => { await html(route, "Old failure", 500); resolve(); }; started();
+    });
+    if (route.request().url().endsWith("/new-success")) return html(route, '<p id="new-data">New data</p>');
+    return html(route, '<button id="old">Old</button><button id="new">New</button><div id="partial">Before</div>');
+  });
+  await page.waitForSelector("#partial");
+  await page.evaluate(() => {
+    (window as any).oldFinished = false;
+    document.addEventListener("htmx:finally:request", (event: any) => {
+      if (event.detail.ctx?.request?.action?.endsWith("/old-error")) (window as any).oldFinished = true;
+    });
+    void window.htmx.ajax("GET", "https://service.test/old-error", { source: "#old", target: "#partial" });
+  });
+  await pending;
+  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/new-success", { source: "#new", target: "#partial" }); });
+  await page.waitForSelector("#new-data");
+  await releaseOld();
+  await page.waitForFunction(() => (window as any).oldFinished);
+  assert.equal(await page.locator("[data-bp-partial-error]").count(), 0);
+  assert.equal(await page.locator("#partial").textContent(), "New data");
+  assert.deepEqual(errors, []);
+});
