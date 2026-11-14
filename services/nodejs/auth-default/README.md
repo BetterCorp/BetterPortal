@@ -87,6 +87,8 @@ Login throttling applies both an account budget and a 100-attempt/10-minute clie
 
 The refresh token rotates on every refresh. Replay revokes its family; logout, account disable, password changes and factor changes revoke the applicable sessions. Browser refreshes use the Web Locks API to coordinate tabs where available. Already-issued access tokens at other services remain bounded by their normal expiry; immediate distributed access-token revocation is not promised.
 
+Email-verification links confirm the email already supplied at registration and do not ask for another password. After a successful verification, reset or invitation acceptance, the account UI sends the user to the mounted login page. Password controls are created only for password-reset links and invitations that need a new local password; expired or rejected links stay on the confirmation page with the error.
+
 ### Email delivery
 
 Postal sends JSON to `<mailUrl>/api/v1/send/message`, with `X-Server-API-Key` and Postal's `to`, `from`, `subject`, `plain_body`, `html_body` fields. Both HTTP success and a JSON `status: "success"` are required. See [Postal's send API](https://apiv1.postalserver.io/controllers/send/message.html).

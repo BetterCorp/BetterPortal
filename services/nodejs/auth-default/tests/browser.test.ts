@@ -48,26 +48,49 @@ test("browser passkey registration and authentication validate origin, ownership
   await assert.rejects(complete(challenge.private, assertion), /verification failed/);
 });
 
-test("account email fragment is cleared and submitted only after explicit confirmation", async t => {
+test("email verification omits password controls and redirects to the mounted login after confirmation", async t => {
   const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
   const page = await browser.newPage();
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   const proof = { action: "verify", id: "ticket", secret: "private-proof" };
-  await page.addInitScript(`window.submitted = [];
-    window.BetterPortalAuth = { fetch: async (_url, init) => {
-      window.submitted.push(JSON.parse(init.body));
-      return new Response(JSON.stringify({ message: "Email verified." }), { headers: { "Content-Type": "application/json" } });
-    } };`);
-  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderAccount({ registration: "public", signedIn: false }, { request: { query: {} }, app: { defaultRoute: "/" }, route: () => ({ absoluteApiPath: "https://auth.test/account" }) } as never)) }));
+  const submitted: unknown[] = []; await page.exposeFunction("recordSubmission", (body: unknown) => { submitted.push(body); });
+  await page.addInitScript(`window.BetterPortalAuth = { fetch: async (_url, init) => {
+    await window.recordSubmission(JSON.parse(init.body)); return Response.json({ status: "ok", message: "Email verified." });
+  } };`);
+  await page.route("https://app.test/**", route => {
+    if (new URL(route.request().url()).pathname === "/sign-in") return route.fulfill({ contentType: "text/html", body: '<h1>Sign in</h1>' });
+    return route.fulfill({ contentType: "text/html", body: '<!doctype html><style>.d-block { display: block !important; }</style>' + toHtmlString(renderAccount({ registration: "public", signedIn: false }, { request: { query: {} }, app: { defaultRoute: "/" }, route: (input: any) => input.path === "/login" ? { absoluteUiPath: "https://app.test/sign-in?next=%2F" } : { absoluteApiPath: "https://auth.test/account" } } as never)) });
+  });
   await page.goto("https://app.test/account#bp-auth=" + encodeURIComponent(JSON.stringify(proof)));
-  assert.equal(new URL(page.url()).hash, "");
-  assert.deepEqual(await page.evaluate(() => (window as any).submitted), []);
-  assert.equal(await page.locator('#bp-link-verification input[name="password"]').isDisabled(), true);
-  await page.locator('#bp-link-verification button').click();
-  await page.waitForFunction(() => !!document.querySelector('[role="status"]')?.textContent, undefined, { timeout: 3000 });
-  assert.equal(await page.locator('[role="status"]').textContent(), "Email verified.");
-  assert.deepEqual(await page.evaluate(() => (window as any).submitted), [proof]);
-  assert.deepEqual(errors, []);
+  assert.equal(new URL(page.url()).hash, ""); assert.deepEqual(submitted, []);
+  assert.equal(await page.locator('#bp-link-verification input[name="password"]').count(), 0);
+  assert.equal(await page.getByText('New password (at least 12 characters)', { exact: true }).isVisible(), false);
+  await page.getByRole('button', { name: 'Verify email', exact: true }).click();
+  await page.waitForURL("https://app.test/sign-in?next=%2F");
+  assert.deepEqual(submitted, [proof]); assert.deepEqual(errors, []);
+});
+
+for (const action of ["reset", "invite.accept"] as const) test(`${action} links still provide an editable password when needed`, async t => {
+  const browser = await chromium.launch({ headless: true }); t.after(() => browser.close()); const page = await browser.newPage();
+  await page.addInitScript(`window.BetterPortalAuth = { fetch: async (_url, init) => { window.submitted = JSON.parse(init.body); return Response.json({ status: "ok", message: "Saved." }); } };`);
+  await page.route('https://app.test/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html>' + toHtmlString(renderAccount({ registration: "public", signedIn: false }, { request: { query: {} }, app: { defaultRoute: "/" }, route: (input: any) => input.path === "/login" ? null : { absoluteApiPath: "https://auth.test/account" } } as never)) }));
+  const proof = { action, id: 'ticket', secret: 'secret' };
+  await page.goto('https://app.test/account#bp-auth=' + encodeURIComponent(JSON.stringify(proof)));
+  const input = page.locator('#bp-link-verification input[name="password"]');
+  assert.equal(await input.isEditable(), true); assert.equal(await input.isVisible(), true); assert.equal(await input.getAttribute('required'), '');
+  await input.fill('a secure test password'); await page.locator('#bp-link-verification button').click();
+  await page.waitForFunction(() => !!(window as any).submitted);
+  assert.deepEqual(await page.evaluate(() => (window as any).submitted), { ...proof, password: 'a secure test password' });
+});
+
+test("failed verification stays on the confirmation page without asking for another password", async t => {
+  const browser = await chromium.launch({ headless: true }); t.after(() => browser.close()); const page = await browser.newPage();
+  await page.addInitScript(`window.BetterPortalAuth = { fetch: async () => Response.json({ status: "error", message: "Verification expired. Request a new link." }, { status: 400 }) };`);
+  await page.route('https://app.test/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html>' + toHtmlString(renderAccount({ signedIn: false }, { request: { query: {} }, app: { defaultRoute: "/" }, route: (input: any) => input.path === "/login" ? { absoluteUiPath: 'https://app.test/sign-in' } : { absoluteApiPath: 'https://auth.test/account' } } as never)) }));
+  await page.goto('https://app.test/account#bp-auth=' + encodeURIComponent(JSON.stringify({ action: 'verify', id: 'ticket', secret: 'secret' })));
+  await page.getByRole('button', { name: 'Verify email', exact: true }).click();
+  await page.getByRole('status').getByText('Verification expired. Request a new link.').waitFor();
+  assert.equal(new URL(page.url()).pathname, '/account'); assert.equal(await page.locator('#bp-link-verification input[name="password"]').count(), 0);
 });
 
 test("users page generates, displays and copies verification links for eligible accounts", async t => {
