@@ -20,13 +20,14 @@ export default createHandler({ response: ResponseSchema, query: QuerySchema }, a
       ? await tx.failedMail<Mail>(scope, { after: query.mailAfter, limit: 101 })
       : await tx.page<Mail>("mail", scope, { after: query?.mailAfter, limit: 101, descending: true });
     const auditPage = await tx.page("audit", scope, { limit: 100, descending: true });
-    const people = new Map<string, { id: string; username: string; email: string | null; name: string | null } | null>();
-    const person = async (id: string) => {
-      if (!people.has(id)) {
-        const user = await tx.get<User>("user", id, dir);
-        people.set(id, user ? { id: user.id, username: user.username, email: user.email ?? null, name: user.name ?? null } : null);
+    const people = new Map<string, Promise<{ id: string; username: string; email: string | null; name: string | null } | null>>();
+    const person = (id: string) => {
+      let lookup = people.get(id);
+      if (!lookup) {
+        lookup = tx.get<User>("user", id, dir).then(user => user ? { id: user.id, username: user.username, email: user.email ?? null, name: user.name ?? null } : null);
+        people.set(id, lookup);
       }
-      return people.get(id) ?? null;
+      return lookup;
     };
     const page = await tx.page<User>("user", dir, { after: query?.after, limit: 101 });
     const users = page.slice(0, 100);
