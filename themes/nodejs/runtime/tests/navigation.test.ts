@@ -15,7 +15,7 @@ import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 
-async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false, extraRoutes: Array<Record<string, unknown>> = []) {
+async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false, extraRoutes: Array<Record<string, unknown>> = [], menuHref = "/tools/dashboard", menuRequestUrl = "https://service.test/dashboard") {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -26,14 +26,20 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
   await page.addInitScript(value => localStorage.setItem("bp.headers", JSON.stringify(value)), stored);
   await page.route("https://service.test/**", respond);
   await page.route("https://auth.test/**", respond);
-  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html>
+  await page.route("https://app.test/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    const destination = extraRoutes.find(item => item.href === path);
+    const requestUrl = path === initialTenantPath ? initialUrl
+      : destination?.requestUrl as string || (path === "/tools/dashboard" ? "https://service.test/dashboard" : initialUrl);
+    return route.fulfill({ contentType: "text/html", body: `<!doctype html>
     <html><head><meta charset="utf-8"><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
     <div data-bp-shell-root data-bp-menu-health="false" data-bp-auth-service="auth" data-bp-login-url="https://auth.test/login"
       data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test", themeTarget: "https://app.test", themeHttpTarget: "http://app.test" } : {}) })}'
       data-bp-routes='${JSON.stringify([{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }, { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" }, ...extraRoutes])}'>
-      <a id="menu" href="/tools/dashboard" data-bp-route-link data-bp-service="service" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
-      <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
-    </div><script>${asset.body}</script></body></html>` }));
+      <a id="menu" href="${menuHref}" data-bp-route-link data-bp-service="service" data-bp-route-request="${menuRequestUrl}" hx-get="${menuRequestUrl}" hx-target="#bp-main">Dashboard</a>
+      <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${requestUrl}" ${requestUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
+    </div><script>${asset.body}</script></body></html>` });
+  });
   await page.goto("https://app.test" + initialTenantPath);
   return { page, errors };
 }
@@ -854,3 +860,901 @@ test("swap-only BPRoute and plain anchors retain outerHTML during main enhanceme
     assert.deepEqual(errors, []);
   }
 });
+
+
+test("root navigation from login uses a page fallback instead of the auth origin", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, route => {
+    requests.push(route.request().url());
+    return html(route, route.request().url().includes("auth.test") ? '<p id="signed-in">Signed in</p>' : '<p id="landing">Dashboard</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#signed-in");
+  await page.evaluate(() => window.htmx.ajax("GET", "/?tab=home#top", { target: "#bp-main", push: "/?tab=home#top" }));
+  await page.waitForSelector("#landing");
+  assert.equal(requests.at(-1), "https://service.test/dashboard?tab=home");
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.equal(new URL(page.url()).search, "?tab=home");
+  assert.deepEqual(errors, []);
+});
+
+for (const header of ["HX-Redirect", "HX-Location"]) {
+  for (const destination of ["/", "https://service.test/welcome"]) {
+    test(`${header} stops a self redirect through a root mount: ${destination}`, async t => {
+      let requests = 0;
+      const { page, errors } = await shell(t, route => {
+        requests++;
+        return html(route, "", 200, { [header]: destination });
+      }, {}, "https://service.test/welcome", "/", false, [
+        { href: "/", requestUrl: "https://service.test/welcome", serviceId: "service", kind: "page" }
+      ]);
+      await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Redirect loop"));
+      assert.equal(requests, 1);
+      assert.equal(new URL(page.url()).origin, "https://app.test");
+      assert.deepEqual(errors, []);
+    });
+  }
+  test(`${header} maps absolute service destinations to app URLs`, async t => {
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().includes("auth.test")) return html(route, "", 200, { [header]: "https://service.test/dashboard?tab=home#top" });
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.waitForSelector("#landing");
+    assert.equal(new URL(page.url()).origin, "https://app.test");
+    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+    assert.equal(new URL(page.url()).search, "?tab=home");
+    assert.deepEqual(errors, []);
+  });
+
+  test(`${header} detects cycles across two pages`, async t => {
+    let requests = 0;
+    const { page, errors } = await shell(t, route => {
+      requests++;
+      return html(route, "", 200, { [header]: route.request().url().endsWith("/dashboard") ? "/second" : "/tools/dashboard" });
+    }, {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+      { href: "/second", requestUrl: "https://service.test/second", serviceId: "service", kind: "page" }
+    ]);
+    await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Redirect loop"));
+    assert.equal(requests, 2);
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("a POST redirect to the current page still reloads the shell", async t => {
+  let gets = 0;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "POST") return html(route, "", 200, { "HX-Redirect": "/tools/dashboard" });
+    gets++;
+    return html(route, '<button id="save" hx-post="https://service.test/dashboard" hx-target="#bp-main">Save</button>');
+  });
+  await page.waitForSelector("#save");
+  const reloaded = page.waitForEvent("domcontentloaded");
+  await page.locator("#save").click();
+  await reloaded;
+  await page.waitForSelector("#save");
+  await page.waitForURL("https://app.test/tools/dashboard");
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.getAttribute("data-bp-loaded") === "yes");
+  assert.equal(gets, 2);
+  assert.deepEqual(errors, []);
+});
+
+test("fragment-only changes cannot bypass the redirect loop guard", async t => {
+  let requests = 0;
+  const { page } = await shell(t, route => {
+    requests++;
+    return html(route, "", 200, { "HX-Location": "/tools/dashboard#again" });
+  });
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Redirect loop"));
+  assert.equal(requests, 1);
+});
+
+
+test("a completed page clears redirect history for the next explicit navigation", async t => {
+  let landings = 0;
+  const { page } = await shell(t, route => {
+    if (route.request().url().includes("auth.test")) return html(route, "", 200, { "HX-Location": "/tools/dashboard" });
+    landings++;
+    return html(route, '<p id="landing">Dashboard</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#landing");
+  await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login", { target: "#bp-main" }));
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Dashboard"));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").filter(entry => entry.name === "https://service.test/dashboard").length === 2);
+  assert.equal(landings, 2);
+});
+
+test("a changed login token permits one same-page full redirect", async t => {
+  let requests = 0;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET,OPTIONS"
+    } });
+    requests++;
+    if (requests === 1) return html(route, "", 200, {
+      "HX-Redirect": "/tools/dashboard",
+      "BP-SetHeader": "Authorization=Bearer signed-in; locked=true"
+    });
+    return html(route, '<p id="landing">Signed in</p>');
+  });
+  await page.waitForSelector("#landing");
+  assert.equal(requests, 2);
+  assert.deepEqual(errors, []);
+});
+
+test("root without a usable page never falls back to auth or an API route", async t => {
+  const { page } = await shell(t, route => html(route, '<p id="login">Sign in</p>'), {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#login");
+  await page.evaluate(() => {
+    const root = document.querySelector("[data-bp-shell-root]")!;
+    root.setAttribute("data-bp-routes", JSON.stringify([
+      { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" },
+      { href: "/api/run", requestUrl: "https://service.test/run", serviceId: "service", kind: "api" },
+      { href: "/record/:id", requestUrl: "https://service.test/record/:id", serviceId: "service", kind: "page" }
+    ]));
+    document.getElementById("menu")?.remove();
+    window.htmx.ajax("GET", "/", { target: "#bp-main" });
+  });
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("No landing page is configured"));
+});
+
+test("a stale main response cannot redirect a newer navigation", async t => {
+  let release: (() => Promise<void>) | undefined;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
+      release = async () => { await html(route, "", 200, { "HX-Redirect": "/auth/login" }); resolve(); };
+    });
+    return html(route, '<p id="landing">Dashboard</p><button id="slow-source">Slow</button><button id="new-source">New</button>');
+  });
+  await page.waitForSelector("#landing");
+  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/slow", { source: "#slow-source", target: "#bp-main" }); });
+  await assert.doesNotReject(async () => {
+    for (let attempt = 0; !release && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(release);
+  });
+  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { source: "#new-source", target: "#bp-main" }); });
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.endsWith("/dashboard?new")));
+  assert.ok(release);
+  await release();
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.endsWith("/slow")));
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.equal(await page.locator("#landing").textContent(), "Dashboard");
+  assert.deepEqual(errors, []);
+});
+
+
+for (const status of [403, 500]) {
+  test(`HTTP ${status} cannot redirect away from the shell error handler`, async t => {
+    let requests = 0;
+    const { page } = await shell(t, route => {
+      requests++;
+      return html(route, "Failed", status, { "HX-Redirect": "/auth/login" });
+    });
+    await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Failed") || !!document.querySelector("[data-bp-error-action]"));
+    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+    assert.equal(requests, 1);
+  });
+}
+
+test("JSON HX-Location preserves replace history and maps the request destination", async t => {
+  const { page } = await shell(t, route => {
+    if (route.request().url().includes("auth.test")) return html(route, "", 200, {
+      "HX-Location": JSON.stringify({ path: "https://service.test/dashboard", replace: "/tools/dashboard" })
+    });
+    return html(route, '<p id="landing">Dashboard</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#landing");
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.equal(await page.evaluate(() => history.length), 2);
+});
+
+
+for (const control of ["anchor", "form"]) {
+  test(`an upgraded root ${control} uses the landing fallback`, async t => {
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().includes("auth.test")) return html(route, control === "anchor"
+        ? '<a id="continue" href="/">Continue</a>'
+        : '<form id="continue" method="get" action="/"><button>Continue</button></form>');
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.getByText("Continue", { exact: true }).click();
+    await page.waitForSelector("#landing");
+    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("the landing fallback excludes brace-style route parameters", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<p id="login">Signed in</p>'), {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#login");
+  await page.evaluate(() => {
+    document.querySelector("[data-bp-shell-root]")!.setAttribute("data-bp-routes", JSON.stringify([
+      { href: "/record/{id}", requestUrl: "https://service.test/record/{id}", serviceId: "service", kind: "page" },
+      { href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }
+    ]));
+    document.getElementById("menu")?.remove();
+    window.htmx.ajax("GET", "/", { target: "#bp-main", push: "/" });
+  });
+  await page.waitForURL("https://app.test/tools/dashboard");
+  assert.deepEqual(errors, []);
+});
+
+test("password login without a next path uses the shell root fallback", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    requests.push(route.request().url());
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok" });
+    if (route.request().url().includes("auth.test")) return html(route, '<form id="bp-login-form" hx-post="https://auth.test/login" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="user"><input name="password" value="password" type="password"><input name="next" value=""><div id="bp-login-error" class="d-none"></div><button>Sign in</button></form>');
+    return html(route, '<p id="landing">Dashboard</p>');
+  }, {}, "https://auth.test/login", "/auth/login", false, [], "/tools/dashboard", "https://service.test/dashboard?format=fragment");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForSelector("#landing");
+  assert.equal(requests.at(-1), "https://service.test/dashboard?format=fragment");
+  assert.equal(new URL(page.url()).searchParams.get("format"), null);
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.deepEqual(errors, []);
+});
+
+
+for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+  test(`unmounted root ${method} keeps the owning service mutation endpoint`, async t => {
+    const mutations: string[] = [];
+    const { page, errors } = await shell(t, route => {
+      if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+        "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS", "access-control-allow-headers": "*"
+      } });
+      if (route.request().method() !== "GET") {
+        mutations.push(route.request().url());
+        return html(route, '<p id="saved">Saved</p>');
+      }
+      return html(route, method === "POST"
+        ? '<form method="post" action="/"><input name="value" value="edit"><button id="mutate">Save</button></form>'
+        : `<button id="mutate" hx-${method.toLowerCase()}="/">Save</button>`);
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.locator("#mutate").click();
+    await page.waitForSelector("#saved");
+    assert.deepEqual(mutations, ["https://auth.test/"]);
+    assert.deepEqual(errors, []);
+  });
+}
+
+for (const navigation of ["ajax", "anchor", "location", "location-push", "location-replace"]) {
+  test(`root ${navigation} merges fallback queries and fragments without corrupting values`, async t => {
+    let requestUrl = "";
+    const fallback = "/tools/dashboard?next=%2Flogin&tag=default&layout=compact#intro";
+    const next = navigation === "anchor" ? "/?tab=home" : "/?tag=one&tag=two#updated";
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().endsWith("/redirect")) {
+        const location = navigation === "location-push" ? JSON.stringify({ path: next, push: true })
+          : navigation === "location-replace" ? JSON.stringify({ path: next, replace: true }) : next;
+        return html(route, "", 200, { "HX-Location": location });
+      }
+      if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+      requestUrl = route.request().url();
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.waitForSelector("#signed-in");
+    await page.evaluate(({ fallback, next, navigation }) => {
+      document.getElementById("menu")!.setAttribute("href", fallback);
+      document.getElementById("menu")!.setAttribute("data-bp-route-request", "https://service.test/dashboard?format=fragment");
+      if (navigation === "anchor") {
+        const link = document.createElement("a");
+        link.href = next;
+        link.textContent = "Continue";
+        document.getElementById("bp-main")!.appendChild(link);
+        window.htmx.process(link);
+        link.click();
+      } else {
+        void window.htmx.ajax("GET", navigation.startsWith("location") ? "https://service.test/redirect" : next, { target: "#bp-main", push: next });
+      }
+    }, { fallback, next, navigation });
+    await page.waitForSelector("#landing");
+    const actual = new URL(page.url());
+    const requested = new URL(requestUrl);
+    for (const url of [actual, requested]) {
+      assert.equal(url.pathname, url === actual ? "/tools/dashboard" : "/dashboard");
+      assert.equal(url.searchParams.get("next"), "/login");
+      assert.equal(url.searchParams.get("layout"), "compact");
+      assert.deepEqual(url.searchParams.getAll("tag"), navigation === "anchor" ? ["default"] : ["one", "two"]);
+      if (navigation === "anchor") assert.equal(url.searchParams.get("tab"), "home");
+    }
+    assert.equal(new URL(requestUrl).searchParams.get("format"), "fragment");
+    assert.equal(actual.searchParams.get("format"), null);
+    assert.equal(actual.hash, navigation === "anchor" ? "#intro" : "#updated");
+    assert.deepEqual(errors, []);
+  });
+}
+
+
+for (const control of ["form", "select", "button"]) {
+  test(`root GET ${control} submitted fields override fallback defaults without duplicates`, async t => {
+    let requestUrl = "";
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+      requestUrl = route.request().url();
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login");
+    await page.waitForSelector("#signed-in");
+    await page.evaluate(control => {
+      const menu = document.getElementById("menu")!;
+      menu.setAttribute("href", "/tools/dashboard?tab=default&tag=default&layout=compact#intro");
+      menu.setAttribute("data-bp-route-request", "https://service.test/dashboard?format=fragment");
+      const container = document.createElement("div");
+      container.innerHTML = control === "form"
+        ? '<form id="root-form" action="/" method="get"><input name="tab" value="home"><input name="tag" value="one"><input name="tag" value="two"><button id="submit-root">Go</button></form>'
+        : control === "select"
+          ? '<select id="submit-root" name="tab" hx-get="/" hx-trigger="change"><option value="default">Default</option><option value="home">Home</option></select>'
+          : '<button id="submit-root" hx-get="/" name="tab" value="home">Go</button>';
+      document.getElementById("bp-main")!.appendChild(container);
+      window.htmx.process(container);
+    }, control);
+    if (control === "select") await page.locator("#submit-root").selectOption("home");
+    else await page.locator("#submit-root").click();
+    await page.waitForSelector("#landing");
+    for (const url of [new URL(requestUrl), new URL(page.url())]) {
+      assert.deepEqual(url.searchParams.getAll("tab"), ["home"]);
+      assert.equal(url.searchParams.get("layout"), "compact");
+      assert.deepEqual(url.searchParams.getAll("tag"), control === "form" ? ["one", "two"] : ["default"]);
+    }
+    assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+    assert.equal(new URL(page.url()).hash, "#intro");
+    assert.equal(new URL(requestUrl).searchParams.get("format"), "fragment");
+    assert.equal(new URL(page.url()).searchParams.get("format"), null);
+    assert.deepEqual(errors, []);
+  });
+}
+
+
+for (const navigation of ["initial", "ajax", "anchor", "location"]) {
+  test(`query-bearing explicit root mount wins over fallback during ${navigation} navigation`, async t => {
+    const requests: string[] = [];
+    const { page, errors } = await shell(t, route => {
+      requests.push(route.request().url());
+      if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+      if (route.request().url().endsWith("/redirect")) return html(route, "", 200, { "HX-Location": "/?mode=chosen#root" });
+      return html(route, new URL(route.request().url()).pathname === "/welcome" ? '<p id="root-content">Root page</p>' : '<p id="fallback-content">Unrelated fallback</p>');
+    }, {}, navigation === "initial" ? "https://service.test/welcome" : "https://auth.test/login",
+    navigation === "initial" ? "/" : "/auth/login", false, [
+      { href: "/?mode=default#intro", requestUrl: "https://service.test/welcome", serviceId: "service", kind: "page" }
+    ]);
+    if (navigation !== "initial") {
+      await page.waitForSelector("#signed-in");
+      await page.evaluate(navigation => {
+        if (navigation === "anchor") {
+          const link = document.createElement("a");
+          link.href = "/?mode=chosen#root";
+          link.textContent = "Home";
+          document.getElementById("bp-main")!.appendChild(link);
+          window.htmx.process(link);
+          link.click();
+        } else {
+          void window.htmx.ajax("GET", navigation === "location" ? "https://service.test/redirect" : "/?mode=chosen#root", { target: "#bp-main", push: "/?mode=chosen#root" });
+        }
+      }, navigation);
+    }
+    await page.waitForSelector("#root-content");
+    await page.waitForLoadState("networkidle");
+    assert.equal(requests.some(url => new URL(url).pathname === "/dashboard"), false);
+    assert.equal(new URL(page.url()).pathname, "/");
+    if (navigation !== "initial") {
+      assert.equal(new URL(requests.at(-1)!).searchParams.get("mode"), "chosen");
+      assert.equal(new URL(page.url()).searchParams.get("mode"), "chosen");
+    }
+    assert.deepEqual(errors, []);
+  });
+}
+
+
+for (const incoming of [false, true]) {
+  for (const requestOnly of [false, true]) {
+    test(`initial missing-root fallback preserves ${incoming ? "incoming root parameters" : "fallback query defaults"}${requestOnly ? " and request-only defaults" : ""}`, async t => {
+      let requestUrl = "";
+      const path = incoming ? "/?tab=home&tag=one&tag=two#selected" : "/";
+      const { page, errors } = await shell(t, route => {
+        requestUrl = route.request().url();
+        return html(route, '<p id="landing">Dashboard</p>');
+      }, {}, "", path, false, [], "/tools/dashboard?tab=default&layout=compact#intro",
+        requestOnly ? "https://service.test/dashboard?format=fragment&tab=request-default" : "https://service.test/dashboard");
+      await page.waitForSelector("#landing");
+      for (const url of [new URL(requestUrl), new URL(page.url())]) {
+        assert.equal(url.searchParams.get("tab"), incoming ? "home" : "default");
+        assert.equal(url.searchParams.get("layout"), "compact");
+        assert.deepEqual(url.searchParams.getAll("tag"), incoming ? ["one", "two"] : []);
+      }
+      assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+      assert.equal(new URL(page.url()).hash, incoming ? "#selected" : "#intro");
+      assert.equal(new URL(requestUrl).searchParams.get("format"), requestOnly ? "fragment" : null);
+      assert.equal(new URL(page.url()).searchParams.get("format"), null);
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+test("query-bearing menu links remain active on initial load and after a page swap", async t => {
+  let requests = 0;
+  const { page, errors } = await shell(t, route => {
+    requests++;
+    return html(route, `<p id="loaded">${requests === 1 ? "Initial" : "Reloaded"}</p>`);
+  }, {}, "https://service.test/dashboard", "/tools/dashboard", false, [], "/tools/dashboard?view=compact#intro");
+  await page.locator("#loaded").getByText("Initial").waitFor();
+  assert.equal(await page.locator("#menu").getAttribute("aria-current"), "page");
+  assert.ok(await page.locator("#menu").evaluate(link => link.classList.contains("active")));
+  await page.evaluate(() => window.htmx.ajax("GET", "https://service.test/dashboard?view=wide", { target: "#bp-main", push: "/tools/dashboard?view=wide" }));
+  await page.locator("#loaded").getByText("Reloaded").waitFor();
+  assert.equal(await page.locator("#menu").getAttribute("aria-current"), "page");
+  assert.ok(await page.locator("#menu").evaluate(link => link.classList.contains("active")));
+  assert.deepEqual(errors, []);
+});
+
+
+for (const pattern of ["/:id", "/{id}"]) {
+  for (const navigation of ["initial", "ajax"]) {
+    test(`${pattern} cannot capture an empty root parameter during ${navigation} navigation`, async t => {
+      const requests: string[] = [];
+      const { page, errors } = await shell(t, route => {
+        requests.push(route.request().url());
+        return html(route, route.request().url().includes("auth.test") ? '<p id="signed-in">Signed in</p>' : '<p id="landing">Dashboard</p>');
+      }, {}, navigation === "initial" ? "" : "https://auth.test/login", navigation === "initial" ? "/" : "/auth/login", false, [
+        { href: pattern, requestUrl: "https://service.test/records/:id", serviceId: "service", kind: "page" }
+      ]);
+      if (navigation === "ajax") {
+        await page.waitForSelector("#signed-in");
+        await page.evaluate(() => window.htmx.ajax("GET", "/", { target: "#bp-main", push: "/" }));
+      }
+      await page.waitForSelector("#landing");
+      assert.equal(requests.at(-1), "https://service.test/dashboard");
+      assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+
+for (const retarget of ["header", "status"]) {
+  for (const stale of [false, true]) {
+    test(`${retarget} fragment retarget ${stale ? "cannot overwrite a newer page" : "updates the main page and chrome"}`, async t => {
+      let release: (() => Promise<void>) | undefined;
+      let started!: () => void;
+      const pending = new Promise<void>(resolve => { started = resolve; });
+      const { page, errors } = await shell(t, route => {
+        if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
+          release = async () => {
+            await route.fulfill({ status: 200, contentType: "text/html; mode=page; bp-chrome-title=Retargeted",
+              body: '<p id="retargeted">Retargeted page</p>', headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "HX-Retarget,HX-Trigger", "HX-Trigger": "retarget-event", ...(retarget === "header" ? { "HX-Retarget": "#bp-main" } : {}) } });
+            resolve();
+          };
+          started();
+        });
+        if (route.request().url().includes("?new")) return html(route, '<p id="new-page">New page</p>');
+        return html(route, '<p>Current page</p><button id="new-source">New</button>');
+      });
+      await page.waitForSelector("#new-source");
+      await page.evaluate(retarget => {
+        const scope = document.createElement("div"); scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+        scope.innerHTML = '<button id="slow" hx-get="https://service.test/slow" hx-target="#row">Slow</button><div id="row">Row</div>';
+        if (retarget === "status") scope.querySelector("#slow")!.setAttribute("hx-status:200", JSON.stringify({ target: "#bp-main", swap: "innerHTML" }));
+        document.body.appendChild(scope); window.htmx.process(scope);
+        (window as any).retargetFinished = false;
+        (window as any).retargetEvents = 0;
+        document.addEventListener("retarget-event", () => { (window as any).retargetEvents++; });
+        document.addEventListener("htmx:finally:request", (event: any) => {
+          if (event.detail.ctx?.request?.action?.endsWith("/slow")) (window as any).retargetFinished = true;
+        });
+      }, retarget);
+      await page.locator("#slow").click();
+      await pending;
+      if (stale) {
+        await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { source: "#new-source", target: "#bp-main", push: "/tools/dashboard?new" }); });
+        await page.waitForSelector("#new-page");
+      }
+      assert.ok(release);
+      await release();
+      await page.waitForFunction(() => (window as any).retargetFinished);
+      assert.equal(await page.evaluate(() => (window as any).retargetEvents), stale ? 0 : 1);
+      if (stale) {
+        assert.equal(await page.locator("#new-page").textContent(), "New page");
+        assert.equal(await page.locator("#retargeted").count(), 0);
+        assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-chrome-title"), null);
+      } else {
+        await page.waitForSelector("#retargeted");
+        assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-chrome-title"), "Retargeted");
+      }
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+test("a stale fragment response cannot redirect a newer main page", async t => {
+  let release: (() => Promise<void>) | undefined;
+  let started!: () => void;
+  const pending = new Promise<void>(resolve => { started = resolve; });
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
+      release = async () => { await html(route, "", 200, { "HX-Redirect": "/auth/login" }); resolve(); }; started();
+    });
+    return html(route, '<p id="content">Content</p><button id="slow" hx-get="https://service.test/slow" hx-target="#row">Slow</button><div id="row">Row</div><button id="new-source">New</button>');
+  });
+  await page.locator("#slow").click();
+  await pending;
+  await page.evaluate(() => {
+    (window as any).slowFinished = false;
+    document.addEventListener("htmx:finally:request", (event: any) => {
+      if (event.detail.ctx?.request?.action?.endsWith("/slow")) (window as any).slowFinished = true;
+    });
+    void window.htmx.ajax("GET", "https://service.test/dashboard?new", { source: "#new-source", target: "#bp-main", push: "/tools/dashboard?new" });
+  });
+  await page.waitForURL("https://app.test/tools/dashboard?new");
+  assert.ok(release);
+  await release();
+  await page.waitForFunction(() => (window as any).slowFinished);
+  assert.equal(page.url(), "https://app.test/tools/dashboard?new");
+  assert.deepEqual(errors, []);
+});
+
+
+test("HTTP partial errors retain the original target when a response listener retargets main", async t => {
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    if (route.request().method() === "POST") return html(route, "Failed", 500);
+    return html(route, '<p id="outside">Keep page</p><div id="row"><input id="edit" value="original"><button hx-post="https://service.test/fail" hx-target="#row">Save</button></div>');
+  });
+  await page.locator("#edit").fill("keep edits");
+  await page.evaluate(() => document.addEventListener("htmx:after:request", (event: any) => {
+    if (event.detail.ctx?.response?.status >= 400) event.detail.ctx.target = document.getElementById("bp-main");
+  }));
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.locator("#row [data-bp-partial-error]").waitFor();
+  assert.equal(await page.locator("#outside").textContent(), "Keep page");
+  assert.equal(await page.locator("#edit").inputValue(), "keep edits");
+  assert.deepEqual(errors, []);
+});
+
+
+for (const header of ["HX-Push-Url", "HX-Replace-Url"]) {
+  for (const historySource of ["response", "request"]) {
+    for (const scenario of ["stale", "disabled", "fresh"]) {
+      test(`${header} ${historySource} ${scenario} persistent fragment preserves the current page history`, async t => {
+        let release: (() => Promise<void>) | undefined;
+        let started!: () => void;
+        const pending = new Promise<void>(resolve => { started = resolve; });
+        const { page, errors } = await shell(t, route => {
+          if (route.request().url().endsWith("/slow")) return new Promise<void>(resolve => {
+            release = async () => {
+              const headers = historySource === "response" || scenario === "disabled"
+                ? { [header]: scenario === "disabled" ? "false" : "/tools/dashboard?fragment", "access-control-expose-headers": header } : {};
+              await html(route, '<p id="fragment-updated">Updated</p>', 200, { ...headers, "HX-Trigger": "fragment-event", "access-control-expose-headers": header + ",HX-Trigger" });
+              resolve();
+            };
+            started();
+          });
+          return html(route, '<p id="content">Main content</p>');
+        });
+        await page.waitForSelector("#content");
+        await page.evaluate(({ header, historySource }) => {
+          const scope = document.createElement("div");
+          scope.setAttribute("data-bp-fragment", "");
+          scope.setAttribute("data-bp-service", "service");
+          scope.innerHTML = '<button id="slow" hx-get="https://service.test/slow" hx-target="#persistent-fragment">Slow</button><div id="persistent-fragment">Before</div>';
+          if (historySource === "request") scope.querySelector("#slow")!.setAttribute(header === "HX-Push-Url" ? "hx-push-url" : "hx-replace-url", "/tools/dashboard?fragment");
+          document.body.appendChild(scope);
+          window.htmx.process(scope);
+          (window as any).fragmentFinished = false;
+          (window as any).fragmentEvents = 0;
+          document.addEventListener("fragment-event", () => { (window as any).fragmentEvents++; });
+          document.addEventListener("htmx:finally:request", (event: any) => {
+            if (event.detail.ctx?.request?.action?.endsWith("/slow")) (window as any).fragmentFinished = true;
+          });
+        }, { header, historySource });
+        await page.locator("#slow").click();
+        await pending;
+        if (scenario !== "fresh") {
+          await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { target: "#bp-main", push: "/tools/dashboard?new" }); });
+          await page.waitForURL("https://app.test/tools/dashboard?new");
+        }
+        assert.ok(release);
+        await release();
+        await page.waitForFunction(() => (window as any).fragmentFinished);
+        assert.equal(await page.evaluate(() => (window as any).fragmentEvents), scenario === "stale" ? 0 : 1);
+        assert.equal(page.url(), "https://app.test/tools/dashboard?" + (scenario === "fresh" ? "fragment" : "new"));
+        if (scenario === "stale") assert.equal(await page.locator("#persistent-fragment").textContent(), "Before");
+        else assert.equal(await page.locator("#fragment-updated").textContent(), "Updated");
+        assert.equal(await page.locator("#persistent-fragment").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
+        assert.deepEqual(errors, []);
+      });
+    }
+  }
+}
+
+
+for (const outcome of ["cancelled", "success", "network", "http"]) {
+  test(`older ${outcome} fragment completion keeps a newer request's loading indicator`, async t => {
+    let releaseOld!: () => Promise<void>, releaseNew!: () => Promise<void>;
+    let markOld!: () => void, markNew!: () => void;
+    const oldStarted = new Promise<void>(resolve => { markOld = resolve; });
+    const newStarted = new Promise<void>(resolve => { markNew = resolve; });
+    const { page, errors } = await shell(t, route => {
+      if (route.request().url().endsWith("/fragment-old")) return new Promise<void>(resolve => {
+        releaseOld = async () => {
+          if (outcome === "network") await route.abort("failed");
+          else await html(route, "Old", outcome === "http" ? 500 : 200, outcome === "cancelled" ? { "HX-Push-Url": "/tools/dashboard?old", "access-control-expose-headers": "HX-Push-Url" } : {});
+          resolve();
+        }; markOld();
+      });
+      if (route.request().url().endsWith("/fragment-new")) return new Promise<void>(resolve => {
+        releaseNew = async () => { await html(route, '<p id="new-result">New result</p>'); resolve(); }; markNew();
+      });
+      return html(route, '<p id="content">Main page</p>');
+    });
+    await page.waitForSelector("#content");
+    await page.evaluate(() => {
+      const scope = document.createElement("div");
+      scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+      scope.innerHTML = '<button id="old-source">Old</button><button id="new-fragment-source">New</button><div id="persistent">Before</div>';
+      document.body.appendChild(scope);
+      (window as any).oldFinished = false; (window as any).newFinished = false;
+      document.addEventListener("htmx:finally:request", (event: any) => {
+        if (event.detail.ctx?.request?.action?.endsWith("/fragment-old")) (window as any).oldFinished = true;
+        if (event.detail.ctx?.request?.action?.endsWith("/fragment-new")) (window as any).newFinished = true;
+      });
+      void window.htmx.ajax("GET", "https://service.test/fragment-old", { source: "#old-source", target: "#persistent" });
+    });
+    await oldStarted;
+    if (outcome === "cancelled") {
+      await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/dashboard?new", { target: "#bp-main", push: "/tools/dashboard?new" }); });
+      await page.waitForURL("https://app.test/tools/dashboard?new");
+    }
+    await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/fragment-new", { source: "#new-fragment-source", target: "#persistent" }); });
+    await newStarted;
+    await releaseOld();
+    await page.waitForFunction(() => (window as any).oldFinished);
+    assert.equal(await page.locator("#persistent").evaluate(node => node.classList.contains("bp-fragment-loading")), true);
+    assert.equal(page.url(), "https://app.test/tools/dashboard" + (outcome === "cancelled" ? "?new" : ""));
+    await releaseNew();
+    await page.waitForFunction(() => (window as any).newFinished);
+    assert.equal(await page.locator("#new-result").textContent(), "New result");
+    assert.equal(await page.locator("#persistent").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("a response from the previous auth generation cannot emit an immediate trigger", async t => {
+  let release!: () => Promise<void>, started!: () => void;
+  const pending = new Promise<void>(resolve => { started = resolve; });
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/auth-stale")) return new Promise<void>(resolve => {
+      release = async () => { await html(route, "Old", 200, { "HX-Trigger": "auth-event" }); resolve(); }; started();
+    });
+    return html(route, '<p id="content">Main page</p>');
+  });
+  await page.waitForSelector("#content");
+  await page.evaluate(() => {
+    const scope = document.createElement("div"); scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+    scope.innerHTML = '<button id="auth-source">Slow</button><div id="auth-target">Before</div>'; document.body.appendChild(scope);
+    (window as any).authEvents = 0; (window as any).authFinished = false;
+    document.addEventListener("auth-event", () => { (window as any).authEvents++; });
+    document.addEventListener("htmx:finally:request", (event: any) => {
+      if (event.detail.ctx?.request?.action?.endsWith("/auth-stale")) (window as any).authFinished = true;
+    });
+    void window.htmx.ajax("GET", "https://service.test/auth-stale", { source: "#auth-source", target: "#auth-target" });
+  });
+  await pending;
+  await page.evaluate(() => {
+    localStorage.setItem("bp.headers", JSON.stringify({ authorization: { value: "Bearer newer", owner: "service", scope: null } }));
+    window.dispatchEvent(new StorageEvent("storage", { key: "bp.headers" }));
+  });
+  await release();
+  await page.waitForFunction(() => (window as any).authFinished);
+  assert.equal(await page.evaluate(() => (window as any).authEvents), 0);
+  assert.equal(await page.locator("#auth-target").textContent(), "Before");
+  assert.equal(await page.locator("#auth-target").evaluate(node => node.classList.contains("bp-fragment-loading")), false);
+  assert.deepEqual(errors, []);
+});
+
+
+for (const header of ["HX-Retarget", "HX-Location"]) {
+  for (const outlet of ["inline", "table", "configured"]) {
+    test(`${header} successful retry clears the original persistent ${outlet} error`, async t => {
+      let failed = true;
+      const { page, errors } = await shell(t, route => {
+        if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+          "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "*"
+        } });
+        if (route.request().method() === "POST") return failed ? html(route, "Failed", 500)
+          : html(route, '<p id="new-main">Success</p>', 200, { [header]: header === "HX-Retarget" ? "#bp-main" : "/tools/dashboard?done", "access-control-expose-headers": header });
+        return html(route, route.request().url().includes("?done") ? '<p id="new-main">Success</p>' : '<p id="old-main">Current page</p>');
+      });
+      await page.waitForSelector("#old-main");
+      await page.evaluate(outlet => {
+        const scope = document.createElement("div"); scope.setAttribute("data-bp-fragment", ""); scope.setAttribute("data-bp-service", "service");
+        if (outlet === "configured") scope.setAttribute("data-bp-mutation-scope", "");
+        const target = outlet === "table" ? '<table><tbody id="partial"><tr id="existing-row"><td><input id="persistent-edit" value="original"></td></tr></tbody></table>'
+          : '<div id="partial"><input id="persistent-edit" value="original"></div>';
+        scope.innerHTML = '<button id="retry" hx-post="https://service.test/retry" hx-target="#partial">Retry</button>' + target
+          + (outlet === "configured" ? '<div data-bp-mutation-error hidden></div>' : '');
+        document.body.appendChild(scope); window.htmx.process(scope);
+      }, outlet);
+      await page.locator("#persistent-edit").fill("keep edits");
+      await page.locator("#retry").click();
+      const error = page.locator(outlet === "configured" ? "[data-bp-mutation-error]" : "[data-bp-partial-error]");
+      await error.waitFor({ state: "visible" });
+      assert.equal(await page.locator("#old-main").textContent(), "Current page");
+      failed = false;
+      await page.locator("#retry").click();
+      await page.waitForSelector("#new-main");
+      if (outlet === "configured") {
+        assert.equal(await error.isVisible(), false);
+        assert.equal(await error.textContent(), "");
+      } else assert.equal(await error.count(), 0);
+      assert.equal(await page.locator("[data-bp-partial-error-wrapper]").count(), 0);
+      if (outlet === "table") assert.equal(await page.locator("#partial > tr").count(), 1);
+      assert.equal(await page.locator("#persistent-edit").inputValue(), "keep edits");
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+
+for (const outlet of ["inline", "configured"]) {
+  for (const swap of ["none", "beforeend"]) {
+    test(`older ${swap} success cannot clear a newer ${outlet} partial error`, async t => {
+      let releaseOld!: () => Promise<void>, started!: () => void;
+      const pending = new Promise<void>(resolve => { started = resolve; });
+      const { page, errors } = await shell(t, route => {
+        if (route.request().url().endsWith("/old")) return new Promise<void>(resolve => {
+          releaseOld = async () => { await html(route, '<p id="older-data">Old success</p>'); resolve(); }; started();
+        });
+        if (route.request().url().endsWith("/new-error")) return html(route, "Newer failure", 500);
+        return html(route, '<div id="scope"' + (outlet === "configured" ? ' data-bp-mutation-scope' : '') + '><button id="old">Old</button><button id="new-error">New</button><div id="partial"><input id="edit" value="original"></div>' + (outlet === "configured" ? '<div data-bp-mutation-error hidden></div>' : '') + '</div>');
+      });
+      await page.locator("#edit").fill("keep edits");
+      await page.evaluate(swap => {
+        (window as any).oldFinished = false;
+        document.addEventListener("htmx:finally:request", (event: any) => {
+          if (event.detail.ctx?.request?.action?.endsWith("/old")) (window as any).oldFinished = true;
+        });
+        void window.htmx.ajax("GET", "https://service.test/old", { source: "#old", target: "#partial", swap });
+      }, swap);
+      await pending;
+      await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/new-error", { source: "#new-error", target: "#partial" }); });
+      const error = page.locator(outlet === "configured" ? "[data-bp-mutation-error]" : "[data-bp-partial-error]");
+      await error.waitFor({ state: "visible" });
+      const message = await error.textContent();
+      await releaseOld();
+      await page.waitForFunction(() => (window as any).oldFinished);
+      assert.equal(await error.isVisible(), true);
+      assert.equal(await error.textContent(), message);
+      assert.equal(await page.locator("#edit").inputValue(), "keep edits");
+      if (swap === "beforeend") assert.equal(await page.locator("#older-data").textContent(), "Old success");
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+test("older partial failure cannot reintroduce an error after a newer success", async t => {
+  let releaseOld!: () => Promise<void>, started!: () => void;
+  const pending = new Promise<void>(resolve => { started = resolve; });
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/old-error")) return new Promise<void>(resolve => {
+      releaseOld = async () => { await html(route, "Old failure", 500); resolve(); }; started();
+    });
+    if (route.request().url().endsWith("/new-success")) return html(route, '<p id="new-data">New data</p>');
+    return html(route, '<button id="old">Old</button><button id="new">New</button><div id="partial">Before</div>');
+  });
+  await page.waitForSelector("#partial");
+  await page.evaluate(() => {
+    (window as any).oldFinished = false;
+    document.addEventListener("htmx:finally:request", (event: any) => {
+      if (event.detail.ctx?.request?.action?.endsWith("/old-error")) (window as any).oldFinished = true;
+    });
+    void window.htmx.ajax("GET", "https://service.test/old-error", { source: "#old", target: "#partial" });
+  });
+  await pending;
+  await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/new-success", { source: "#new", target: "#partial" }); });
+  await page.waitForSelector("#new-data");
+  await releaseOld();
+  await page.waitForFunction(() => (window as any).oldFinished);
+  assert.equal(await page.locator("[data-bp-partial-error]").count(), 0);
+  assert.equal(await page.locator("#partial").textContent(), "New data");
+  assert.deepEqual(errors, []);
+});
+
+
+for (const rootType of ["api", "post-only"]) {
+  for (const navigation of ["initial", "ajax", "anchor", "location"]) {
+    test(`${rootType} root metadata cannot suppress the GET page fallback during ${navigation}`, async t => {
+      const requests: string[] = [];
+      const { page, errors } = await shell(t, route => {
+        requests.push(route.request().url());
+        if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+        if (route.request().url().endsWith("/redirect")) return html(route, "", 200, { "HX-Location": "/" });
+        if (route.request().url().endsWith("/not-a-page")) return html(route, '<p id="wrong">Wrong endpoint</p>');
+        return html(route, '<p id="landing">Dashboard</p>');
+      }, {}, navigation === "initial" ? "" : "https://auth.test/login", navigation === "initial" ? "/" : "/auth/login", false, [
+        { href: "/", requestUrl: "https://service.test/not-a-page", serviceId: "service", kind: rootType === "api" ? "api" : "page", methods: rootType === "api" ? ["GET"] : ["POST"] }
+      ]);
+      if (navigation !== "initial") {
+        await page.waitForSelector("#signed-in");
+        await page.evaluate(navigation => {
+          if (navigation === "anchor") {
+            const link = document.createElement("a"); link.href = "/"; link.textContent = "Home";
+            document.getElementById("bp-main")!.appendChild(link); window.htmx.process(link); link.click();
+          } else void window.htmx.ajax("GET", navigation === "location" ? "https://service.test/redirect" : "/", { target: "#bp-main", push: "/" });
+        }, navigation);
+      }
+      await page.waitForSelector("#landing");
+      assert.equal(requests.some(url => url.endsWith("/not-a-page")), false);
+      assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+      assert.deepEqual(errors, []);
+    });
+  }
+}
+
+test("fallback skips non-GET pages and accepts legacy GET page metadata", async t => {
+  let requestUrl = "";
+  const { page, errors } = await shell(t, route => {
+    requestUrl = route.request().url();
+    return html(route, route.request().url().includes("auth.test") ? '<p id="signed-in">Signed in</p>' : '<p id="landing">Landing</p>');
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.waitForSelector("#signed-in");
+  await page.evaluate(() => {
+    document.getElementById("menu")!.remove();
+    document.querySelector("[data-bp-shell-root]")!.setAttribute("data-bp-routes", JSON.stringify([
+      { href: "/do-work", requestUrl: "https://service.test/do-work", serviceId: "service", kind: "page", methods: ["POST"] },
+      { href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service" }
+    ]));
+    void window.htmx.ajax("GET", "/", { target: "#bp-main", push: "/" });
+  });
+  await page.waitForSelector("#landing");
+  assert.equal(requestUrl, "https://service.test/dashboard");
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.deepEqual(errors, []);
+});
+
+for (const header of ["HX-Location", "HX-Redirect"]) {
+  test(`${header} maps an absolute POST-only root mount to the GET fallback`, async t => {
+    const requests: string[] = [];
+    const { page, errors } = await shell(t, route => {
+      requests.push(route.request().url());
+      if (route.request().url().includes("auth.test")) return html(route, '<p id="signed-in">Signed in</p>');
+      if (route.request().url().endsWith("/redirect")) return html(route, "", 200, { [header]: "https://service.test/action?next=landing#section" });
+      return html(route, '<p id="landing">Dashboard</p>');
+    }, {}, "https://auth.test/login", "/auth/login", false, [
+      { href: "/", requestUrl: "https://service.test/action", serviceId: "service", kind: "page", methods: ["POST"] }
+    ]);
+    await page.waitForSelector("#signed-in");
+    await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/redirect", { target: "#bp-main" }); });
+    await page.waitForSelector("#landing");
+    await page.waitForURL("https://app.test/tools/dashboard?next=landing#section");
+    assert.equal(requests.some(url => url.includes("/action")), false);
+    assert.deepEqual(errors, []);
+  });
+}
+
+for (const swap of ["none", "beforeend"]) {
+  test(`${swap} parent retry clears only its own error and preserves a nested component error`, async t => {
+    const { page, errors } = await shell(t, route => html(route,
+      route.request().url().endsWith("/dashboard")
+        ? '<div id="outer"><button id="outer-source">Outer</button><div id="inner"><button id="inner-source">Inner</button><input value="unsaved"></div></div>'
+        : route.request().url().endsWith("/fail") ? "Failed" : '<span id="success">Success</span>',
+      route.request().url().endsWith("/fail") ? 500 : 200));
+    await page.waitForSelector("#inner");
+    await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/fail", { source: "#inner-source", target: "#inner" }); });
+    await page.waitForSelector("#inner [data-bp-partial-error]");
+    await page.evaluate(() => { void window.htmx.ajax("GET", "https://service.test/fail", { source: "#outer-source", target: "#outer" }); });
+    await page.waitForFunction(() => document.querySelectorAll("[data-bp-partial-error]").length === 2);
+    await page.evaluate(swap => {
+      document.addEventListener("htmx:finally:request", (event: any) => {
+        if (event.detail.ctx?.request?.action?.endsWith("/success")) (window as any).retryFinished = true;
+      });
+      void window.htmx.ajax("GET", "https://service.test/success", { source: "#outer-source", target: "#outer", swap });
+    }, swap);
+    await page.waitForFunction(() => (window as any).retryFinished);
+    assert.equal(await page.locator("#inner [data-bp-partial-error]").count(), 1);
+    assert.equal(await page.locator("#outer > [data-bp-partial-error]").count(), 0);
+    assert.equal(await page.locator("#inner input").inputValue(), "unsaved");
+    assert.deepEqual(errors, []);
+  });
+}
