@@ -54,8 +54,12 @@ export async function checkSessionAndMailPages(storage: AuthStorage, scope: Scop
   const mailFirst = await usersGet(mailCtx as never);
   assert.equal((mailFirst.mail as any[]).length, 100);
   assert.ok((mailFirst.mail as any[]).every(m => m.state === "failed"));
+  assert.equal((mailFirst.mail as any[])[0].id, "page-104");
+  assert.equal((mailFirst.mail as any[]).at(-1).id, "page-005");
   const mailSecond = await usersGet({ ...ctx, query: { mailState: "failed", mailAfter: mailFirst.mailNextCursor } } as never);
   assert.equal((mailSecond.mail as any[]).length, 5);
+  assert.equal((mailSecond.mail as any[])[0].id, "page-004");
+  assert.equal((mailSecond.mail as any[]).at(-1).id, "page-000");
   assert.equal(mailSecond.mailNextCursor, "");
   assert.equal(new Set([...(mailFirst.mail as any[]), ...(mailSecond.mail as any[])].map(m => m.id)).size, 105);
 

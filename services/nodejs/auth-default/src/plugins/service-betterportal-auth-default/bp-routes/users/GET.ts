@@ -17,7 +17,7 @@ export default createHandler({ response: ResponseSchema, query: QuerySchema }, a
   return runtime.identity.storage.transaction(scope, async tx => {
     const query = ctx.query as av.Infer<typeof QuerySchema> | undefined;
     const mailPage = query?.mailState === "failed"
-      ? await tx.failedMail<Mail>(scope, { after: query.mailAfter, limit: 101 })
+      ? await tx.failedMail<Mail>(scope, { after: query.mailAfter, limit: 101, descending: true })
       : await tx.page<Mail>("mail", scope, { after: query?.mailAfter, limit: 101, descending: true });
     const auditPage = await tx.page("audit", scope, { limit: 100, descending: true });
     const people = new Map<string, Promise<{ id: string; username: string; email: string | null; name: string | null } | null>>();
