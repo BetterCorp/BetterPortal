@@ -17,6 +17,7 @@ import {
 } from "@betterportal/plugin-bsb";
 import {
   ServiceConfigWriteError,
+  AuthElevationError,
   createBpTokenIssuer,
   loadOrGenerateKeyPair,
   publicKeyToJwk,
@@ -283,7 +284,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     await this.identity.storage.transaction(scope, tx => this.identity.assertActiveSession(tx, scope, claims, user));
     await this.identity.rateLimit(scope, "elevation", user.id, 20);
     const hasFactors = await this.factors.hasFactors(user);
-    if (!hasFactors && requirement.minimum === "mfa") throw new AuthError("Enroll an authentication factor in your account settings first.");
+    if (!hasFactors && requirement.minimum === "mfa") throw new AuthElevationError();
     const prepared = hasFactors ? await this.factors.prepare(user, event.req.headers.get("origin") ?? event.url.origin) : undefined;
     const challenge = await this.identity.challenge(scope, "elevation", { jti: claims.jti, version: user.refreshVersion, actionContext, factor: prepared?.private ?? null }, user.id, Math.min(300, claims.exp - Math.floor(Date.now() / 1000)));
     return { challengeId: challenge.id, secret: challenge.secret, method: hasFactors ? "factor" : "confirm", ...prepared?.public };

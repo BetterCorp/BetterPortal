@@ -23,6 +23,7 @@ test("user management submits multiple and empty role arrays and preserves off-p
   await page.goto("https://app.test/users");
   const form = page.locator('form:has(input[name="action"][value="roles"])');
   assert.equal(await form.count(), 1);
+  await form.locator("..").locator("summary").click();
   await form.getByRole("checkbox", { name: "editor", exact: true }).check();
   await form.getByRole("button", { name: "Save roles" }).click();
   assert.deepEqual(errors, []);
@@ -37,6 +38,7 @@ test("user management submits multiple and empty role arrays and preserves off-p
   await page.waitForFunction(() => (window as any).submitted.length === 2);
   assert.deepEqual(await page.evaluate(() => (window as any).submitted[1].roles), []);
   const group = page.locator('form:has(input[name="id"][value="team"]):has(input[value="group.save"])');
+  await group.locator("../..").locator("summary").click();
   await group.getByRole("checkbox", { name: "alice@example.test" }).uncheck();
   await group.getByRole("checkbox", { name: "editor", exact: true }).check();
   await group.getByRole("button", { name: "Save group" }).click();

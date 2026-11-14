@@ -29,7 +29,7 @@ export function parseMailHeaders(configured: unknown): Record<string, string> | 
   catch { throw new AuthError("Custom mail headers contain an invalid HTTP header name or value.", 503); }
   return result.data;
 }
-interface Mail extends RecordValue { scope: Scope; trace?: BetterPortalTraceContext; encrypted: string; attempts: number; nextAttempt: number; state: "pending" | "sending" | "sent" | "failed"; lease?: string; updatedAt: number }
+export interface Mail extends RecordValue { scope: Scope; trace?: BetterPortalTraceContext; encrypted: string; envelope?: string; createdAt?: number; lastDelivery?: { transport: string; status: number; providerCode: string; reason: string; at: number }; attempts: number; nextAttempt: number; state: "pending" | "sending" | "sent" | "failed"; lease?: string; updatedAt: number }
 const MailUrlSchema = av.string().format("url");
 export function validateMailUrl(value: unknown): void {
   const result = MailUrlSchema.safeParse(value);
@@ -56,6 +56,7 @@ export class MailQueue {
       }
       await tx.put("mail", scope, {
         id: uuidv7(), scope, ...(span ? { trace: span.trace } : {}), encrypted: this.identity.cipher.encrypt(JSON.stringify({ to, subject, text })),
+        envelope: this.identity.cipher.encrypt(JSON.stringify({ to, subject })), createdAt: Date.now(),
         attempts: 0, nextAttempt: Date.now(), state: "pending", updatedAt: Date.now()
       });
       span?.logger.info("Auth mail staged in transaction", { transport: config.transport });
@@ -79,6 +80,7 @@ export class MailQueue {
       let span = this.deliveryObs?.(row.trace);
       span = span?.setAttributes({ tenantId: row.scope.tenantId, appId: row.scope.appId, jobId: row.id, attempt: row.attempts + 1 });
       let success = false;
+      let envelope = row.envelope;
       let reason = "configuration_invalid";
       let status = 0;
       let providerCode = "none";
@@ -94,6 +96,7 @@ export class MailQueue {
           const headers = deliveryHeaders(config);
           reason = "payload_invalid";
           const payload = JSON.parse(this.identity.cipher.decrypt(row.encrypted)) as { to: string; subject: string; text: string };
+          envelope ??= this.identity.cipher.encrypt(JSON.stringify({ to: payload.to, subject: payload.subject }));
           const body = { from: config.from, to: payload.to, subject: payload.subject, text: payload.text, html: "" };
           const url = config.transport === "postal" ? `${config.url.replace(/\/+$/, "")}/api/v1/send/message` : config.url;
           reason = "network_error";
@@ -127,7 +130,7 @@ export class MailQueue {
           if (current?.lease !== lease) return;
           const attempts = current.attempts + 1;
           const state = success ? "sent" : attempts >= 5 ? "failed" : "pending";
-          await tx.put("mail", row.scope, { ...current, encrypted: success ? "" : current.encrypted, attempts, state, nextAttempt: Date.now() + Math.min(3600000, 30000 * 2 ** attempts), updatedAt: Date.now() });
+          await tx.put("mail", row.scope, { ...current, ...(envelope ? { envelope } : {}), encrypted: success ? "" : current.encrypted, attempts, state, lastDelivery: { transport, status, providerCode, reason: success ? "accepted" : reason, at: Date.now() }, nextAttempt: Date.now() + Math.min(3600000, 30000 * 2 ** attempts), updatedAt: Date.now() });
           return { transport, status, providerCode, attempts, state, reason: success ? "accepted" : reason, durationMs: Date.now() - started, retryScheduled: state === "pending" };
         });
         if (attributes) {

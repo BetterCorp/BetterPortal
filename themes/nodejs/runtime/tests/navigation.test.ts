@@ -854,3 +854,39 @@ test("swap-only BPRoute and plain anchors retain outerHTML during main enhanceme
     assert.deepEqual(errors, []);
   }
 });
+
+
+for (const mode of ["success", "enrollment", "cancel"] as const) test(`auth API mutations surface elevation ${mode} without returning the raw challenge error`, async t => {
+  const now = Math.floor(Date.now() / 1000);
+  const token = (value: unknown) => "header." + Buffer.from(JSON.stringify(value)).toString("base64url") + ".signature";
+  const claims = { tenantId: "tenant", appId: "app", sub: "alice", exp: now + 600 };
+  const base = token(claims), elevated = token({ ...claims, elevation: { assurance: "mfa", verifiedAt: now, expiresAt: now + 600 } });
+  let mutations = 0;
+  const { page, errors } = await shell(t, async route => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "POST,GET", "access-control-allow-headers": "*" } });
+    if (request.url().endsWith("/dashboard")) return html(route, '<p id="ready">Ready</p>');
+    if (request.url().includes('/auth/elevate')) {
+      if (mode === 'enrollment') return route.fulfill({ status: 403, json: { error: 'factor_enrollment_required', message: 'Open Account and enroll an authenticator or passkey, then try again.' }, headers: { 'access-control-allow-origin': '*' } });
+      return route.fulfill({ json: request.postDataJSON().action === 'start' ? { challengeId: 'challenge', secret: 'secret', methods: ['totp'] } : { accessToken: elevated }, headers: { 'access-control-allow-origin': '*' } });
+    }
+    mutations++;
+    if (request.headers().authorization !== 'Bearer ' + elevated) return route.fulfill({ status: 401, json: { error: 'insufficient_user_authentication' }, headers: { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'BP-Auth-Challenge', 'BP-Auth-Challenge': JSON.stringify({ version: 1, tenantId: 'tenant', appId: 'app', minimum: 'mfa' }) } });
+    assert.deepEqual(request.postDataJSON(), { action: 'verification.mark', id: 'target' });
+    return route.fulfill({ json: { status: 'ok' }, headers: { 'access-control-allow-origin': '*' } });
+  }, { Authorization: { value: 'Bearer ' + base, owner: 'auth', scope: null } });
+  await page.locator('#ready').waitFor();
+  const result = page.evaluate(async () => {
+    try { const response = await (window as any).BetterPortalAuth.fetch('https://service.test/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'verification.mark', id: 'target' }) }); return { body: await response.json() }; }
+    catch (error) { return { error: (error as Error).message }; }
+  });
+  if (mode !== 'enrollment') {
+    await page.locator('dialog[open]').waitFor();
+    if (mode === 'cancel') await page.locator('dialog').getByRole('button', { name: 'Cancel' }).click();
+    else { await page.getByRole('textbox', { name: 'Verification code' }).fill('123456'); await page.locator('dialog').getByRole('button', { name: 'Continue' }).click(); }
+  }
+  const outcome = await result;
+  if (mode === 'success') { assert.deepEqual(outcome, { body: { status: 'ok' } }); assert.equal(mutations, 2); }
+  else { assert.match(outcome.error || '', mode === 'cancel' ? /cancelled/ : /Open Account and enroll/); assert.equal(mutations, 1); }
+  assert.deepEqual(errors, []);
+});

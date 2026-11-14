@@ -120,3 +120,39 @@ test("Postal rejects missing keys before queueing and revalidates keys at delive
   await storage.transaction(scope, tx => tx.put("mail", scope, { ...job, nextAttempt: 0 }));
   await queue.drain(); assert.equal(fetch.mock.callCount(), 1);
 });
+
+
+test("management returns mail envelope and safe delivery diagnostics for all states, including legacy failures", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-mail-management-")); const storage = new JsonAuthStorage(join(dir, "users.json"));
+  t.after(async () => { await storage.close(); rmSync(dir, { recursive: true, force: true }); });
+  const identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  const scope = { tenantId: "tenant", appId: "app" };
+  const queue = new MailQueue(identity, () => ({ transport: "postal", url: "https://postal.test", from: "sender@example.com", apiKey: "private-key" }));
+  await storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Verify your email", "private verification token"));
+  let accepted = false;
+  t.mock.method(globalThis, "fetch", async () => accepted ? Response.json({ status: "success" }) : Response.json({ status: "error", data: { code: "AccessDenied", message: "private-key private verification token" } }));
+  const { default: list } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/GET.js");
+  const ctx = { plugin: { runtime: { identity, policy: async () => ({ registration: "public", isolation: "app", allowedRoleIds: [] }) } }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, query: {} };
+  await queue.drain();
+  let listing = await list(ctx as never);
+  let mail = (listing.mail as Array<Record<string, any>>)[0];
+  assert.equal(mail.state, "pending"); assert.equal(mail.to, "alice@example.com"); assert.equal(mail.subject, "Verify your email");
+  assert.equal(mail.lastDelivery.status, 200); assert.equal(mail.lastDelivery.reason, "provider_access_denied"); assert.equal(mail.lastDelivery.providerCode, "AccessDenied");
+  assert.equal(typeof mail.lastDelivery.at, "number"); assert.equal(typeof mail.nextAttempt, "number");
+  for (const value of ["private-key", "private verification token", "encrypted", "envelope"]) assert.ok(!JSON.stringify(listing).includes(value));
+  let [row] = await storage.transaction(scope, tx => tx.list("mail", scope));
+  await storage.transaction(scope, tx => tx.put("mail", scope, { ...row, state: "failed", attempts: 5 }));
+  listing = await list(ctx as never); mail = (listing.mail as Array<Record<string, any>>)[0]; assert.equal(mail.state, "failed"); assert.equal(mail.nextAttempt, null);
+  // Legacy failed records still contain an encrypted payload with the recipient and subject.
+  delete row.envelope; delete row.lastDelivery;
+  await storage.transaction(scope, tx => tx.put("mail", scope, { ...row, state: "failed" }));
+  listing = await list(ctx as never); mail = (listing.mail as Array<Record<string, any>>)[0];
+  assert.equal(mail.to, "alice@example.com"); assert.equal(mail.lastDelivery, null);
+  accepted = true;
+  await storage.transaction(scope, tx => tx.put("mail", scope, { ...row, state: "pending", nextAttempt: 0 }));
+  await queue.drain();
+  listing = await list(ctx as never); mail = (listing.mail as Array<Record<string, any>>)[0];
+  assert.equal(mail.state, "sent"); assert.equal(mail.to, "alice@example.com"); assert.equal(mail.subject, "Verify your email"); assert.equal(mail.lastDelivery.reason, "accepted");
+  [row] = await storage.transaction(scope, tx => tx.list("mail", scope)); assert.equal(row.encrypted, ""); assert.ok(row.envelope);
+  const other = await list({ ...ctx, app: { id: "another-app" } } as never); assert.deepEqual(other.mail, []);
+});

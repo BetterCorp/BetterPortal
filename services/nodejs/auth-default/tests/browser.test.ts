@@ -89,6 +89,7 @@ test("users page generates, displays and copies verification links for eligible 
   await page.goto("https://app.test/users");
   const generate = page.getByRole("button", { name: "Generate verification link" });
   assert.equal(await generate.count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Mark as verified", exact: true }).count(), 1);
   assert.equal(await page.locator('[data-verification-output]').isVisible(), false);
   assert.deepEqual(await page.evaluate(() => (window as any).submitted), []);
   assert.deepEqual(errors, []);
@@ -103,4 +104,34 @@ test("users page generates, displays and copies verification links for eligible 
   await page.route("https://readonly.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderUsers({ ...data, canManageDirectory: false }, { request: { query: {} }, route: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never)) }));
   await page.goto("https://readonly.test/users");
   assert.equal(await page.getByRole("button", { name: "Generate verification link" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Mark as verified", exact: true }).count(), 0);
+});
+
+
+test("user management presents people, delivery errors and local times and verifies users immediately", async t => {
+  const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
+  const page = await browser.newPage({ timezoneId: "Africa/Johannesburg", locale: "en-GB" });
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await page.addInitScript(`window.submitted = []; window.BetterPortalAuth = { fetch: async (_url, init) => { window.submitted.push(JSON.parse(init.body)); return Response.json({ status: "ok", message: "Saved." }); } };`);
+  const actor = { id: "actor", name: "Alex Admin", email: "alex@example.com", username: "alex" };
+  const target = { id: "target", name: "Sam User", email: "sam@example.com", username: "sam", enabled: true, emailVerified: false, roles: ["reader"] };
+  const data = { canManageDirectory: true, registration: "closed", users: [target],
+    mail: [{ id: "mail-id", to: "sam@example.com", subject: "Verify your email", state: "failed", attempts: 5, updatedAt: Date.parse("2026-11-14T10:00:00Z"), lastDelivery: { at: Date.parse("2026-11-14T10:00:00Z"), reason: "provider_access_denied", status: 200, providerCode: "AccessDenied", transport: "postal" } }],
+    audit: [{ id: "event-id", actor: "actor", actorUser: actor, targetUser: target, event: "admin.verification.link", at: Date.parse("2026-11-14T10:00:00Z"), data: { id: "target" } }] };
+  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderUsers(data, { request: { query: {} }, route: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never)) }));
+  await page.goto("https://app.test/users");
+  const activity = page.locator('#bp-users-activity');
+  assert.match(await activity.textContent(), /Alex Admin/); assert.match(await activity.textContent(), /alex@example.com/); assert.match(await activity.textContent(), /Sam User/);
+  assert.match(await activity.locator('time').textContent(), /12:00/); assert.match(await activity.locator('time').getAttribute('title') || '', /Africa\/Johannesburg/);
+  const mail = page.locator('#bp-users-mail'); assert.match(await mail.textContent(), /sam@example.com/); assert.match(await mail.textContent(), /Verify your email/); assert.match(await mail.textContent(), /rejected the API key/); assert.match(await mail.textContent(), /HTTP 200/); assert.match(await mail.textContent(), /AccessDenied/);
+  await page.getByRole('button', { name: 'Mark as verified', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[data-email-status]')?.textContent === 'Email verified');
+  assert.equal(await page.getByRole('button', { name: 'Generate verification link' }).count(), 0);
+  assert.deepEqual(await page.evaluate(() => (window as any).submitted[0]), { action: 'verification.mark', id: 'target' });
+  await page.getByRole('button', { name: 'Retry delivery' }).click(); await page.waitForFunction(() => document.querySelector('[data-mail-state]')?.textContent === 'Queued');
+  assert.deepEqual(await page.evaluate(() => (window as any).submitted[1]), { action: 'mail.retry', id: 'mail-id' });
+  await page.getByRole('searchbox').fill('missing'); assert.equal(await page.locator('[data-user-row]').isVisible(), false);
+  assert.equal(await page.locator('[data-no-user-matches]').isVisible(), true);
+  await page.getByRole('searchbox').fill('Sam'); assert.equal(await page.locator('[data-user-row]').isVisible(), true);
+  assert.deepEqual(errors, []);
 });

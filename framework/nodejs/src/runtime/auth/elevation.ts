@@ -42,3 +42,9 @@ export function elevationResponse(requirement: ElevationRequirement, context: { 
     }
   });
 }
+
+/** A public, actionable failure that an auth provider may return during elevation. */
+export class AuthElevationError extends Error {
+  readonly code = "factor_enrollment_required";
+  constructor() { super("This action requires MFA, including for administrators. Open Account and enroll an authenticator or passkey, then try again."); }
+}

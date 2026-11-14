@@ -2491,7 +2491,10 @@ export function betterPortalShellRuntimeSource(): string {
           const url = trimTrailingSlashes(authOrigin) + "/.well-known/bp/auth/elevate";
           const send = async (body: unknown) => {
             const response = await fetch(url, { method: "POST", headers: { Authorization: base, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), redirect: "error" });
-            if (!response.ok) throw new Error("Additional verification is unavailable or failed. Open your account settings to check your authentication methods.");
+            if (!response.ok) {
+              const failure = await response.json().catch(() => null);
+              throw new Error(failure?.message || "Additional verification failed. This action may require MFA even for administrators. Open Account to check your authenticator or passkey, then try again.");
+            }
             return response.json();
           };
           const prepared = await send({ action: "start", context: { serviceId: challenge.serviceId, operationId: challenge.operationId, method: challenge.method }, requirement: { minimum: challenge.minimum, ...(challenge.maxAgeSeconds ? { maxAgeSeconds: challenge.maxAgeSeconds } : {}) } });
@@ -2529,6 +2532,7 @@ export function betterPortalShellRuntimeSource(): string {
             const outlet = mutationErrorOutlet(ctx.sourceElement);
             if (outlet) { outlet.textContent = message; outlet.hidden = false; }
           }
+          if (!ctx) throw new Error(message);
           return response;
         };
         const hasUpload = init.body instanceof FormData && Array.from(init.body.values()).some(value => value instanceof File && value.size > 0);
