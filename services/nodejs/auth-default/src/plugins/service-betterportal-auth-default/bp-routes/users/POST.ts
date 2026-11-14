@@ -16,18 +16,20 @@ export default createHandler({ response: ResponseSchema, request: RequestSchema 
   ctx.responseHeaders?.set("Referrer-Policy", "no-referrer");
   let verificationLink: string | undefined;
   try {
-    if (policy.isolation === "tenant" && !policy.canManageDirectory && ["disable", "sessions.revoke", "verification.link", "group.save", "group.delete"].includes(body.action)) throw new AuthError("Use the tenant's designated directory administration app to manage shared accounts and groups.", 403);
+    if (policy.isolation === "tenant" && !policy.canManageDirectory && ["disable", "sessions.revoke", "verification.link", "verification.mark", "group.save", "group.delete"].includes(body.action)) throw new AuthError("Use the tenant's designated directory administration app to manage shared accounts and groups.", 403);
     const roles = [...new Set(body.roles ?? [])];
     if (roles.some(id => id === "*" || !policy.allowedRoleIds.includes(id))) throw new AuthError("Choose existing app roles. Root cannot be provisioned here.");
     await identity.storage.transaction(scope, async tx => {
       const actor = await tx.get<User>("user", ctx.user!.sub, dir);
       if (!actor?.enabled) throw new AuthError("Account unavailable.", 401);
       await identity.assertActiveSession(tx, scope, ctx.user!, actor);
+      const auditData: JsonObject = { id: body.id ?? "", roles };
       if (body.action === "invite") {
         if (policy.registration === "closed") throw new AuthError("Registration is closed.");
         const email = (body.email ?? "").trim().toLowerCase();
         if (!isValidEmail(email)) throw new AuthError("Enter a valid email.");
         const ticket = await identity.challengeInTransaction(tx, scope, "invite", { email, roles }, undefined, 86400);
+        auditData.id = ticket.id; auditData.email = email;
         const link = accountLink(ctx, "invite.accept", ticket);
         if (!link) throw new AuthError("Mount the account page before inviting users.");
         await runtime.mail.enqueue(tx, scope, email, `Invitation to ${ctx.app.title}`, `Accept your invitation: ${link}\nThis invitation expires in 24 hours.`, ctx.obs);
@@ -35,21 +37,27 @@ export default createHandler({ response: ResponseSchema, request: RequestSchema 
         const challenge = await tx.get("challenge", body.id ?? "", scope);
         if (!challenge || challenge.purpose !== "invite") throw new AuthError("Invitation unavailable.", 404);
         await tx.remove("challenge", challenge.id, scope);
-      } else if (body.action === "roles" || body.action === "disable" || body.action === "sessions.revoke" || body.action === "verification.link") {
+      } else if (body.action === "roles" || body.action === "disable" || body.action === "sessions.revoke" || body.action === "verification.link" || body.action === "verification.mark") {
         const user = await tx.get<User>("user", body.id ?? "", dir);
         if (!user) throw new AuthError("User unavailable.", 404);
+        if (user.email) auditData.email = user.email;
         const current = await tx.get("roles", user.id, scope);
         if (user.bootstrapAdmin || (current?.roles as string[] | undefined)?.includes("*")) throw new AuthError("The bootstrap administrator cannot be modified through this interface.", 403);
-        if (body.action === "verification.link") {
+        if (body.action === "verification.mark") {
+          if (!user.enabled || !user.email || user.emailVerified) throw new AuthError("Verification requires an enabled user with an unverified email address.");
+          user.emailVerified = true; user.updatedAt = Date.now();
+          await tx.put("user", dir, user);
+        } else if (body.action === "verification.link") {
           if (!user.enabled || !user.email || user.emailVerified) throw new AuthError("Verification links require an enabled user with an unverified email address.");
           const ticket = await identity.challengeInTransaction(tx, scope, "verify", { version: user.refreshVersion }, user.id, 1800);
           const link = accountLink(ctx, "verify", ticket);
           if (!link) throw new AuthError("Mount the account page in this app before creating verification links.");
           verificationLink = link;
         } else if (body.action === "roles") await tx.put("roles", scope, { id: user.id, roles, initialized: true });
-        else { if (body.action === "disable") user.enabled = body.enabled === true; user.refreshVersion++; await tx.put("user", dir, user); }
+        else { if (body.action === "disable") { user.enabled = body.enabled === true; auditData.enabled = user.enabled; } user.refreshVersion++; await tx.put("user", dir, user); }
       } else if (body.action === "group.save") {
         const id = body.id || uuidv7();
+        auditData.id = id; auditData.name = (body.name ?? "Group").slice(0, 200);
         if (body.id && !await tx.get("group", id, dir)) throw new AuthError("Group unavailable.", 404);
         const members = [...new Set(body.members ?? [])];
         for (const member of members) if (!await tx.get("user", member, dir)) throw new AuthError("Group member belongs to a different directory.");
@@ -66,8 +74,8 @@ export default createHandler({ response: ResponseSchema, request: RequestSchema 
         if (!mail || mail.state !== "failed") throw new AuthError("Failed delivery unavailable.");
         await tx.put("mail", scope, { ...mail, attempts: 0, nextAttempt: Date.now(), state: "pending" });
       } else throw new AuthError("Unknown admin action.");
-      await identity.audit(tx, scope, ctx.user!.sub, `admin.${body.action}`, { id: body.id ?? "", roles });
+      await identity.audit(tx, scope, ctx.user!.sub, `admin.${body.action}`, auditData);
     });
-    return verificationLink ? { status: "ok", message: "Verification link ready. It expires in 30 minutes.", verificationLink } : { status: "ok", message: "Saved." };
+    return verificationLink ? { status: "ok", message: "Verification link ready. It expires in 30 minutes.", verificationLink } : { status: "ok", message: body.action === "verification.mark" ? "Email marked as verified." : body.action === "mail.retry" ? "Email queued for another delivery attempt." : "Saved." };
   } catch (error) { if (!(error instanceof AuthError)) throw error; ctx.diagnostic?.({ code: "auth.users.rejected", reason: error.message }); ctx.setStatus?.(error.status); return { status: "error", message: error.message }; }
 });

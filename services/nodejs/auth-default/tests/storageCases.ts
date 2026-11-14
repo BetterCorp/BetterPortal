@@ -50,11 +50,25 @@ export async function checkSessionAndMailPages(storage: AuthStorage, scope: Scop
   assert.equal((second.sessions as any[]).length, 6);
   assert.equal(second.sessionNextCursor, "");
   assert.equal(new Set([...(first.sessions as any[]), ...(second.sessions as any[])].map(s => s.id)).size, 106);
-  const mailFirst = await usersGet(ctx as never);
+  const mailCtx = { ...ctx, query: { mailState: "failed" } };
+  const mailFirst = await usersGet(mailCtx as never);
   assert.equal((mailFirst.mail as any[]).length, 100);
   assert.ok((mailFirst.mail as any[]).every(m => m.state === "failed"));
-  const mailSecond = await usersGet({ ...ctx, query: { mailAfter: mailFirst.mailNextCursor } } as never);
+  assert.equal((mailFirst.mail as any[])[0].id, "page-104");
+  assert.equal((mailFirst.mail as any[]).at(-1).id, "page-005");
+  const mailSecond = await usersGet({ ...ctx, query: { mailState: "failed", mailAfter: mailFirst.mailNextCursor } } as never);
   assert.equal((mailSecond.mail as any[]).length, 5);
+  assert.equal((mailSecond.mail as any[])[0].id, "page-004");
+  assert.equal((mailSecond.mail as any[]).at(-1).id, "page-000");
   assert.equal(mailSecond.mailNextCursor, "");
   assert.equal(new Set([...(mailFirst.mail as any[]), ...(mailSecond.mail as any[])].map(m => m.id)).size, 105);
+
+  // The default management view includes accepted mail and uses newest-first cursors.
+  const allMail: any[] = []; let cursor = "";
+  do {
+    const result = await usersGet({ ...ctx, query: { mailAfter: cursor } } as never);
+    allMail.push(...result.mail as any[]); cursor = String(result.mailNextCursor);
+  } while (cursor);
+  assert.equal(allMail.length, 355); assert.equal(new Set(allMail.map(m => m.id)).size, 355);
+  assert.ok(allMail.some(m => m.state === "sent")); assert.ok(allMail.some(m => m.state === "failed"));
 }

@@ -40,6 +40,7 @@ import {
   verifySetupToken,
   verifyServiceConfigTicket,
   ElevationRequirementSchema,
+  AuthElevationError,
   ScopedServiceConfigSchema,
   type ElevationRequirement,
   type JwtClaims,
@@ -938,7 +939,10 @@ export abstract class BPService<
         const elevation = { assurance: verified.assurance, verifiedAt, expiresAt: now + expiresInSeconds };
         const accessToken = issuer.signElevatedAccessToken(verified.user, elevation, expiresInSeconds);
         return jsonResponse({ accessToken, expiresInSeconds, elevation });
-      } catch { return jsonResponse({ error: "Elevation unavailable or verification failed" }, 400); }
+      } catch (error) {
+        if (error instanceof AuthElevationError) return jsonResponse({ error: error.code, message: error.message }, 403);
+        return jsonResponse({ error: "Elevation unavailable or verification failed" }, 400);
+      }
     });
   }
 

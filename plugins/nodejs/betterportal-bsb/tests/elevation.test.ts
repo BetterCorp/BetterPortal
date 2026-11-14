@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createBpTokenIssuer, generateKeyPair, uuidv7 } from "@betterportal/framework";
+import { AuthElevationError, createBpTokenIssuer, generateKeyPair, uuidv7 } from "@betterportal/framework";
 import { createBetterPortalApp } from "@betterportal/framework/lib/runtime/h3.js";
 import { BPService } from "../src/service.js";
 
@@ -33,4 +33,19 @@ test("generic confirmation works across replicas and restart without renewing re
   assert.equal((await send(replica(), { action: "start", requirement: { minimum: "mfa" } })).status, 400);
   t.mock.method(Date, "now", () => clock + 301000);
   assert.equal((await send(replica(), payload)).status, 400);
+});
+
+
+test("elevation returns explicit enrollment guidance while hiding unexpected provider errors", async () => {
+  const issuer = createBpTokenIssuer({ keyPair: generateKeyPair(), issuer: "https://auth.test", audience: "app", accessTokenSeconds: 900 });
+  const scope = { tenantId: uuidv7(), appId: uuidv7() };
+  const token = issuer.signAccessToken({ ...scope, sub: "admin", roles: ["*"] });
+  const service = Object.create(BPService.prototype) as any;
+  Object.assign(service, { app: createBetterPortalApp(), resolveRequestContext: async () => ({ tenant: { id: scope.tenantId }, app: { id: scope.appId } }), validateConfigScope: async () => true, validateTenantApp: async () => ({ allowed: true }), beginAuthElevation: async () => { throw new AuthElevationError(); } });
+  service.registerElevationEndpoint(issuer);
+  const send = () => service.app.fetch(new Request("https://auth.test/.well-known/bp/auth/elevate", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: "start", requirement: { minimum: "mfa" } }) }));
+  const response = await send(); assert.equal(response.status, 403);
+  const body = await response.json(); assert.equal(body.error, "factor_enrollment_required"); assert.match(body.message, /including for administrators/); assert.match(body.message, /Open Account and enroll/);
+  service.beginAuthElevation = async () => { throw new Error("private upstream response"); };
+  const failure = await send(); assert.equal(failure.status, 400); assert.ok(!(await failure.text()).includes("private"));
 });

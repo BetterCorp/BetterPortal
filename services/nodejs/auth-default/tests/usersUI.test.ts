@@ -23,6 +23,7 @@ test("user management submits multiple and empty role arrays and preserves off-p
   await page.goto("https://app.test/users");
   const form = page.locator('form:has(input[name="action"][value="roles"])');
   assert.equal(await form.count(), 1);
+  await form.locator("..").locator("summary").click();
   await form.getByRole("checkbox", { name: "editor", exact: true }).check();
   await form.getByRole("button", { name: "Save roles" }).click();
   assert.deepEqual(errors, []);
@@ -37,6 +38,7 @@ test("user management submits multiple and empty role arrays and preserves off-p
   await page.waitForFunction(() => (window as any).submitted.length === 2);
   assert.deepEqual(await page.evaluate(() => (window as any).submitted[1].roles), []);
   const group = page.locator('form:has(input[name="id"][value="team"]):has(input[value="group.save"])');
+  await group.locator("../..").locator("summary").click();
   await group.getByRole("checkbox", { name: "alice@example.test" }).uncheck();
   await group.getByRole("checkbox", { name: "editor", exact: true }).check();
   await group.getByRole("button", { name: "Save group" }).click();
@@ -61,4 +63,23 @@ test("closed registration stays in the users response and hides invitations", as
   assert.equal(result.registration, "closed");
   const markup = toHtmlString(render(result, { request: { query: {} }, route: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never));
   assert.doesNotMatch(markup, /value="invite"/);
+});
+
+
+test("concurrent audit rows share in-flight identity lookups, including missing users", async () => {
+  const { default: users } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/GET.js");
+  const lookups: string[] = [];
+  const tx = {
+    page: async (kind: string) => kind === "audit" ? Array.from({ length: 100 }, (_, i) => ({ id: String(i), actor: "actor", event: "admin.verification.mark", at: 1, data: { id: "missing-target" } })) : [],
+    list: async () => [],
+    get: async (_kind: string, id: string) => {
+      lookups.push(id); await new Promise(resolve => setImmediate(resolve));
+      return id === "actor" ? { id, username: "alex", name: "Alex", email: "alex@example.com" } : undefined;
+    }
+  };
+  const ctx = { plugin: { runtime: { policy: async () => ({ registration: "closed", isolation: "app", allowedRoleIds: [] }), identity: { storage: { mode: "simple", transaction: async (_scope: unknown, work: (value: typeof tx) => unknown) => work(tx) } } } }, tenant: { id: "tenant" }, app: { id: "app" }, query: {} };
+  const response = await users(ctx as never);
+  assert.deepEqual(lookups, ["actor", "missing-target"]);
+  assert.equal((response.audit as Array<Record<string, any>>).length, 100);
+  assert.ok((response.audit as Array<Record<string, any>>).every(event => event.actorUser.name === "Alex" && event.targetUser === null));
 });

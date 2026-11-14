@@ -16,9 +16,13 @@ export function accountScript(): HtmlRenderable {
           root.querySelectorAll("form").forEach(other => other.hidden = true);
           form.hidden = false;
           for (const name of ["action", "id", "secret"]) form.elements.namedItem(name).value = ticket[name];
-          const password = form.elements.namedItem("password");
-          password.required = ticket.action === "reset" || (ticket.action === "invite.accept" && root.dataset.signedIn !== "true");
-          password.closest("label").hidden = !password.required; password.disabled = !password.required;
+          const needsPassword = ticket.action === "reset" || (ticket.action === "invite.accept" && root.dataset.signedIn !== "true");
+          const passwordSlot = form.querySelector('[data-verification-password]');
+          passwordSlot.replaceChildren();
+          if (needsPassword) passwordSlot.append(form.querySelector('template').content.cloneNode(true));
+          root.querySelector('[data-account-controls]').hidden = true;
+          form.querySelector('h4').textContent = ticket.action === "reset" ? "Reset password" : ticket.action === "invite.accept" ? "Accept invitation" : "Verify email";
+          form.querySelector('button[type="submit"]').textContent = ticket.action === "reset" ? "Reset password" : ticket.action === "invite.accept" ? "Accept invitation" : "Verify email";
         }
         history.replaceState(null, "", location.pathname + location.search);
       } catch { /* Show the ordinary account recovery controls for an invalid link. */ }
@@ -29,8 +33,11 @@ export function accountScript(): HtmlRenderable {
       if (!api) throw new Error("Open this page inside your application.");
       const response = await api.fetch(root.dataset.endpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.message || "Request failed.");
+      if (!response.ok || result.status === "error") throw new Error(result.message || "Request failed.");
       if (result.challenge) return factor(result.challenge, "factor.complete");
+      if (["verify", "email.verify", "reset", "invite.accept"].includes(body.action) && root.dataset.loginUrl) {
+        location.replace(root.dataset.loginUrl); return;
+      }
       output.textContent = result.message || "Saved.";
       if (result.recoveryCodes?.length) { const pre = document.createElement("pre"); pre.textContent = "Save these recovery codes securely. They are shown only once.\\n\\n" + result.recoveryCodes.join("\\n"); output.append(pre); }
       if (result.authenticated && root.dataset.afterLogin) { const link = document.createElement("a"); link.href = root.dataset.afterLogin; link.textContent = "Continue"; link.className = "btn btn-primary"; output.append(link); }
@@ -67,11 +74,12 @@ export function renderAccount(data: Record<string, any>, ctx: ViewRenderContext)
   if (!account?.absoluteApiPath) throw new Error("Account service route is unavailable");
   if (data.challenge) return renderChallenge(data.challenge, account.absoluteApiPath, "factor.complete", afterLogin);
   const action = ["verify", "reset", "email.verify", "invite.accept"].includes(data.action) ? data.action : "";
-  return <section id="bp-account-ui" class="container py-4" style="max-width:620px" data-endpoint={account.absoluteApiPath} data-after-login={afterLogin} data-signed-in={String(!!data.signedIn)}>
+  const loginUrl = ctx.route({ path: "/login", method: "GET", query: { next: afterLogin } })?.absoluteUiPath ?? undefined;
+  return <section id="bp-account-ui" class="container py-4" style="max-width:620px" data-endpoint={account.absoluteApiPath} data-after-login={afterLogin} data-login-url={loginUrl} data-signed-in={String(!!data.signedIn)}>
     <h2>Account</h2>
-    <form id="bp-link-verification" hidden data-bp-no-route="" class="border rounded p-3 mb-3"><h4>Complete account verification</h4><input type="hidden" name="action" /><input type="hidden" name="id" /><input type="hidden" name="secret" />{field("password", "New password (at least 12 characters)", "password")}<button class="btn btn-primary" type="submit">Continue</button></form>
+    <form id="bp-link-verification" hidden data-bp-no-route="" class="border rounded p-3 mb-3"><h4>Complete account verification</h4><input type="hidden" name="action" /><input type="hidden" name="id" /><input type="hidden" name="secret" /><div data-verification-password="" /><template>{field("password", "New password (at least 12 characters)", "password")}</template><button class="btn btn-primary" type="submit">Verify email</button></form>
     <div role="status" class="my-3" aria-live="polite">{data.message ?? ""}</div>
-    {action ? form(action, action === "reset" ? "Reset password" : action === "invite.accept" ? "Accept invitation" : "Verify email", <><input type="hidden" name="id" value={data.id} /><input type="hidden" name="secret" value={data.secret} />{(action === "reset" || (action === "invite.accept" && !data.signedIn)) ? field("password", "New password (at least 12 characters)", "password") : null}</>) : data.signedIn ? <>
+    <div data-account-controls="">{action ? form(action, action === "reset" ? "Reset password" : action === "invite.accept" ? "Accept invitation" : "Verify email", <><input type="hidden" name="id" value={data.id} /><input type="hidden" name="secret" value={data.secret} />{(action === "reset" || (action === "invite.accept" && !data.signedIn)) ? field("password", "New password (at least 12 characters)", "password") : null}</>) : data.signedIn ? <>
       <p>{data.user?.email || data.user?.username}</p>
       <BPRoute ctx={ctx} {...{ path: "/social" }} ><bp-ok>Link Google, Microsoft or GitHub</bp-ok></BPRoute>
       {(data.linkedIdentities ?? []).map((link: any) => form("identity.unlink", "Unlink provider", <><p>{link.provider}</p><input type="hidden" name="id" value={link.id} /></>))}
@@ -87,7 +95,7 @@ export function renderAccount(data: Record<string, any>, ctx: ViewRenderContext)
       {data.registration === "public" ? form("signup", "Create account", <>{field("email", "Email", "email")}{field("name", "Display name")}{field("password", "Password (at least 12 characters)", "password")}</>) : null}
       {form("request-reset", "Send password reset", field("email", "Email", "email"))}
       {form("resend", "Resend verification email", field("email", "Email", "email"))}
-    </>}
+    </>}</div>
     <script>{accountScript()}</script>
   </section>;
 }

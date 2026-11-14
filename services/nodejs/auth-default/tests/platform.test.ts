@@ -557,7 +557,7 @@ test("app administrators cannot mutate shared tenant accounts; direct roles stay
   let status = 200;
   const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
     request: { action: "disable", id: target.id } as Record<string, unknown>, setStatus: (code: number) => { status = code; } };
-  for (const action of ["disable", "sessions.revoke", "verification.link", "group.save", "group.delete"]) {
+  for (const action of ["disable", "sessions.revoke", "verification.link", "verification.mark", "group.save", "group.delete"]) {
     ctx.request.action = action;
     assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 403);
   }
@@ -727,4 +727,44 @@ test("login hides social sign-in without valid configured connections", async ()
     assert.equal(toHtmlString(render(result, context as never)).includes("Sign in with Google, Microsoft or GitHub"), expected);
     assert.ok(!JSON.stringify(result).includes(connection.clientSecret));
   }
+});
+
+
+test("administrators mark email verified in the scoped directory and audit actor and target without exposing credentials", async t => {
+  const { identity, storage, scope } = fixture(t);
+  const { default: manage, auth } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/POST.js");
+  const { default: list } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/GET.js");
+  assert.equal(auth.elevation.minimum, "mfa"); assert.equal(auth.permissions[0].permissions[0], "update");
+  const actor = await identity.createUser(scope, policy, { username: "actor", name: "Admin Name", email: "admin@example.com", verified: true });
+  const target = await identity.createUser(scope, policy, { username: "target", name: "Target Name", email: "target@example.com" });
+  const session = await identity.issueSession(scope, policy, actor, issuer, 3600);
+  const user = await issuer.verifier().verify(session.accessToken, scope);
+  let status = 200;
+  const ctx = { plugin: { runtime: { identity, policy: async () => policy } }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
+    request: { action: "verification.mark", id: target.id }, query: {}, setStatus: (value: number) => { status = value; } };
+  const other = await identity.createUser({ ...scope, appId: uuidv7() }, policy, { username: "other", email: "other@example.com" });
+  ctx.request.id = other.id; assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 404);
+  const noEmail = await identity.createUser(scope, policy, { username: "no-email" });
+  ctx.request.id = noEmail.id; assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 400);
+  const disabled = await identity.createUser(scope, policy, { username: "disabled", email: "disabled@example.com" });
+  await identity.updateUser(scope, policy, disabled.id, async u => { u.enabled = false; });
+  ctx.request.id = disabled.id; assert.equal((await manage(ctx as never)).status, "error");
+  await storage.transaction(scope, tx => tx.put("roles", scope, { id: target.id, roles: ["*"] }));
+  ctx.request.id = target.id; assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 403);
+  await storage.transaction(scope, tx => tx.put("roles", scope, { id: target.id, roles: [] }));
+  assert.equal((await manage(ctx as never)).status, "ok");
+  const verified = (await identity.findUser(scope, policy, target.id, true))!;
+  assert.equal(verified.emailVerified, true); assert.equal(verified.enabled, target.enabled); assert.equal(verified.refreshVersion, target.refreshVersion);
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("mail", scope)), []);
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("challenge", scope)), []);
+  const listing = await list(ctx as never);
+  const audit = (listing.audit as Array<Record<string, any>>).find(a => a.event === "admin.verification.mark")!;
+  assert.equal(audit.actor, actor.id); assert.equal(audit.actorUser.name, "Admin Name"); assert.equal(audit.actorUser.email, "admin@example.com");
+  assert.equal(audit.targetUser.id, target.id); assert.equal(audit.targetUser.email, "target@example.com"); assert.equal(audit.data.id, target.id); assert.equal(typeof audit.at, "number");
+  for (const field of ["passwordHash", "refreshVersion", "recoveryCodes", "totp"]) assert.ok(!JSON.stringify(listing).includes(field));
+  const waiting = await identity.createUser(scope, policy, { username: "waiting", email: "waiting@example.com" });
+  ctx.request.id = waiting.id;
+  await identity.revokeSession(scope, await issuer.verifyRefreshToken({ ...scope, refreshToken: session.refreshToken! }));
+  assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 401);
+  assert.equal((await identity.findUser(scope, policy, waiting.id, true))?.emailVerified, false);
 });
