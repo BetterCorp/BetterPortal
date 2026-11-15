@@ -1055,3 +1055,5 @@ dotnet framework/dotnet/Conformance/bin/Debug/net10.0/Conformance.dll --health
 ```
 
 Protected operations require their own service/view/action grant (GET/OPTIONS read, POST create, PUT/PATCH update, DELETE delete). The `permissions` array adds requirements; an empty array retains the baseline. Existing login-only protected routes need explicit role grants. Hosts resolve the concrete installation before evaluating the baseline and reject ambiguous ownership.
+
+The public `RequestAuthorization.AuthorizeAsync` helper applies the resolved route owner to service and delegated token audiences as well as user grants. Only a trusted host selecting a registered well-known protocol endpoint may set `wellKnown` to retain independently approved machine bindings; ordinary callers leave it false.

@@ -81,6 +81,8 @@ def run_authorization(urls, labels):
         variant("optional-anonymous", lambda item: (item.update(headers={}), item["requirement"].update(required=False)), 200, None)
         variant("optional-invalid-user", lambda item: (item.update(headers={"authorization": "Bearer invalid"}), item["requirement"].update(required=False)), 200, None)
         variant("optional-insufficient-user", lambda item: (item["context"]["appAuth"].update(roles=[]), item["requirement"].update(required=False)), 200, None)
+        variant("service-sibling-owner-denied", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item["requirement"].update(permissions=[]), item["context"].update(permissionServiceId=SOURCE), item["context"]["servicePolicy"].update(localServiceIds=[SOURCE, TARGET])))
+        variant("service-unresolved-owner-denied", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item["requirement"].update(permissions=[]), item["context"].update(permissionServiceId="")))
         variant("service-current-grant", lambda item: item.update(headers={**machine_headers, "authorization": "Bearer " + service}), 200, "service")
         variant("service-empty-additional-exact-binding", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item["requirement"].update(permissions=[]), item["context"]["servicePolicy"]["grants"][0].update(permissions=[])), 200, "service")
         variant("service-empty-additional-binding-revoked", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item["requirement"].update(permissions=[]), item["context"]["servicePolicy"]["bindings"][0].update(enabled=False)))
@@ -93,6 +95,13 @@ def run_authorization(urls, labels):
         delegated["headers"].update(**machine_headers, **{"x-bp-service-authorization": "Bearer " + service})
         delegated["context"]["servicePolicy"]["bindings"][0]["mode"] = "delegated"
         variants.append(("delegated-both", delegated, 200, "delegated"))
+        sibling = deepcopy(delegated)
+        sibling["requirement"]["permissions"] = []
+        sibling["context"]["permissionServiceId"] = SOURCE
+        sibling["context"]["servicePolicy"]["localServiceIds"] = [SOURCE, TARGET]
+        sibling["context"]["appAuth"]["roles"][0]["permissions"][0]["serviceId"] = SOURCE
+        variants.append(("delegated-sibling-owner-denied", sibling, 403, None))
+
         for name, change in [("delegated-user-revoked", lambda item: item["context"]["appAuth"].update(roles=[])),
                              ("delegated-binding-revoked", lambda item: item["context"]["servicePolicy"]["bindings"][0].update(enabled=False)),
                              ("delegated-grant-revoked", lambda item: item["context"]["servicePolicy"]["grants"][0].update(enabled=False)),

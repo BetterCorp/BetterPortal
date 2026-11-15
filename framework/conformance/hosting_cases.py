@@ -453,6 +453,14 @@ def run_hosting(urls, labels):
                 body["request"]["headers"].update({"x-bp-service-id": SOURCE, "x-bp-tenant-id": TENANT, "x-bp-app-id": APP,
                     "authorization": "Bearer " + (user if delegated else machine)})
                 if delegated: body["request"]["headers"]["x-bp-service-authorization"] = "Bearer " + machine
+            def well_known_binding(value, delegated=False):
+                service_api(value)
+                service(value, delegated)
+                value["snapshot"]["serviceIdentity"]["id"] = SOURCE
+                value["snapshot"]["m2m"]["localServiceIds"] = [SOURCE, TARGET]
+                app(value)["auth"]["roles"][0]["permissions"][0]["serviceId"] = SOURCE
+            auth_case("well-known-independent-machine-binding", well_known_binding, caller="service", native=True)
+            auth_case("well-known-independent-delegated-binding", lambda value: well_known_binding(value, True), caller="delegated", native=True)
             fragment_machine = post(signer, {"action": "jwt-sign", "purpose": "service", "claims": {**claims["service"], "aud": BINDING}})["token"]
             def machine_fragment(value, correct=False, delegated=False):
                 shared_fragment(value)

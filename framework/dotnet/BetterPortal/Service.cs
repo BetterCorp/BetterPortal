@@ -101,7 +101,7 @@ public sealed partial class Service : IAsyncDisposable
             (Node?)config.GetValueOrDefault("m2m"), access.AdditionalPermissionAliases(), root);
         try
         {
-            var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken, owner ?? "");
+            var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken, owner ?? "", wellKnown);
             if (!ReferenceEquals(state, current) || !Ready) throw new RequestException(503, "Configuration changed during authentication");
             if (caller.Service is not null && (!(matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal) && !Equals(caller.Service["aud"], owner) || !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!))) throw new RequestException(403, "Access denied", responseHeaders, scope);
             var values = current.PreviewScope == (scope.TenantId, scope.AppId) ? (Node)Json.Read(Json.Write(current.Preview))! : new Node();

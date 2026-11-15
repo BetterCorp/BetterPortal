@@ -73,9 +73,9 @@ public static class RequestAuthorization
         catch (TokenException) { return false; }
     }
 
-    /// <summary>Complete request policy. Machine envelopes fail closed even when user auth is optional.</summary>
+    /// <summary>Complete request policy. Machine envelopes fail closed even when user auth is optional. Only host-selected protocol endpoints use wellKnown for independent bindings.</summary>
     public static async Task<AuthorizedCaller> AuthorizeAsync(IReadOnlyDictionary<string, string> headers, Node requirement,
-        AuthContext context, string viewId, string method, CancellationToken cancellationToken = default, string? serviceId = null)
+        AuthContext context, string viewId, string method, CancellationToken cancellationToken = default, string? serviceId = null, bool wellKnown = false)
     {
         var additional = (IEnumerable<object?>)((Node)Contracts.Parse("ApiAuthRequirementSchema", requirement)!)["permissions"]!;
         var services = context.ServiceAliases?.Values.Distinct(StringComparer.Ordinal).ToArray() ?? [];
@@ -114,6 +114,7 @@ public static class RequestAuthorization
             var caller = await Authorization.AuthorizeServiceAsync(delegated ? secondary! : primary, context.ServicePolicy,
                 normalized["x-bp-service-id"], context.TenantId, context.AppId, viewId, method, mode,
                 additional.Cast<Node>().SelectMany(item => ((IEnumerable<object?>)item["permissions"]!).Cast<string>()).ToArray(), cancellationToken);
+            if (!wellKnown && !Equals(caller.Claims["aud"], target)) throw new TokenException("Service audience does not match the route owner", 403);
             if (policy.GetValueOrDefault("elevation") is Node requirementElevation) {
                 if (user is null) throw new TokenException("Human authentication required for elevation", 403);
                 Elevation.Require(user, requirementElevation);

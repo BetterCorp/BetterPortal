@@ -104,8 +104,8 @@ def is_machine_request(headers: Mapping[str, str]) -> bool:
 
 
 async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str, Any], context: AuthContext,
-                            *, view_id: str, method: str, service_id: str | None = None) -> AuthorizedCaller:
-    """Complete caller policy. Machine envelopes always fail closed, even on optional-auth operations."""
+                            *, view_id: str, method: str, service_id: str | None = None, well_known: bool = False) -> AuthorizedCaller:
+    """Complete caller policy. Only host-selected protocol endpoints may set well_known for independent bindings."""
     services = set(context.service_aliases.values())
     target = service_id if service_id is not None else (next(iter(services)) if len(services) == 1 else "")
     owners = [identifier for identifier, plugin in context.service_aliases.items() if plugin == target]
@@ -148,6 +148,8 @@ async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str
             source_service_id=normalized["x-bp-service-id"], tenant_id=context.tenant_id, app_id=context.app_id,
             view_id=view_id, method=method, mode=mode,
             required_permissions=tuple(action for item in additional for action in item["permissions"]))
+        if not well_known and caller["claims"]["aud"] != target:
+            raise PermissionDenied("Service audience does not match the route owner")
         if policy.get("elevation"):
             if user is None: raise PermissionDenied("Human authentication required for elevation")
             require_elevation(user, policy["elevation"])
