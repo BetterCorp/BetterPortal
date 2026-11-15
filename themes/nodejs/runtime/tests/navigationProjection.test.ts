@@ -325,7 +325,7 @@ test("committed projections repair main-content links without duplicate request 
 });
 
 
-test("token renewal replaces an obsolete pending initial page request", async t => {
+for (const outcome of ["success", "network"] as const) test(`token renewal replaces an obsolete pending initial page request after ${outcome}`, async t => {
   let initial: Route | undefined;
   const tokens: string[] = [];
   const { page, errors } = await shell(t, route => {
@@ -345,7 +345,8 @@ test("token renewal replaces an obsolete pending initial page request", async t 
     window.dispatchEvent(new StorageEvent("storage", { key: "bp.headers" }));
   });
   await page.waitForFunction(() => document.querySelector("#renewal-menu")?.textContent === "Bearer renewed");
-  await html(initial, '<p id="obsolete-initial">Old</p>', 200, { "BP-SetHeader": "Authorization=Bearer stale; locked=true" });
+  if (outcome === "network") await initial.abort("failed");
+  else await html(initial, '<p id="obsolete-initial">Old</p>', 200, { "BP-SetHeader": "Authorization=Bearer stale; locked=true" });
   await page.waitForSelector("#renewed-ready");
   assert.deepEqual(tokens, ["Bearer initial", "Bearer renewed"]);
   assert.equal(await page.locator("#obsolete-initial").count(), 0);

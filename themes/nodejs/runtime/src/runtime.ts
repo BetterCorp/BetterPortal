@@ -3373,6 +3373,10 @@ export function betterPortalShellRuntimeSource(): string {
         htmx_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;
           if (ctx?.__bpMainGeneration !== undefined && ctx.__bpMainGeneration !== mainRequestGeneration) return;
+          if (requestTargetsMain(detail) && ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) {
+            setLoading(false);
+            return;
+          }
           const target = ctx?.target;
           const bpElement = requestBpElement(ctx?.__bpRoute || ctx?.sourceElement);
           if (bpElement) renderBpElementState(bpElement, 0);
