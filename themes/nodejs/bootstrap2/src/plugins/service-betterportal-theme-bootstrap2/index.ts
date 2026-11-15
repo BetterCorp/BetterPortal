@@ -517,7 +517,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       return Array.isArray(rendered) ? rendered.map(item => toHtmlString(item as any)).join("") : toHtmlString(rendered as any);
     };
     return jsonResponse({ routes: this.buildRouteLinks(portalConfig, context, currentPath, event.url.origin, access),
-      desktop: html(false), mobile: html(true), authenticated: Boolean(access.user) } as JsonValue,
+      desktop: html(false), mobile: html(true), authenticated: Boolean(access.user), principal: access.user?.sub ?? null } as JsonValue,
       200, { "cache-control": "no-store", vary: "Authorization, Origin, HX-Current-URL" });
   }
 

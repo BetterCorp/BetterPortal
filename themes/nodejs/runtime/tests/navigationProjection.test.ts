@@ -174,3 +174,101 @@ test("a failed logout projection removes loaded private content and Retry recove
   await page.waitForSelector("#anonymous-login");
   assert.deepEqual(errors, []);
 });
+
+test("stalled navigation times out and Retry can hydrate the permitted page", async t => {
+  let projections = 0;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") {
+      if (++projections === 1) return Promise.resolve();
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, principal: "user",
+        routes: [{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }], desktop: '', mobile: '' }) });
+    }
+    return html(route, '<p id="timeout-recovered">Ready</p>');
+  }, {}, "", "/tools/dashboard", true);
+  await page.waitForSelector('[data-bp-error-action="navigation-retry"]', { timeout: 7000 });
+  await page.locator('[data-bp-error-action="navigation-retry"]').click();
+  await page.waitForSelector("#timeout-recovered");
+  assert.equal(projections, 2);
+  assert.deepEqual(errors, []);
+});
+
+test("account changes reload personalized content while token renewal for the same principal preserves it", async t => {
+  let contentRequests = 0;
+  const { page, errors } = await shell(t, route => {
+    const authorization = route.request().headers().authorization;
+    const principal = authorization === "Bearer A" ? "A" : "B";
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") {
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, principal,
+        routes: [{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }],
+        desktop: `<span id="account-menu">${authorization}</span>`, mobile: '' }) });
+    }
+    contentRequests++;
+    return html(route, `<p id="personalized">${principal}</p>`);
+  }, { authorization: { value: "Bearer A", owner: "auth", scope: null } }, "", "/tools/dashboard", true);
+  await page.waitForFunction(() => document.querySelector("#personalized")?.textContent === "A");
+  await page.evaluate(() => {
+    localStorage.setItem("bp.headers", JSON.stringify({ authorization: { value: "Bearer B", owner: "auth", scope: null } }));
+    document.body.dispatchEvent(new CustomEvent("bp:fragments-changed"));
+  });
+  await page.waitForFunction(() => document.querySelector("#personalized")?.textContent === "B");
+  assert.equal(contentRequests, 2);
+  await page.evaluate(() => {
+    localStorage.setItem("bp.headers", JSON.stringify({ authorization: { value: "Bearer B-renewed", owner: "auth", scope: null } }));
+    document.body.dispatchEvent(new CustomEvent("bp:fragments-changed"));
+  });
+  await page.waitForFunction(() => document.querySelector("#account-menu")?.textContent === "Bearer B-renewed");
+  assert.equal(contentRequests, 2);
+  assert.equal(await page.locator("#personalized").textContent(), "B");
+  assert.deepEqual(errors, []);
+});
+
+test("a denied initial page cannot restore its late body or header directives", async t => {
+  let projection: Route | undefined, initial: Route | undefined;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") projection = route;
+    else initial = route;
+    return Promise.resolve();
+  }, { authorization: { value: "Bearer allowed", owner: "auth", scope: null } }, "https://service.test/dashboard", "/tools/dashboard", true);
+  for (let attempt = 0; (!projection || !initial) && attempt < 30; attempt++) await page.waitForTimeout(10);
+  assert.ok(projection); assert.ok(initial);
+  await projection.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, principal: "user", routes: [], desktop: '', mobile: '' }) });
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Access denied"));
+  await html(initial, '<p id="late-private">Private</p>', 200, { "BP-SetHeader": "Authorization=Bearer stale; locked=true" });
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator("#late-private").count(), 0);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("bp.headers") || "{}").authorization?.value), "Bearer allowed");
+  assert.deepEqual(errors, []);
+});
+
+test("an allowed projection does not duplicate a pending initial page request", async t => {
+  let projection: Route | undefined, initial: Route | undefined, requests = 0;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") projection = route;
+    else { initial = route; requests++; }
+    return Promise.resolve();
+  }, {}, "https://service.test/dashboard", "/tools/dashboard", true);
+  for (let attempt = 0; (!projection || !initial) && attempt < 30; attempt++) await page.waitForTimeout(10);
+  assert.ok(projection); assert.ok(initial);
+  await projection.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, principal: "user",
+    routes: [{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }], desktop: '', mobile: '' }) });
+  await page.waitForTimeout(100);
+  assert.equal(requests, 1);
+  await html(initial, '<p id="initial-ready">Ready</p>');
+  await page.waitForSelector("#initial-ready");
+  assert.deepEqual(errors, []);
+});
+
+test("a permitted parameterized deep link hydrates from complete service templates", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") {
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, principal: "user",
+        routes: [{ href: "/tools/:id", servicePath: "/dashboard/:id", serviceBaseUrl: "https://service.test", serviceId: "service", kind: "page", methods: ["GET"] }], desktop: '', mobile: '' }) });
+    }
+    requests.push(route.request().url());
+    return html(route, '<p id="parameterized-ready">Ready</p>');
+  }, {}, "", "/tools/42?tab=all", true);
+  await page.waitForSelector("#parameterized-ready");
+  assert.deepEqual(requests, ["https://service.test/dashboard/42?tab=all"]);
+  assert.deepEqual(errors, []);
+});

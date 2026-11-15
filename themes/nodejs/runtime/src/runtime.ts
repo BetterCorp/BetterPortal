@@ -1379,6 +1379,17 @@ export function betterPortalShellRuntimeSource(): string {
       let navigationGeneration = 0;
       let navigationHeaderState = "";
       let navigationCommittedHeaderState = "";
+      let navigationCommittedAuthorization: string | undefined;
+      let navigationCommittedPrincipal: string | null | undefined;
+      const invalidateNavigationContent = () => {
+        mainRequestGeneration++;
+        mainPendingGeneration = undefined;
+        const main = mainOutlet();
+        main?.removeAttribute("data-bp-loaded");
+        main?.removeAttribute("hx-get");
+        main?.removeAttribute("hx-trigger");
+        main?.replaceChildren();
+      };
       const refreshNavigation = (): Promise<void> => {
         const root = shellRoot();
         const endpoint = root?.getAttribute("data-bp-navigation-url");
@@ -1401,7 +1412,7 @@ export function betterPortalShellRuntimeSource(): string {
         if (secure && authorization && (!authorization.scope || authorization.scope === navigationUrl.origin)) headers.Authorization = authorization.value;
         const pending = (async () => {
           try {
-            const response = await fetch(endpoint, { headers, cache: "no-store", credentials: "omit", redirect: "error" });
+            const response = await fetch(endpoint, { headers, cache: "no-store", credentials: "omit", redirect: "error", signal: AbortSignal.timeout(5000) });
             if (!response.ok) throw new Error("Navigation unavailable");
             const projection = await response.json();
             if (generation !== navigationGeneration || headerState !== JSON.stringify(liveBpHeaders())) return;
@@ -1414,43 +1425,44 @@ export function betterPortalShellRuntimeSource(): string {
               htmx.process(nav);
               initializeBpElements(nav);
             }
+            const authorizationState = JSON.stringify(authorization ?? null);
+            const principal = typeof projection.principal === "string" ? projection.principal : projection.authenticated ? undefined : null;
+            const identityChanged = navigationCommittedAuthorization !== undefined && (
+              principal !== undefined && navigationCommittedPrincipal !== undefined
+                ? principal !== navigationCommittedPrincipal
+                : authorizationState !== navigationCommittedAuthorization
+            );
+            const wasLoaded = hasLoaded();
+            const fallback = resolveRootFallback(window.location.pathname + window.location.search + window.location.hash);
+            const route = configuredRouteFor(window.location.pathname);
+            if (identityChanged || !fallback && !route) invalidateNavigationContent();
             navigationCommittedHeaderState = headerState;
+            navigationCommittedAuthorization = authorizationState;
+            navigationCommittedPrincipal = principal;
             setActiveRoute(window.location.pathname);
-            if (hasLoaded() && !configuredRouteFor(window.location.pathname)) {
-              // Revoke already-rendered content and discard responses issued by that page.
-              mainRequestGeneration++;
-              renderRouteError("Access denied", "This page is unavailable or you do not have permission to access it.",
-                !projection.authenticated && root.getAttribute("data-bp-login-url") ? { kind: "login", label: "Sign in" } : undefined, undefined);
-            }
-            if (!hasLoaded() && !mainOutlet()?.getAttribute("hx-get")) {
-              const fallback = resolveRootFallback(window.location.pathname + window.location.search + window.location.hash);
-              const route = configuredRouteFor(window.location.pathname);
-              if (fallback || route?.requestUrl) {
-                // Schedule after this projection is committed, so parameterized routes use its map.
-                window.setTimeout(() => {
-                  if (generation === navigationGeneration && headerState === JSON.stringify(liveBpHeaders())) {
-                    triggerShellLink(fallback?.tenantUrl ?? window.location.pathname + window.location.search + window.location.hash, fallback?.requestUrl, true);
-                  }
-                }, 0);
-              } else if (!projection.authenticated && root.getAttribute("data-bp-login-url")) {
+            if (!fallback && !route) {
+              // This also invalidates an initial request that has not swapped yet.
+              if (!wasLoaded && !projection.authenticated && root.getAttribute("data-bp-login-url")) {
                 window.setTimeout(() => {
                   if (generation === navigationGeneration && headerState === JSON.stringify(liveBpHeaders())) loadLoginIntoShell(root.getAttribute("data-bp-login-url") || "");
                 }, 0);
               } else {
-                renderRouteError("Access denied", "This page is unavailable or you do not have permission to access it.", undefined, undefined);
+                renderRouteError("Access denied", "This page is unavailable or you do not have permission to access it.",
+                  !projection.authenticated && root.getAttribute("data-bp-login-url") ? { kind: "login", label: "Sign in" } : undefined, undefined);
               }
+            } else if (!hasLoaded() && mainPendingGeneration !== mainRequestGeneration && !mainOutlet()?.getAttribute("hx-get")) {
+              // Schedule after the projection commits; templates use its current route map.
+              window.setTimeout(() => {
+                if (generation === navigationGeneration && headerState === JSON.stringify(liveBpHeaders())) {
+                  triggerShellLink(fallback?.tenantUrl ?? window.location.pathname + window.location.search + window.location.hash, fallback?.requestUrl, true);
+                }
+              }, 0);
             }
           } catch {
             if (generation === navigationGeneration) {
               root.setAttribute("data-bp-routes", "[]");
               for (const id of ["bp-nav-desktop", "bp-nav-mobile"]) document.getElementById(id)?.replaceChildren();
-              if (headerState !== navigationCommittedHeaderState && hasLoaded()) {
-                mainRequestGeneration++;
-                const main = mainOutlet();
-                main?.removeAttribute("data-bp-loaded");
-                main?.removeAttribute("hx-get");
-                main?.removeAttribute("hx-trigger");
-              }
+              if (headerState !== navigationCommittedHeaderState || !hasLoaded()) invalidateNavigationContent();
               if (!hasLoaded() && !mainOutlet()?.getAttribute("hx-get")) {
                 replaceMainWithError("Navigation unavailable", "Try again to load this page.", { kind: "navigation-retry", label: "Retry" }, window.location.pathname);
               }
@@ -2471,6 +2483,7 @@ export function betterPortalShellRuntimeSource(): string {
       let lastAuthRefreshRetryUrl = "";
       /** A refresh continuation may navigate only while its initiating request is current. */
       let mainRequestGeneration = 0;
+      let mainPendingGeneration: number | undefined;
 
       const retryMainRequest = (ctx: any): boolean => {
         const action = ctx?.request?.action;
@@ -3000,6 +3013,7 @@ export function betterPortalShellRuntimeSource(): string {
             }
             clearError();
             detail.ctx.__bpMainGeneration = ++mainRequestGeneration;
+            mainPendingGeneration = mainRequestGeneration;
             if (hasLoaded()) setLoading(true);
           } else if (target instanceof Element) {
             fragmentRequests.set(target, detail.ctx);
@@ -3293,6 +3307,7 @@ export function betterPortalShellRuntimeSource(): string {
         // request's loading state, leaving a newer request on the same target busy.
         htmx_finally_request(_elt: any, detail: any) {
           const ctx = detail.ctx;
+          if (ctx?.__bpMainGeneration === mainPendingGeneration) mainPendingGeneration = undefined;
           const target = ctx?.__bpRequestTarget ?? ctx?.target;
           if (target instanceof Element && fragmentRequests.get(target) === ctx) {
             clearFragmentLoading(ctx, target);

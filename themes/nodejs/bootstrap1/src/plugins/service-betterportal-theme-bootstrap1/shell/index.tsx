@@ -2217,7 +2217,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
             <nav
               class="bp-admin__nav"
               id="bp-nav-mobile"
-              hx-get="/.well-known/bp/theme/nav?mobile=1"
+              hx-get={context.navigationUrl ? undefined : "/.well-known/bp/theme/nav?mobile=1"}
               hx-trigger={context.navigationUrl ? undefined : "load, bp:menu-changed from:body, bp:fragments-changed from:body"}
               hx-swap="innerHTML"
               data-bp-no-route=""
@@ -2232,7 +2232,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
             <nav
               class="bp-admin__nav"
               id="bp-nav-desktop"
-              hx-get="/.well-known/bp/theme/nav"
+              hx-get={context.navigationUrl ? undefined : "/.well-known/bp/theme/nav"}
               hx-trigger={context.navigationUrl ? undefined : "load, bp:menu-changed from:body, bp:fragments-changed from:body"}
               hx-swap="innerHTML"
               data-bp-no-route=""

@@ -180,3 +180,50 @@ test("configured route titles own the shell header and browser title", async () 
   assert.match(source, /document\.title\s*=\s*title\s*&&\s*title\s*!==\s*configuredTitle/);
   assert.doesNotMatch(source, /data-bp-page-title|data-bp-promoted-page-title/);
 });
+
+
+test("projected menu groups open and navigate without legacy nav requests", async t => {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  let legacyRequests = 0;
+  const html = renderBootstrap2HostPage({
+    title: "Test", brandName: "Test", themeMode: "light",
+    themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets", currentPath: "/dashboard", routeLinks: [], serviceOrigins: { service: "https://service.test" },
+    navigationUrl: "/.well-known/bp/theme/navigation"
+  });
+  await page.route("**/*", async route => {
+    const url = new URL(route.request().url());
+    if (url.href === "https://app.test/dashboard") return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/.well-known/bp/theme/nav") { legacyRequests++; return route.fulfill({ body: "" }); }
+    if (url.pathname === "/.well-known/bp/theme/navigation") return route.fulfill({ contentType: "application/json", body: JSON.stringify({
+      authenticated: false, principal: null,
+      routes: ["dashboard", "other"].map(path => ({ href: "/" + path, requestUrl: "https://service.test/" + path, serviceId: "service", kind: "page" })),
+      desktop: '<details><summary>Tools</summary><a id="projected-child" href="/other" data-bp-route-link data-bp-service="service" hx-get="https://service.test/other" hx-target="#bp-main" hx-push-url="/other">Other</a></details>', mobile: ''
+    }) });
+    if (url.origin === "https://service.test") return route.fulfill({ contentType: "text/html", body: '<p id="' + (url.pathname === "/other" ? "other-view" : "initial-view") + '">Ready</p>', headers: { "access-control-allow-origin": "*" } });
+    if (url.origin === "https://app.test" && url.pathname.startsWith("/assets/") && url.pathname.endsWith(".js")) {
+      const asset = await loadBootstrap2Asset(url.pathname.slice("/assets/".length));
+      assert.ok(asset);
+      return route.fulfill({ contentType: asset.contentType, body: String(asset.body) });
+    }
+    return route.fulfill({ status: 200, body: "" });
+  });
+  await page.goto("https://app.test/dashboard");
+  await page.waitForSelector("#initial-view");
+  for (const id of ["bp-nav-desktop", "bp-nav-mobile"]) {
+    assert.equal(await page.locator("#" + id).getAttribute("hx-get"), null);
+    assert.equal(await page.locator("#" + id).getAttribute("hx-trigger"), null);
+  }
+  await page.locator("#bp-nav-desktop summary").click();
+  await page.locator("#projected-child").waitFor({ state: "visible" });
+  await page.locator("#projected-child").click();
+  await page.waitForSelector("#other-view");
+  assert.equal(legacyRequests, 0);
+  assert.equal(new URL(page.url()).pathname, "/other");
+  assert.deepEqual(errors, []);
+});
