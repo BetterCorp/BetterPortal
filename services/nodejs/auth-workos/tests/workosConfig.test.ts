@@ -5,6 +5,7 @@ import {
   parseBpPermissionSlug,
   resolveWorkOSAppConfig,
   resolveWorkOSBrowserConfig,
+  resolveWorkOSSyncScope,
   workOSAccessTokenDetails,
   workOSPermissionsForBpRole,
   workOSPermissionDescription,
@@ -104,4 +105,17 @@ test("BP role sync replaces only BP-owned WorkOS permissions", () => {
     workOSPermissionsForBpRole(role as never, [...catalog], ["external.permission", "bp_stale_read"]),
     ["external.permission", "bp_current_read"]
   );
+});
+
+
+test("WorkOS sync scope is bound to the authenticated route context", () => {
+  const scope = resolveWorkOSSyncScope({
+    tenant: { id: "tenant-resolved" },
+    app: { id: "app-resolved" }
+  } as never);
+
+  assert.deepEqual(scope, {
+    tenantId: "tenant-resolved",
+    appId: "app-resolved"
+  });
 });
