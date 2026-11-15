@@ -107,7 +107,7 @@ async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str
                             *, view_id: str, method: str, service_id: str | None = None) -> AuthorizedCaller:
     """Complete caller policy. Machine envelopes always fail closed, even on optional-auth operations."""
     services = set(context.service_aliases.values())
-    target = service_id or (next(iter(services)) if len(services) == 1 else "")
+    target = service_id if service_id is not None else (next(iter(services)) if len(services) == 1 else "")
     owners = [identifier for identifier, plugin in context.service_aliases.items() if plugin == target]
     if target not in context.service_aliases:
         target = owners[0] if len(owners) == 1 else "" if owners else target

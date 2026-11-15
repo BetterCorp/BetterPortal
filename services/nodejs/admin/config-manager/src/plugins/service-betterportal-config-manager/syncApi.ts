@@ -280,7 +280,10 @@ export function getCachedManifestForService(
     const stored = config.manifestCache?.find((entry) => entry.serviceId === key);
     const hot = cache.get(key);
     // Keep the fast path only when it describes this committed snapshot.
-    if (hot && (!stored || (hot.fetchedAt === Date.parse(stored.fetchedAt) && hot.manifestVersion === stored.manifestVersion))) return hot;
+    if (hot && (!stored || (hot.fetchedAt === Date.parse(stored.fetchedAt) && hot.manifestVersion === stored.manifestVersion))) {
+      const pluginId = getServicePluginId(config, key) ?? hot.serviceId;
+      return pluginId === hot.serviceId ? hot : { ...hot, serviceId: pluginId };
+    }
     return stored
       ? normalizeManifest({ ...stored, serviceId: getServicePluginId(config, stored.serviceId) ?? stored.serviceId } as unknown as Parameters<typeof normalizeManifest>[0])
       : cache.get(key);
@@ -642,7 +645,10 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
         auth: deriveRolePermissions(
           app.auth,
           routes,
-          (serviceId) => manifestCache.get(serviceId) ?? manifestCache.get(serviceManifestKeys.get(serviceId) ?? "")
+          (serviceId) => {
+            const manifest = manifestCache.get(serviceId) ?? manifestCache.get(serviceManifestKeys.get(serviceId) ?? "");
+            return manifest ? { ...manifest, serviceId: serviceManifestKeys.get(serviceId) ?? manifest.serviceId } : undefined;
+          }
         ).auth
       } : {})
     };

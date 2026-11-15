@@ -5,7 +5,7 @@ import { registerWebhookRoutes } from "../src/plugins/service-betterportal-confi
 import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
 import { test } from "node:test";
 import * as av from "anyvali";
-import { BetterPortalConfigSchema, createBetterPortalApp, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
+import { BetterPortalConfigSchema, createBetterPortalApp, ScopedAppSchema, ScopedServiceConfigSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
 const managementViewContext = {
   route: (input: { path?: string; query?: Record<string, string>; component?: string }) => {
     const url = new URL(input.path ?? "/", "https://config.example");
@@ -18,7 +18,7 @@ const managementViewContext = {
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin, registerSetupEndpoints, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
-import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, injectResolvedServicePaths, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, getServicePluginId, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
@@ -645,6 +645,13 @@ test("baseline permissions derive exact dependencies with empty additional requi
     const cold = deriveRolePermissions(auth, routes, id => getCachedManifestForService(config, id, new Map()));
     assert.deepEqual(hydrated, result, "restart hydration retains authored plugin dependencies");
     assert.deepEqual(cold, result, "cold persisted-cache reads retain plugin identity");
+    const live = new Map([...manifests].map(([id, item]) => [id, { ...item, serviceId: id }]));
+    assert.deepEqual(deriveRolePermissions(auth, routes, id => getCachedManifestForService(config, id, live)), result, "live instance-keyed cache retains plugin dependencies");
+    getManifestCache().clear();
+    for (const [id, item] of live) getManifestCache().set(id, item);
+    const scoped = ScopedServiceConfigSchema.parse({ managementOrigins: [], tenants: config.tenants, apps: [{ ...config.apps[0], routes, auth }] });
+    assert.deepEqual(injectResolvedServicePaths(scoped).apps[0].auth, result.auth, "delivered role grants use the trusted scoped service registration");
+
     assert.deepEqual(config.manifestCache.map(item => item.serviceId), [sourceId, targetId], "persisted cache keys remain instance IDs");
   } finally { getManifestCache().clear(); }
 

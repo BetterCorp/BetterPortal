@@ -400,6 +400,7 @@ def run_hosting(urls, labels):
                 local_well_known(value, True)
                 value["snapshot"]["m2m"]["localServiceIds"] = [TARGET, BINDING]
                 app(value)["routes"] = [mount]
+                app(value)["auth"]["serviceId"] = TARGET
             auth_case("well-known-ambiguous-owner-single-app-alias", well_known_single_alias, 403, native=True)
 
             auth_case("well-known-missing-credential", lambda value: (service_api(value), value["request"]["headers"].pop("authorization")), 401)

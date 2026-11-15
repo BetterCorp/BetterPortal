@@ -51,6 +51,7 @@ def run_authorization(urls, labels):
             changed = deepcopy(request)
             mutate(changed)
             variants.append((name, changed, status, mode))
+        variant("explicitly-unresolved-owner-denied", lambda item: (item["requirement"].update(permissions=[]), item["context"].update(permissionServiceId="")))
         variant("empty-additional-with-route-grant", lambda item: item["requirement"].update(permissions=[]), 200)
         variant("empty-additional-no-route-grant", lambda item: (item["requirement"].update(permissions=[]), item["context"]["appAuth"].update(roles=[])))
         variant("ambiguous-owning-plugin-denied", lambda item: (item["requirement"].update(permissions=[]), item["context"]["serviceAliases"].update({SOURCE: "org.betterportal.test"})))
