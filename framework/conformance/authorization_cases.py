@@ -83,6 +83,9 @@ def run_authorization(urls, labels):
         variant("service-current-grant", lambda item: item.update(headers={**machine_headers, "authorization": "Bearer " + service}), 200, "service")
         variant("service-empty-additional-exact-binding", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item["requirement"].update(permissions=[]), item["context"]["servicePolicy"]["grants"][0].update(permissions=[])), 200, "service")
         variant("service-empty-additional-binding-revoked", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item["requirement"].update(permissions=[]), item["context"]["servicePolicy"]["bindings"][0].update(enabled=False)))
+        variant("optional-service-binding-revoked", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item["requirement"].update(required=False), item["context"]["servicePolicy"]["bindings"][0].update(enabled=False)))
+        variant("optional-service-verifier-unavailable", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item["requirement"].update(required=False), item["context"].pop("servicePolicy")), 503)
+        variant("optional-user-caller-anonymous", lambda item: item["requirement"].update(required=False, callers=["service"]), 200, None)
         variant("service-context-mismatch", lambda item: item.update(headers={**machine_headers, "x-bp-app-id": SOURCE, "authorization": "Bearer " + service}), 401)
         variant("service-method-revoked", lambda item: (item.update(headers={**machine_headers, "authorization": "Bearer " + service}), item.update(method="POST")))
         delegated = deepcopy(request)
@@ -100,19 +103,19 @@ def run_authorization(urls, labels):
             pair = signer_label + "->" + target_label
             for name, value, status, mode in variants:
                 check(pair, name, target, value, status, mode)
-            if target_label != "node":
-                for name, headers in [("partial-envelope", {**request["headers"], "x-bp-service-id": SOURCE}),
-                    ("delegated-without-user", {**machine_headers, "x-bp-service-authorization": "Bearer " + service}),
-                    ("machine-without-scope", {"authorization": "Bearer " + service}),
-                    ("malformed-secondary", {**machine_headers, **request["headers"], "x-bp-service-authorization": "invalid"})]:
-                    changed = deepcopy(request)
-                    changed.update(headers=headers)
-                    changed["requirement"]["required"] = False
-                    check(pair, "native-" + name, target, changed, 401)
-                changed = deepcopy(delegated)
+            for name, headers in [("partial-envelope", {**request["headers"], "x-bp-service-id": SOURCE}),
+                ("delegated-without-user", {**machine_headers, "x-bp-service-authorization": "Bearer " + service}),
+                ("machine-without-scope", {"authorization": "Bearer " + service}),
+                ("malformed-secondary", {**machine_headers, **request["headers"], "x-bp-service-authorization": "invalid"})]:
+                changed = deepcopy(request)
+                changed.update(headers=headers)
                 changed["requirement"]["required"] = False
-                changed["context"]["servicePolicy"]["grants"] = []
-                check(pair, "native-optional-delegated-revoked", target, changed, 403)
+                check(pair, "native-" + name, target, changed, 401)
+            changed = deepcopy(delegated)
+            changed["requirement"]["required"] = False
+            changed["context"]["servicePolicy"]["grants"] = []
+            check(pair, "native-optional-delegated-revoked", target, changed, 403)
+            if target_label != "node":
                 changed = deepcopy(request)
                 changed["context"]["appAuth"]["roles"].append(deepcopy(app_auth["roles"][0]))
                 check(pair, "native-ambiguous-roles", target, changed, 503)

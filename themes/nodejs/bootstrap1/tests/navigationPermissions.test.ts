@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createNavigationAccess, uuidv7, type BetterPortalApp, type JwtClaims } from "@betterportal/framework";
+import { BetterPortalConfigSchema, createNavigationAccess, uuidv7, type BetterPortalApp, type JwtClaims } from "@betterportal/framework";
 import { Plugin } from "../src/plugins/service-betterportal-theme-bootstrap1/index.js";
 
 test("server omits unauthorized menu groups and route metadata before rendering", () => {
@@ -32,4 +32,24 @@ test("server omits unauthorized menu groups and route metadata before rendering"
   const revoked = createNavigationAccess(app, claims);
   assert.deepEqual(plugin.buildAppNavItems(config, context, "/", "https://app.test", revoked), []);
   assert.deepEqual(plugin.buildRouteLinks(config, context, "/", "https://app.test", revoked), []);
+});
+
+
+test("an unknown navigation snapshot returns a retryable response", async () => {
+  const tenantId = uuidv7(), appId = uuidv7(), shellId = uuidv7();
+  const config = BetterPortalConfigSchema.parse({ tenants: [{ id: tenantId, slug: "t", title: "Tenant", services: [
+    { id: shellId, serviceId: "org.betterportal.theme-bootstrap1", hostname: "https://theme.test", createdAt: new Date().toISOString() }
+  ] }], apps: [{ id: appId, tenantId, slug: "a", title: "App", hostnames: ["app.test"], shell: { serviceId: shellId } }],
+    manifestCache: [{ serviceId: shellId, manifestVersion: "1", fetchedAt: new Date().toISOString(), shell: { service: "bootstrap1", renderer: "bootstrap5", fragments: [] } }] });
+  const plugin = Object.create(Plugin.prototype) as any;
+  plugin.requirePortalConfig = () => config;
+  plugin.headerTrustOptions = () => ({});
+  plugin.tagRequestContext = () => {};
+  plugin.navigationAccess = async () => ({ status: "unknown", permissions: [], canAccess: () => false, canAccessFragment: () => false });
+  const url = new URL("https://app.test/.well-known/bp/theme/navigation");
+  const response = await plugin.handleThemeNavigation({ url, context: {}, req: new Request(url, {
+    headers: { Origin: "https://app.test", Host: "app.test", "HX-Current-URL": "https://app.test/" }
+  }) });
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get("cache-control"), "no-store");
 });

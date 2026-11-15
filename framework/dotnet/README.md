@@ -187,7 +187,7 @@ Config-management app indexes do not become runtime app lookups.
 
 `AppAccess(scope, snapshot.LocalServiceIds)` checks operation IDs against enabled
 inbound app mounts, with GET-only fragment and slot support. Pass the matched
-registered path to `Allows` when a view has path variants. `PermissionAliases()`
+registered path to `Allows` when a view has path variants. Baseline ownership stays separate from `AdditionalPermissionAliases()`, which retains other enabled app-mounted services for authored requirements. Machine and delegated audiences must match the owning normal route or fragment. `PermissionAliases()`
 includes only enabled local service instances referenced by this app; pass the
 route and method to restrict aliases to its mounted operation. `Service` always
 applies this restriction. Cross-service

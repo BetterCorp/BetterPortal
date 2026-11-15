@@ -418,6 +418,14 @@ async function prepareSseContext(
       authResult.error
     );
   }
+  if (operation.auth.elevation) {
+    if (authResult.callerMode === "service") return jsonResponse({ error: "Human authentication is required for elevation" }, 403);
+    try { requireElevation(authResult.user, operation.auth.elevation); }
+    catch (error) {
+      if (error instanceof ElevationRequired && authResolved) return elevationResponse(error.requirement, { tenantId: authResolved.tenantId, appId: authResolved.appId, serviceId: routerOptions.serviceId, operationId: operation.operationId, method: "GET" });
+      throw error;
+    }
+  }
   const tenantApp = readTenantAppFromEvent(event);
   if (tenantApp && routerOptions.validateTenantApp && !isBpManagementAuthRoute(route)) {
     let validation: Awaited<ReturnType<NonNullable<H3RouterObservabilityOptions["validateTenantApp"]>>>;
@@ -1811,6 +1819,10 @@ async function resolveRequestAuth(
         ? "user"
         : undefined;
 
+  const machineEnvelope = secondaryHeader !== null || Boolean(primary && isServiceToken(primary)) || event.req.headers.has("x-bp-service-id");
+  if (machineEnvelope && (!primary || !callerMode || callerMode === "user")) {
+    return { status: 401, error: "Incomplete service authentication envelope", code: "s2s.headers_missing" };
+  }
   if (!primary || !callerMode) {
     if (required) return { status: 401, error: "Authentication required", code: "auth.required" };
     return { status: 200 };
@@ -1818,12 +1830,12 @@ async function resolveRequestAuth(
 
   const allowedCallers = apiAuth.callers ?? ["user"];
   if (!allowedCallers.includes(callerMode)) {
-    if (required) return { status: 403, error: `${callerMode} callers are not allowed`, code: "auth.caller_not_allowed" };
+    if (required || machineEnvelope) return { status: 403, error: `${callerMode} callers are not allowed`, code: "auth.caller_not_allowed" };
     return { status: 200 };
   }
 
   if (!authContext) {
-    if (required) return { status: 503, error: "Auth context unavailable", code: "auth.context_unavailable" };
+    if (required || machineEnvelope) return { status: 503, error: "Auth context unavailable", code: "auth.context_unavailable" };
     return { status: 200 };
   }
 
@@ -1841,13 +1853,12 @@ async function resolveRequestAuth(
     return { status: 401, error: "S2S headers do not match the resolved tenant/app", code: "s2s.context_mismatch" };
   }
   if (!authContext.serviceVerifier) {
-    if (required) return { status: 503, error: "Service auth context unavailable", code: "s2s.verifier_unavailable" };
-    return { status: 200 };
+    return { status: 503, error: "Service auth context unavailable", code: "s2s.verifier_unavailable" };
   }
 
   const verifyService = async (token: string, mode: "service" | "delegated"): Promise<ValidatedServiceClaims | AuthResult> => {
     try {
-      return await authContext.serviceVerifier!.verify(token, {
+      const claims = await authContext.serviceVerifier!.verify(token, {
         tenantId: authContext.tenantId,
         appId: authContext.appId,
         viewId: route.viewId,
@@ -1857,6 +1868,11 @@ async function resolveRequestAuth(
         // The exact approved binding/view/method is the machine baseline.
         requiredPermissions: additionalPermissions.flatMap((requirement) => requirement.permissions)
       });
+      if (!route.path.startsWith("/.well-known/") && authContext.permissionServiceId !== undefined
+        && claims.aud !== authContext.permissionServiceId) {
+        return { status: 403, error: "Service access denied", code: "s2s.access_denied" };
+      }
+      return claims;
     } catch (err) {
       obs?.logger.warn("Service token verification failed: {msg}", { msg: (err as Error).message });
       const status = (err as { status?: number }).status === 403 ? 403 : 401;
@@ -1870,7 +1886,7 @@ async function resolveRequestAuth(
 
   if (callerMode === "service") {
     const serviceCaller = await verifyService(primary, "service");
-    if ("status" in serviceCaller) return required ? serviceCaller : { status: 200 };
+    if ("status" in serviceCaller) return serviceCaller;
     return { status: 200, serviceCaller, callerMode };
   }
 
@@ -1886,7 +1902,7 @@ async function resolveRequestAuth(
     ? userResult
     : { status: 401, error: "Valid BP user token required", code: "s2s.delegated_token_invalid" };
   const serviceCaller = await verifyService(secondary, "delegated");
-  if ("status" in serviceCaller) return required ? serviceCaller : { status: 200 };
+  if ("status" in serviceCaller) return serviceCaller;
   return { status: 200, user: userResult.user, serviceCaller, callerMode };
 }
 

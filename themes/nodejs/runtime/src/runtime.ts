@@ -1412,7 +1412,7 @@ export function betterPortalShellRuntimeSource(): string {
         if (secure && authorization && (!authorization.scope || authorization.scope === navigationUrl.origin)) headers.Authorization = authorization.value;
         const pending = (async () => {
           try {
-            const response = await fetch(endpoint, { headers, cache: "no-store", credentials: "omit", redirect: "error", signal: AbortSignal.timeout(5000) });
+            const response = await fetch(navigationUrl.href, { headers, cache: "no-store", credentials: "omit", redirect: "error", signal: AbortSignal.timeout(5000) });
             if (!response.ok) throw new Error("Navigation unavailable");
             const projection = await response.json();
             if (generation !== navigationGeneration || headerState !== JSON.stringify(liveBpHeaders())) return;
@@ -1450,7 +1450,15 @@ export function betterPortalShellRuntimeSource(): string {
                 renderRouteError("Access denied", "This page is unavailable or you do not have permission to access it.",
                   !projection.authenticated && root.getAttribute("data-bp-login-url") ? { kind: "login", label: "Sign in" } : undefined, undefined);
               }
-            } else if (!hasLoaded() && mainPendingGeneration !== mainRequestGeneration && !mainOutlet()?.getAttribute("hx-get")) {
+            } else if (hasLoaded()) {
+              const main = mainOutlet();
+              if (main) {
+                const blocked = Array.from(main.querySelectorAll("[data-bp-route-error]"));
+                for (const element of blocked) element.removeAttribute("data-bp-route-error");
+                resolveServiceLinks(main, false);
+                for (const element of blocked) if (!element.hasAttribute("data-bp-route-error")) htmx.process(element);
+              }
+            } else if (mainPendingGeneration !== mainRequestGeneration && !mainOutlet()?.getAttribute("hx-get")) {
               // Schedule after the projection commits; templates use its current route map.
               window.setTimeout(() => {
                 if (generation === navigationGeneration && headerState === JSON.stringify(liveBpHeaders())) {

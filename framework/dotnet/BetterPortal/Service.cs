@@ -93,13 +93,14 @@ public sealed partial class Service : IAsyncDisposable
             if (activations.Length != 1) throw new RequestException(404, "Route not found", responseHeaders, scope);
             owner = activations[0];
         }
+        if (owner is null && permissionAliases.Count == 1) owner = permissionAliases.Keys.Single();
         var auth = new AuthContext(scope.TenantId, scope.AppId, appAuth, client is null ? null : client.ResolveAsync,
-            (Node?)config.GetValueOrDefault("m2m"), permissionAliases, root);
+            (Node?)config.GetValueOrDefault("m2m"), access.AdditionalPermissionAliases(), root);
         try
         {
-            var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken, owner ?? schema.Manifest.PluginId);
+            var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken, owner ?? "");
             if (!ReferenceEquals(state, current) || !Ready) throw new RequestException(503, "Configuration changed during authentication");
-            if (caller.Service is not null && !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!)) throw new RequestException(403, "Access denied", responseHeaders, scope);
+            if (caller.Service is not null && (!(matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal) && !Equals(caller.Service["aud"], owner) || !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!))) throw new RequestException(403, "Access denied", responseHeaders, scope);
             var values = current.PreviewScope == (scope.TenantId, scope.AppId) ? (Node)Json.Read(Json.Write(current.Preview))! : new Node();
             if (configApi.Settings is { } settings)
             {

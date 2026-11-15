@@ -320,10 +320,12 @@ class Service:
             if len(activations) != 1:
                 raise RequestError(404, "Route not found", response_headers, scope=scope)
             owner = activations[0]
+        if owner is None and len(permission_aliases) == 1:
+            owner = next(iter(permission_aliases))
         auth = AuthContext(scope.tenant_id, scope.app_id, app_auth, keys.resolve if keys else None,
-                           state.config.get("m2m"), permission_aliases, root)
+                           state.config.get("m2m"), access.additional_permission_aliases(), root)
         async def verify():
-            try: return await authorize_request(normalized, operation.declaration["auth"], auth, view_id=route.view_id, method=method, service_id=owner or self._schema["manifest"]["pluginId"])
+            try: return await authorize_request(normalized, operation.declaration["auth"], auth, view_id=route.view_id, method=method, service_id=owner or "")
             except asyncio.CancelledError:
                 if self._state is not state or not self.ready:
                     raise TokenError("Configuration verifier was retired") from None
@@ -350,7 +352,7 @@ class Service:
             raise
         if self._state is not state or not self.ready:
             raise RequestError(503, "Configuration changed during authentication")
-        if caller.service is not None and not access.allows(route, method, path=matched_path, fragment=fragment, service_id=caller.service["aud"]):
+        if caller.service is not None and ((not (matched_path or route.paths[0]).startswith("/.well-known/") and caller.service["aud"] != owner) or not access.allows(route, method, path=matched_path, fragment=fragment, service_id=caller.service["aud"])):
             raise RequestError(403, "Access denied", response_headers, scope=scope)
         values = self._effective_settings(state, scope, response_headers)
         from .clients import RequestClients

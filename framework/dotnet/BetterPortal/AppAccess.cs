@@ -8,14 +8,16 @@ public sealed class AppAccess
 {
     private readonly Node app;
     private readonly Dictionary<string, Node> services;
+    private readonly Dictionary<string, Node> aliasServices;
     private static IEnumerable<Node> Items(Node node, string key) => ((List<object?>)node[key]!).Cast<Node>();
     private IEnumerable<Node> Fragments => ((Node)app["fragments"]!).Values.SelectMany(value => ((List<object?>)value!).Cast<Node>());
     public AppAccess(ScopedContext scope, IEnumerable<string> localServiceIds)
     {
         app = scope.App;
         var local = localServiceIds.ToHashSet(StringComparer.Ordinal);
-        services = Items(scope.Tenant, "services").Where(service => scope.Tenant["active"] is true && service["enabled"] is true && local.Contains((string)service["id"]!))
+        aliasServices = Items(scope.Tenant, "services").Where(service => scope.Tenant["active"] is true && service["enabled"] is true)
             .ToDictionary(service => (string)service["id"]!, StringComparer.Ordinal);
+        services = aliasServices.Where(pair => local.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
     }
     public IReadOnlyDictionary<string, string> PermissionAliases(Route? route = null, string method = "GET", string? path = null, string? fragment = null)
     {
@@ -24,6 +26,15 @@ public sealed class AppAccess
         var mounted = references.Where(item => item.GetValueOrDefault("enabled", true) is true).Select(item => (string)item["serviceId"]!).ToHashSet(StringComparer.Ordinal);
         var owners = route is null ? null : PermissionOwners(route, method, path, fragment);
         return services.Where(pair => (owners is null || owners.Contains(pair.Key)) && mounted.Contains(pair.Key) && pair.Value.ContainsKey("serviceId") && (route is null || Allows(route, method, path, fragment, pair.Key)))
+            .ToFrozenDictionary(pair => pair.Key, pair => (string)pair.Value["serviceId"]!, StringComparer.Ordinal);
+    }
+    /// <summary>Trusted app-mounted aliases for authored requirements, separately from the inbound owner.</summary>
+    public IReadOnlyDictionary<string, string> AdditionalPermissionAliases()
+    {
+        var references = Items(app, "routes").Concat(Items(app, "slots")).Concat(Fragments)
+            .Concat(new[] { "shell", "auth" }.Where(app.ContainsKey).Select(key => (Node)app[key]!));
+        var mounted = references.Where(item => item.GetValueOrDefault("enabled", true) is true).Select(item => (string)item["serviceId"]!).ToHashSet(StringComparer.Ordinal);
+        return aliasServices.Where(pair => mounted.Contains(pair.Key) && pair.Value.ContainsKey("serviceId"))
             .ToFrozenDictionary(pair => pair.Key, pair => (string)pair.Value["serviceId"]!, StringComparer.Ordinal);
     }
     private HashSet<string>? PermissionOwners(Route route, string method, string? path, string? fragment)

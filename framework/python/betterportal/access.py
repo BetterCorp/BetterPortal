@@ -12,8 +12,9 @@ class AppAccess:
     def __init__(self, scope: ScopedContext, local_service_ids: Iterable[str]):
         self._app = scope.app
         local = frozenset(local_service_ids)
-        self._services = {service["id"]: service for service in scope.tenant["services"]
-                          if scope.tenant["active"] and service["enabled"] and service["id"] in local}
+        self._alias_services = {service["id"]: service for service in scope.tenant["services"]
+                                if scope.tenant["active"] and service["enabled"]}
+        self._services = {identifier: service for identifier, service in self._alias_services.items() if identifier in local}
 
     def permission_aliases(self, route: Route | None = None, method: str = "GET", *, path: str | None = None, fragment: str | None = None) -> Mapping[str, str]:
         """Only enabled local instances referenced by this app can alias a plugin ID."""
@@ -25,6 +26,15 @@ class AppAccess:
         return MappingProxyType({identifier: service["serviceId"] for identifier, service in self._services.items()
                                  if identifier in mounted and "serviceId" in service and (owners is None or identifier in owners)
                                  and (route is None or self.allows(route, method, path=path, fragment=fragment, service_id=identifier))})
+
+    def additional_permission_aliases(self) -> Mapping[str, str]:
+        """Trusted app-mounted aliases for authored requirements, independently of the inbound owner."""
+        app = self._app
+        references = [*app["routes"], *app["slots"], *(item for items in app["fragments"].values() for item in items)]
+        references.extend(app[key] for key in ("shell", "auth") if key in app)
+        mounted = {item["serviceId"] for item in references if item.get("enabled", True)}
+        return MappingProxyType({identifier: service["serviceId"] for identifier, service in self._alias_services.items()
+                                 if identifier in mounted and "serviceId" in service})
 
     def _permission_owners(self, route: Route, method: str, path: str | None, fragment: str | None) -> set[str] | None:
         path = path or route.paths[0]

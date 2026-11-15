@@ -370,6 +370,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       resolveThemeHostname(eventHeaders(event), this.headerTrustOptions()) ?? undefined, this.headerTrustOptions());
     if (!context) return jsonResponse({ error: "Portal not found" }, 404);
     const access = await this.navigationAccess(event, context.app);
+    if (access.status === "unknown") return jsonResponse({ error: "Navigation configuration changed. Retry the request." }, 503, { "cache-control": "no-store" });
     const currentPath = new URL(event.req.headers.get("hx-current-url") ?? event.url.href, event.url.origin).pathname;
     return jsonResponse({ routes: this.buildRouteLinks(config, context, currentPath, event.url.origin, access),
       authenticated: Boolean(access.user), principal: access.user ? JSON.stringify([access.user.iss, access.user.tenantId, access.user.appId, access.user.sub]) : null } as unknown as JsonValue, 200,

@@ -510,6 +510,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.tagRequestContext(event, context.tenant.id, context.app.id);
     const currentPath = new URL(event.req.headers.get("hx-current-url") ?? event.url.href, event.url.origin).pathname;
     const access = await this.navigationAccess(event, context.app);
+    if (access.status === "unknown") return jsonResponse({ error: "Navigation configuration changed. Retry the request." }, 503, { "cache-control": "no-store" });
     const nav = this.buildAppNavItems(portalConfig, context, currentPath, event.url.origin, access);
     const html = (mobile: boolean) => {
       const rendered = renderNavItems(nav, mobile);

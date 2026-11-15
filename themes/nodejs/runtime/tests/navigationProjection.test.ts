@@ -3,7 +3,7 @@ import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 
-async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", navigation = false) {
+async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", navigation = false, baseUrl = "") {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -14,8 +14,9 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
   await page.addInitScript(value => localStorage.setItem("bp.headers", JSON.stringify(value)), stored);
   await page.route("https://service.test/**", respond);
   await page.route("https://auth.test/**", respond);
+  await page.route("https://evil.test/**", respond);
   await page.route("https://app.test/**", route => navigation && new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation" ? respond(route) : route.fulfill({ contentType: "text/html", body: `<!doctype html>
-    <html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
+    <html><head>${baseUrl ? `<base href="${baseUrl}">` : ""}<meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
     <div data-bp-shell-root ${navigation ? 'data-bp-navigation-url="/.well-known/bp/theme/navigation"' : ""} data-bp-menu-health="false" data-bp-login-url="https://auth.test/login"
       data-bp-services='{"service":"https://service.test","auth":"https://auth.test"}'
       data-bp-routes='[{"href":"/tools/dashboard","requestUrl":"https://service.test/dashboard","serviceId":"service","kind":"page"},{"href":"/auth/login","requestUrl":"https://auth.test/login","serviceId":"auth","kind":"page"}]'>
@@ -270,5 +271,55 @@ test("a permitted parameterized deep link hydrates from complete service templat
   }, {}, "", "/tools/42?tab=all", true);
   await page.waitForSelector("#parameterized-ready");
   assert.deepEqual(requests, ["https://service.test/dashboard/42?tab=all"]);
+  assert.deepEqual(errors, []);
+});
+
+test("navigation fetch keeps credentials on the validated origin despite a foreign document base", async t => {
+  const foreign: string[] = [];
+  let navigationAuthorization = "";
+  const { page, errors } = await shell(t, route => {
+    const url = new URL(route.request().url());
+    if (url.origin === "https://evil.test") { foreign.push(url.href); return route.fulfill({ body: "" }); }
+    if (url.pathname === "/.well-known/bp/theme/navigation") {
+      navigationAuthorization = route.request().headers().authorization;
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, principal: "user",
+        routes: [{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }], desktop: '', mobile: '' }) });
+    }
+    return html(route, '<p id="safe-base">Ready</p>');
+  }, { authorization: { value: "Bearer allowed", owner: "auth", scope: null } }, "", "/tools/dashboard", true, "https://evil.test/");
+  await page.waitForFunction(() => (document.querySelector("[data-bp-shell-root]")?.getAttribute("data-bp-routes") ?? "").includes("tools/dashboard"));
+  assert.equal(navigationAuthorization, "Bearer allowed");
+  assert.deepEqual(foreign, []);
+  assert.deepEqual(errors, []);
+});
+
+test("committed projections repair main-content links without duplicate request bindings", async t => {
+  let delayed: Route | undefined;
+  let projections = 0, reportRequests = 0;
+  const projection = { authenticated: true, principal: "user", routes: [
+    { href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" },
+    { href: "/tools/reports", requestUrl: "https://service.test/reports", serviceId: "service", kind: "page" }
+  ], desktop: '', mobile: '' };
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") {
+      if (++projections === 1) { delayed = route; return Promise.resolve(); }
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify(projection) });
+    }
+    if (new URL(route.request().url()).pathname === "/reports") {
+      reportRequests++; return html(route, '<p id="report-ready">Report</p>');
+    }
+    return html(route, '<a id="waiting-link" href="/reports">Reports</a>');
+  }, {}, "https://service.test/dashboard", "/tools/dashboard", true);
+  await page.waitForSelector("#waiting-link[data-bp-route-error]");
+  assert.ok(delayed);
+  await delayed.fulfill({ contentType: "application/json", body: JSON.stringify(projection) });
+  await page.waitForFunction(() => !document.querySelector("#waiting-link")?.hasAttribute("data-bp-route-error") && document.querySelector("#waiting-link")?.getAttribute("hx-get") === "https://service.test/reports");
+  await page.evaluate(() => document.body.dispatchEvent(new CustomEvent("bp:menu-changed")));
+  for (let attempt = 0; projections < 2 && attempt < 30; attempt++) await page.waitForTimeout(10);
+  assert.equal(projections, 2);
+  await page.locator("#waiting-link").click();
+  await page.waitForSelector("#report-ready");
+  assert.equal(reportRequests, 1);
+  assert.equal(new URL(page.url()).pathname, "/tools/reports");
   assert.deepEqual(errors, []);
 });
