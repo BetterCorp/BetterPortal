@@ -375,7 +375,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const access = await this.navigationAccess(event, context.app);
     const currentPath = new URL(event.req.headers.get("hx-current-url") ?? event.url.href, event.url.origin).pathname;
     return jsonResponse({ routes: this.buildRouteLinks(config, context, currentPath, event.url.origin, access),
-      authenticated: Boolean(access.user), principal: access.user?.sub ?? null } as unknown as JsonValue, 200,
+      authenticated: Boolean(access.user), principal: access.user ? JSON.stringify([access.user.iss, access.user.tenantId, access.user.appId, access.user.sub]) : null } as unknown as JsonValue, 200,
       { "cache-control": "no-store", vary: "Authorization, Origin, HX-Current-URL" });
   }
 
