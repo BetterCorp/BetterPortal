@@ -85,7 +85,7 @@ public sealed partial class Service : IAsyncDisposable
             ? ((string)management["adminTenantId"]!, (string)management["managementAppId"]!) : null;
         var permissionAliases = access.PermissionAliases(route, method, matchedPath, fragment);
         var owner = (string?)((Node)config.GetValueOrDefault("serviceIdentity", new Node())!).GetValueOrDefault("id");
-        if (owner is not null && !route.Paths[0].StartsWith("/.well-known/", StringComparison.Ordinal) && !permissionAliases.ContainsKey(owner))
+        if (owner is not null && !(matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal) && !permissionAliases.ContainsKey(owner))
         {
             var activations = ((List<object?>)scope.Tenant["services"]!).Cast<Node>()
                 .Where(service => Equals(service.GetValueOrDefault("sharedServiceId"), owner) && permissionAliases.ContainsKey((string)service["id"]!))

@@ -100,6 +100,13 @@ test("scoped config carries authoritative menu requirements and updates them on 
     manifest.viewIndex.login.operations[0].permissions = [];
     const updated = injectResolvedServicePaths(scoped).apps[0].routes[0];
     assert.equal(updated.menu, true);
+    const aliases = { [serviceId]: "org.example.auth" };
+    assert.equal(menuItemVisible({ authStatus: "auto" }, updated, { status: "authenticated", permissions: [
+      { serviceId: "org.example.auth", viewId: "login", permissions: ["read"] }
+    ] }, aliases), false, "a legacy plugin-wide grant cannot advertise access to an instance baseline");
+    assert.equal(menuItemVisible({ authStatus: "auto" }, updated, { status: "authenticated", permissions: [
+      { serviceId, viewId: "login", permissions: ["read"] }
+    ] }, aliases), true);
     assert.deepEqual(updated.menuPermissions, [{ serviceId, viewId: "login", permissions: ["read"] }]);
   } finally { getManifestCache().delete(serviceId); }
 });

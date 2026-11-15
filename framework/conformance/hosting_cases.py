@@ -391,6 +391,14 @@ def run_hosting(urls, labels):
                 if linked:
                     next(service for service in value["snapshot"]["tenants"][0]["services"] if service["id"] == TARGET)["sharedServiceId"] = SOURCE
             auth_case("shared-activation-owner", shared_activation, native=True)
+            def shared_normal_variant(value, catalog_grant=False):
+                shared_activation(value)
+                value["routes"][0].update(path="/.well-known/bp/check/:key", pathVariants=["/check/:key"])
+                value["routes"][0]["operations"][0]["declaration"]["auth"]["permissions"] = []
+                if catalog_grant:
+                    app(value)["auth"]["roles"][0]["permissions"][0]["serviceId"] = SOURCE
+            auth_case("shared-normal-variant-activation-grant", shared_normal_variant, native=True)
+            auth_case("shared-normal-variant-catalog-grant-denied", lambda value: shared_normal_variant(value, True), 403, native=True)
             def shared_alternate(value, kind):
                 shared_activation(value)
                 value["snapshot"]["serviceIdentity"]["id"] = "01900000-0000-7000-8000-000000000099"

@@ -61,7 +61,7 @@ export function menuItemVisible(
   if (route && route.menuPermissions === undefined) return false;
   return (route?.menuPermissions ?? []).every(requirement => requirement.permissions.every(action =>
     auth.permissions.some(grant => (grant.serviceId === requirement.serviceId
-      || aliases[grant.serviceId] === requirement.serviceId || aliases[requirement.serviceId] === grant.serviceId)
+      || aliases[grant.serviceId] === requirement.serviceId)
       && grant.viewId === requirement.viewId && grant.permissions.includes(action))));
 }
 

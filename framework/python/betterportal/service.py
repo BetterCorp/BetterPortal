@@ -314,7 +314,7 @@ class Service:
         root = (management["adminTenantId"], management["managementAppId"]) if "adminTenantId" in management and "managementAppId" in management else None
         permission_aliases = access.permission_aliases(route, method, path=matched_path, fragment=fragment)
         owner = state.config.get("serviceIdentity", {}).get("id")
-        if owner and not route.paths[0].startswith("/.well-known/") and owner not in permission_aliases:
+        if owner and not (matched_path or route.paths[0]).startswith("/.well-known/") and owner not in permission_aliases:
             activations = [service["id"] for service in scope.tenant["services"]
                            if service.get("sharedServiceId") == owner and service["id"] in permission_aliases]
             if len(activations) != 1:
