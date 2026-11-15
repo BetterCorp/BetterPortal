@@ -1984,7 +1984,7 @@ function presentationRouteAccess(requirement: ApiAuthRequirement, user: Validate
   const grants = expandRolesToPermissions(user.roles, auth.appAuthConfig);
   const aliases = auth.serviceIdAliases ?? {};
   if (!requirement.permissions.every(required => required.permissions.every(action => grants.some(grant =>
-    (grant.serviceId === required.serviceId || aliases[grant.serviceId] === required.serviceId || aliases[required.serviceId] === grant.serviceId)
+    (grant.serviceId === required.serviceId || aliases[grant.serviceId] === required.serviceId)
     && grant.viewId === required.viewId && grant.permissions.includes(action))))) return "noperm";
   return "ok";
 }

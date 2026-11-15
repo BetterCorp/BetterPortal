@@ -34,7 +34,7 @@ export function hasRoutePermissions(
   if (claims.roles.includes("*") && root?.tenantId === claims.tenantId && root?.appId === claims.appId) return true;
   const grants = (appAuth?.roles ?? []).filter(role => claims.roles.includes(role.id)).flatMap(role => role.permissions);
   const matches = (granted: string, requested: string) => granted === requested
-    || aliases[granted] === requested || aliases[requested] === granted;
+    || aliases[granted] === requested;
   return auth.permissions.every(item => item.permissions.every(action => grants.some(grant =>
     matches(grant.serviceId, item.serviceId) && grant.viewId === item.viewId && grant.permissions.includes(action))));
 }
@@ -77,12 +77,14 @@ export function resolvePermissionServiceId(reference: string, aliases: Readonly<
 /** Resolve authority using the registered operation, matched service path and trusted host identity. */
 export function resolveRequestPermissionServiceId(
   app: Pick<ScopedApp, "routes" | "slots" | "fragments"> | undefined, route: RegisteredRoute, requestMethod: string, pathname: string,
-  localIds: ReadonlySet<string>, identityId?: string
+  localIds: ReadonlySet<string>, identityId?: string, identityActivations: ReadonlySet<string> = new Set()
 ): string | null {
   const method = requestMethod === "HEAD" ? "GET" : requestMethod;
-  const unique = (ids: Set<string>): string | null => identityId
-    ? ids.has(identityId) ? identityId : null
-    : ids.size === 1 ? [...ids][0] : null;
+  const unique = (ids: Set<string>): string | null => {
+    if (identityId && ids.has(identityId)) return identityId;
+    const owned = [...ids].filter(id => !identityId || identityActivations.has(id));
+    return owned.length === 1 ? owned[0] : null;
+  };
   if (route.path.startsWith("/.well-known/")) return unique(new Set(localIds));
   if (!app) return null;
   const operation = route.methodRoutes?.[method as HttpMethod]?.operationId;

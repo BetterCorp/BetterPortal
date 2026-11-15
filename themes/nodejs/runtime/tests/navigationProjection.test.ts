@@ -70,6 +70,7 @@ test("navigation projections replace menu and routes on logout and reject stale 
   });
   await page.waitForFunction(() => !document.querySelector("#private-menu") &&
     !(document.querySelector("[data-bp-shell-root]")?.getAttribute("data-bp-routes") ?? "").includes("tools/dashboard"));
+  await page.waitForFunction(() => !document.querySelector("#dashboard") && document.querySelector("#bp-main")?.textContent?.includes("Access denied"));
   await delayed.fulfill({ contentType: "application/json", body: JSON.stringify(projection(true)) });
   await page.waitForTimeout(100);
   assert.equal(await page.locator("#private-menu").count(), 0);

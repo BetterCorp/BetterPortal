@@ -100,4 +100,6 @@ test("hosting binding identity keeps same-plugin grants scoped to the owning ins
   const aliases = { [serviceId]: "org.example.batches", [otherId]: "org.example.batches" };
   assert.equal(hasRoutePermissions(claims, effective, appAuth([{ ...baseline, serviceId: otherId }]), aliases), false);
   assert.equal(hasRoutePermissions(claims, effective, appAuth([baseline]), aliases), true);
+  assert.equal(hasRoutePermissions(claims, effective, appAuth([{ ...baseline, serviceId: "org.example.batches" }]), aliases), false,
+    "a plugin-wide grant cannot satisfy the concrete baseline even in an unparsed custom host context");
 });

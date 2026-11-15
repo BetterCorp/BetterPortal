@@ -31,7 +31,7 @@ public static class RequestAuthorization
         var ids = ((IEnumerable<object?>)claims["roles"]!).Cast<string>().ToHashSet(StringComparer.Ordinal);
         if (ids.Contains("*") && context.ManagementScope == (context.TenantId, context.AppId)) return claims;
         var grants = roles.Where(role => ids.Contains((string)role["id"]!)).SelectMany(role => ((IEnumerable<object?>)role["permissions"]!).Cast<Node>()).ToArray();
-        bool Matches(string granted, string requested) => granted == requested || aliases.GetValueOrDefault(granted) == requested || aliases.GetValueOrDefault(requested) == granted;
+        bool Matches(string granted, string requested) => granted == requested || aliases.GetValueOrDefault(granted) == requested;
         foreach (var item in ((IEnumerable<object?>)required["permissions"]!).Cast<Node>())
             foreach (var action in (IEnumerable<object?>)item["permissions"]!)
                 if (!grants.Any(grant => Matches((string)grant["serviceId"]!, (string)item["serviceId"]!) && Equals(grant["viewId"], item["viewId"])
@@ -79,10 +79,10 @@ public static class RequestAuthorization
     {
         var additional = (IEnumerable<object?>)((Node)Contracts.Parse("ApiAuthRequirementSchema", requirement)!)["permissions"]!;
         var services = context.ServiceAliases?.Values.Distinct(StringComparer.Ordinal).ToArray() ?? [];
-        var target = serviceId ?? (services.Length == 1 ? services[0] : "org.betterportal.unresolved");
+        var target = serviceId ?? (services.Length == 1 ? services[0] : "");
         var owners = context.ServiceAliases?.Where(pair => pair.Value == target).Select(pair => pair.Key).ToArray() ?? [];
         if (context.ServiceAliases?.ContainsKey(target) != true)
-            target = owners.Length == 1 ? owners[0] : owners.Length > 1 ? "org.betterportal.unresolved" : target;
+            target = owners.Length == 1 ? owners[0] : owners.Length > 1 ? "" : target;
         var policy = EffectiveRouteAuth(requirement, target, viewId, method);
         var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, value) in headers)

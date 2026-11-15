@@ -98,7 +98,10 @@ Protected operations (`required: true`, or an elevation requirement) always requ
 an app role grant for their own service instance, view and HTTP action: GET and
 explicit OPTIONS require `read`, POST requires `create`, PUT/PATCH require `update`,
 and DELETE requires `delete`. Framework-handled CORS preflight runs separately.
-SSE, streamed HTML and HEAD inherit the owning GET policy.
+SSE, streamed HTML and HEAD inherit the owning GET policy. The baseline matches
+the concrete installation exactly; plugin aliases apply only to authored
+additional requirements. A shared host resolves tenant activations through the
+trusted `sharedServiceId` catalog relationship, with ambiguous matches denied.
 
 `auth.permissions` contains **additional** service/view/action requirements. Every
 additional action must be granted as well as the baseline. An empty or omitted

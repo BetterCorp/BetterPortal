@@ -86,7 +86,13 @@ public sealed partial class Service : IAsyncDisposable
         var permissionAliases = access.PermissionAliases(route, method, matchedPath, fragment);
         var owner = (string?)((Node)config.GetValueOrDefault("serviceIdentity", new Node())!).GetValueOrDefault("id");
         if (owner is not null && !route.Paths[0].StartsWith("/.well-known/", StringComparison.Ordinal) && !permissionAliases.ContainsKey(owner))
-            throw new RequestException(404, "Route not found", responseHeaders, scope);
+        {
+            var activations = ((List<object?>)scope.Tenant["services"]!).Cast<Node>()
+                .Where(service => Equals(service.GetValueOrDefault("sharedServiceId"), owner) && permissionAliases.ContainsKey((string)service["id"]!))
+                .Select(service => (string)service["id"]!).ToArray();
+            if (activations.Length != 1) throw new RequestException(404, "Route not found", responseHeaders, scope);
+            owner = activations[0];
+        }
         var auth = new AuthContext(scope.TenantId, scope.AppId, appAuth, client is null ? null : client.ResolveAsync,
             (Node?)config.GetValueOrDefault("m2m"), permissionAliases, root);
         try

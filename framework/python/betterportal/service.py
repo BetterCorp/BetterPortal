@@ -315,7 +315,11 @@ class Service:
         permission_aliases = access.permission_aliases(route, method, path=matched_path, fragment=fragment)
         owner = state.config.get("serviceIdentity", {}).get("id")
         if owner and not route.paths[0].startswith("/.well-known/") and owner not in permission_aliases:
-            raise RequestError(404, "Route not found", response_headers, scope=scope)
+            activations = [service["id"] for service in scope.tenant["services"]
+                           if service.get("sharedServiceId") == owner and service["id"] in permission_aliases]
+            if len(activations) != 1:
+                raise RequestError(404, "Route not found", response_headers, scope=scope)
+            owner = activations[0]
         auth = AuthContext(scope.tenant_id, scope.app_id, app_auth, keys.resolve if keys else None,
                            state.config.get("m2m"), permission_aliases, root)
         async def verify():

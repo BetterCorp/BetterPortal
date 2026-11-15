@@ -54,7 +54,7 @@ async def _authorize_user_policy(token: str, required: Mapping[str, Any], contex
         return claims
     grants = [grant for role in roles if role["id"] in claims["roles"] for grant in role["permissions"]]
     def matches(granted: str, requested: str) -> bool:
-        return granted == requested or aliases.get(granted) == requested or aliases.get(requested) == granted
+        return granted == requested or aliases.get(granted) == requested
     if not all(any(matches(grant["serviceId"], item["serviceId"]) and grant["viewId"] == item["viewId"] and action in grant["permissions"]
                    for grant in grants) for item in required["permissions"] for action in item["permissions"]):
         raise PermissionDenied("Insufficient user permissions")
@@ -107,10 +107,10 @@ async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str
                             *, view_id: str, method: str, service_id: str | None = None) -> AuthorizedCaller:
     """Complete caller policy. Machine envelopes always fail closed, even on optional-auth operations."""
     services = set(context.service_aliases.values())
-    target = service_id or (next(iter(services)) if len(services) == 1 else "org.betterportal.unresolved")
+    target = service_id or (next(iter(services)) if len(services) == 1 else "")
     owners = [identifier for identifier, plugin in context.service_aliases.items() if plugin == target]
     if target not in context.service_aliases:
-        target = owners[0] if len(owners) == 1 else "org.betterportal.unresolved" if owners else target
+        target = owners[0] if len(owners) == 1 else "" if owners else target
     additional = parse("ApiAuthRequirementSchema", dict(requirement))["permissions"]
     policy = effective_route_auth(requirement, target, view_id, method)
     normalized = {name.lower(): value for name, value in headers.items()}

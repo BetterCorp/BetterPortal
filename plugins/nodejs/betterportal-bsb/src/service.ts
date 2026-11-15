@@ -1545,8 +1545,11 @@ export abstract class BPService<
     const localIds = new Set(this.scopedConfig?.m2m?.localServiceIds ?? []);
     if (this.scopedConfig?.serviceIdentity?.id) localIds.add(this.scopedConfig.serviceIdentity.id);
     const app = management?.app ?? this.scopedConfig?.apps.find(candidate => candidate.id === appId && candidate.tenantId === tenantId);
+    const identityId = this.scopedConfig?.serviceIdentity?.id;
+    const activations = new Set(this.scopedConfig?.tenants?.find(tenant => tenant.id === tenantId)?.services
+      .filter(service => service.enabled !== false && service.sharedServiceId === identityId).map(service => service.id) ?? []);
     const permissionServiceId = resolveRequestPermissionServiceId(app, route, event.req.method,
-      new URL(event.req.url).pathname, localIds, this.scopedConfig?.serviceIdentity?.id);
+      new URL(event.req.url).pathname, localIds, identityId, activations);
     return {
       permissionServiceId,
       ...(verifier ? { verifier } : {}),

@@ -1414,6 +1414,12 @@ export function betterPortalShellRuntimeSource(): string {
               initializeBpElements(nav);
             }
             setActiveRoute(window.location.pathname);
+            if (hasLoaded() && !configuredRouteFor(window.location.pathname)) {
+              // Revoke already-rendered content and discard responses issued by that page.
+              mainRequestGeneration++;
+              renderRouteError("Access denied", "This page is unavailable or you do not have permission to access it.",
+                !projection.authenticated && root.getAttribute("data-bp-login-url") ? { kind: "login", label: "Sign in" } : undefined, undefined);
+            }
             if (!hasLoaded() && !mainOutlet()?.getAttribute("hx-get")) {
               const fallback = resolveRootFallback(window.location.pathname + window.location.search + window.location.hash);
               const route = configuredRouteFor(window.location.pathname);

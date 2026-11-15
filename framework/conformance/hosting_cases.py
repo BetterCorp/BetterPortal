@@ -385,6 +385,14 @@ def run_hosting(urls, labels):
             auth_case("well-known-wrong-scope", lambda value: (service_api(value), value["request"]["headers"].update(authorization="Bearer " + wrong_scope)), 401)
             auth_case("preflight-before-auth", lambda body: (body["request"].update(method="OPTIONS"), body["request"]["headers"].update({"authorization": "invalid", "access-control-request-method": "GET"})), 204)
             auth_case("other-instance-role-alias", lambda body: app(body)["auth"]["roles"][0]["permissions"][0].update(serviceId=SOURCE), 403, native=True)
+            def shared_activation(value, linked=True):
+                value["snapshot"]["serviceIdentity"]["id"] = SOURCE
+                value["snapshot"]["m2m"] = {"localServiceIds": [SOURCE, TARGET], "services": [], "bindings": [], "grants": []}
+                if linked:
+                    next(service for service in value["snapshot"]["tenants"][0]["services"] if service["id"] == TARGET)["sharedServiceId"] = SOURCE
+            auth_case("shared-activation-owner", shared_activation, native=True)
+            auth_case("shared-activation-sibling-grant", lambda value: (shared_activation(value), app(value)["auth"]["roles"][0]["permissions"][0].update(serviceId=SOURCE)), 403, native=True)
+            auth_case("shared-activation-unrelated-catalog", lambda value: shared_activation(value, False), 404, native=True)
             def service(body, delegated=False):
                 policy = verification("service", claims["service"], machine, key)["service"]["policy"]
                 policy["services"][0].update(publicKeyPem=key["publicKeyPem"], keyId=key["kid"])

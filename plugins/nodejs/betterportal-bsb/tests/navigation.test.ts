@@ -78,3 +78,32 @@ test("host permission ownership follows identity, selected operation and matched
   assert.equal(context().permissionServiceId, owner, "a different selected operation does not create ownership ambiguity");
   assert.equal(context("/a", "HEAD").permissionServiceId, owner);
 });
+
+
+test("shared hosts resolve only activations belonging to their trusted catalog identity", () => {
+  const tenantId = uuidv7(), appId = uuidv7(), catalog = uuidv7(), activation = uuidv7(), other = uuidv7();
+  const route = { viewId: "batches", path: "/a", methods: ["GET"], methodRoutes: { GET: { operationId: "batches.read", auth: { required: true, permissions: [] } } } };
+  const app = { id: appId, tenantId, routes: [
+    { serviceId: activation, viewId: "batches", enabled: true, operations: ["batches.read"], targetPath: "/a" },
+    { serviceId: other, viewId: "batches", enabled: true, operations: ["batches.read"], targetPath: "/b" }
+  ], slots: [], fragments: {} };
+  const service = Object.create(BPService.prototype) as any;
+  service.scopedConfig = { serviceIdentity: { id: catalog }, m2m: { localServiceIds: [catalog, activation, other] }, apps: [app],
+    tenants: [{ id: tenantId, services: [
+      { id: activation, enabled: true, serviceId: "org.example.batches", sharedServiceId: catalog },
+      { id: other, enabled: true, serviceId: "org.example.batches", sharedServiceId: uuidv7() }
+    ] }] };
+  service.getJwtVerifier = () => ({ verify: async () => ({}) });
+  service.getServiceTokenVerifier = () => undefined;
+  service.getAppAuthConfig = () => undefined;
+  service.getServiceIdAliases = () => ({});
+  service.getPlatformRootAuthScope = () => undefined;
+  const context = (path: string) => service.resolveAuthForRequest({ __bpTenantId: tenantId, __bpAppId: appId,
+    req: new Request("https://service.test" + path) }, route);
+  assert.equal(context("/a").permissionServiceId, activation);
+  assert.equal(context("/b").permissionServiceId, null, "a shared host cannot own another catalog's activation");
+  service.scopedConfig.tenants[0].services[1].sharedServiceId = catalog;
+  assert.equal(context("/b").permissionServiceId, other);
+  app.routes[1].targetPath = "/a";
+  assert.equal(context("/a").permissionServiceId, null, "two matching activations remain ambiguous");
+});
