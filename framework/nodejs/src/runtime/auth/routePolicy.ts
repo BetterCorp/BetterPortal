@@ -77,8 +77,9 @@ export function resolvePermissionServiceId(reference: string, aliases: Readonly<
 /** Resolve authority using the registered operation, matched service path and trusted host identity. */
 export function resolveRequestPermissionServiceId(
   app: Pick<ScopedApp, "routes" | "slots" | "fragments"> | undefined, route: RegisteredRoute, requestMethod: string, pathname: string,
-  localIds: ReadonlySet<string>, identityId?: string, identityActivations: ReadonlySet<string> = new Set()
+  localIds: ReadonlySet<string>, ownership: { identityId?: string; activationIds?: ReadonlySet<string>; fragment?: string } = {}
 ): string | null {
+  const { identityId, activationIds: identityActivations = new Set(), fragment: fragmentKey } = ownership;
   const method = requestMethod === "HEAD" ? "GET" : requestMethod;
   const unique = (ids: Set<string>): string | null => {
     if (identityId && ids.has(identityId)) return identityId;
@@ -102,15 +103,21 @@ export function resolveRequestPermissionServiceId(
       try { return decodeURIComponent(part) === decodeURIComponent(actual[index]); } catch { return false; }
     });
   };
+  if (method === "GET" && fragmentKey) {
+    const dot = fragmentKey.indexOf(".");
+    const location = dot > 0 ? fragmentKey.slice(0, dot) : "";
+    const id = dot > 0 ? fragmentKey.slice(dot + 1) : fragmentKey;
+    const candidates = location ? app.fragments?.[location] ?? [] : Object.values(app.fragments ?? {}).flat();
+    const owners = new Set(candidates.filter(fragment => fragment.enabled !== false && fragment.fragmentId === id
+      && localIds.has(fragment.serviceId) && matches(fragment.targetPath)).map(fragment => fragment.serviceId));
+    if (owners.size) return unique(owners);
+  }
   const owners = new Set(app.routes.filter(mount => mount.enabled !== false && localIds.has(mount.serviceId)
     && mount.viewId === route.viewId && (operation && mount.operations.includes(operation)
       || mount.operations.includes(`legacy:${route.viewId}:${method}`))
     && matches(routeMountServicePath(mount) ?? route.path)).map(mount => mount.serviceId));
-  if (method === "GET") {
+  if (!owners.size && method === "GET") {
     for (const slot of app.slots ?? []) if (slot.enabled !== false && slot.viewId === route.viewId && localIds.has(slot.serviceId)) owners.add(slot.serviceId);
-    for (const fragment of Object.values(app.fragments ?? {}).flat()) {
-      if (fragment.enabled !== false && localIds.has(fragment.serviceId) && matches(fragment.targetPath)) owners.add(fragment.serviceId);
-    }
   }
   return unique(owners);
 }

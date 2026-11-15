@@ -391,6 +391,24 @@ def run_hosting(urls, labels):
                 if linked:
                     next(service for service in value["snapshot"]["tenants"][0]["services"] if service["id"] == TARGET)["sharedServiceId"] = SOURCE
             auth_case("shared-activation-owner", shared_activation, native=True)
+            def shared_alternate(value, kind):
+                shared_activation(value)
+                value["snapshot"]["serviceIdentity"]["id"] = "01900000-0000-7000-8000-000000000099"
+                for service in value["snapshot"]["tenants"][0]["services"]:
+                    service["sharedServiceId"] = value["snapshot"]["serviceIdentity"]["id"]
+                if kind == "slot":
+                    app(value)["slots"] = [{"slotId": "header", "serviceId": SOURCE, "viewId": "check", "enabled": True}]
+                else:
+                    app(value)["fragments"] = {"nav": [{"serviceId": SOURCE, "fragmentId": "badge", "targetPath": "/check/:key", "enabled": True}]}
+            auth_case("shared-route-with-alternate-slot", lambda value: shared_alternate(value, "slot"), native=True)
+            auth_case("shared-route-with-alternate-fragment", lambda value: shared_alternate(value, "fragment"), native=True)
+            def shared_fragment(value, grant=False):
+                shared_alternate(value, "fragment")
+                value["request"]["path"] = "/check/item?_f=nav.badge"
+                if grant:
+                    app(value)["auth"]["roles"][0]["permissions"][0]["serviceId"] = SOURCE
+            auth_case("shared-explicit-fragment-requires-owner", shared_fragment, 403, native=True)
+            auth_case("shared-explicit-fragment-owner-granted", lambda value: shared_fragment(value, True), native=True)
             auth_case("shared-activation-sibling-grant", lambda value: (shared_activation(value), app(value)["auth"]["roles"][0]["permissions"][0].update(serviceId=SOURCE)), 403, native=True)
             auth_case("shared-activation-unrelated-catalog", lambda value: shared_activation(value, False), 404, native=True)
             def service(body, delegated=False):

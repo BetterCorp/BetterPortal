@@ -1,4 +1,4 @@
-import { createNavigationAccess, resolveRequestPermissionServiceId, type BetterPortalApp, type NavigationAccess } from "@betterportal/framework";
+import { createNavigationAccess, parseAcceptHeader, resolveRequestPermissionServiceId, type BetterPortalApp, type NavigationAccess } from "@betterportal/framework";
 import { resolveThemeAuth } from "@betterportal/framework";
 import {
   BSBService,
@@ -1548,8 +1548,11 @@ export abstract class BPService<
     const identityId = this.scopedConfig?.serviceIdentity?.id;
     const activations = new Set(this.scopedConfig?.tenants?.find(tenant => tenant.id === tenantId)?.services
       .filter(service => service.enabled !== false && service.sharedServiceId === identityId).map(service => service.id) ?? []);
+    const requestUrl = new URL(event.req.url);
+    const fragment = requestUrl.searchParams.get("_f") ?? parseAcceptHeader(event.req.headers.get("accept") ?? undefined)
+      .find(entry => entry.mediaType === "text/html" && entry.parameters.fragment)?.parameters.fragment;
     const permissionServiceId = resolveRequestPermissionServiceId(app, route, event.req.method,
-      new URL(event.req.url).pathname, localIds, identityId, activations);
+      requestUrl.pathname, localIds, { identityId, activationIds: activations, fragment });
     return {
       permissionServiceId,
       ...(verifier ? { verifier } : {}),

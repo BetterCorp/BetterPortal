@@ -21,9 +21,33 @@ class AppAccess:
         references = [*app["routes"], *app["slots"], *(item for items in app["fragments"].values() for item in items)]
         references.extend(app[key] for key in ("shell", "auth") if key in app)
         mounted = {item["serviceId"] for item in references if item.get("enabled", True)}
+        owners = self._permission_owners(route, method, path, fragment) if route is not None else None
         return MappingProxyType({identifier: service["serviceId"] for identifier, service in self._services.items()
-                                 if identifier in mounted and "serviceId" in service
+                                 if identifier in mounted and "serviceId" in service and (owners is None or identifier in owners)
                                  and (route is None or self.allows(route, method, path=path, fragment=fragment, service_id=identifier))})
+
+    def _permission_owners(self, route: Route, method: str, path: str | None, fragment: str | None) -> set[str] | None:
+        path = path or route.paths[0]
+        if path not in route.paths:
+            raise ValueError("The matched path is not registered on this view")
+        if path.startswith("/.well-known/"):
+            return None
+        operation = next((item for item in route.operations if item.method == method), None)
+        if operation is None:
+            return set()
+        if method == "GET" and fragment:
+            location, dot, identifier = fragment.partition(".")
+            candidates = self._app["fragments"].get(location, []) if dot and location else [item for items in self._app["fragments"].values() for item in items]
+            identifier = identifier if dot and location else fragment
+            owners = {item["serviceId"] for item in candidates if item["fragmentId"] == identifier and self._fragment_allowed(item, path)}
+            if owners:
+                return owners
+        owners = {mount["serviceId"] for mount in self._app["routes"] if mount["enabled"] and mount["serviceId"] in self._services
+                  and mount["viewId"] == route.view_id and (operation.id in mount["operations"] or f"legacy:{route.view_id}:{method}" in mount["operations"])
+                  and _path_matches(mount.get("resolvedServicePath", mount.get("servicePathVariant", mount.get("targetPath", path))), path)}
+        if not owners and method == "GET":
+            owners = {item["serviceId"] for item in self._app["slots"] if item["enabled"] and item["viewId"] == route.view_id and item["serviceId"] in self._services}
+        return owners
 
     def allows(self, route: Route, method: str, *, path: str | None = None, fragment: str | None = None, service_id: str | None = None) -> bool:
         """The host supplies the matched registered path, before handler execution."""
