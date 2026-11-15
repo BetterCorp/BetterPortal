@@ -1378,6 +1378,7 @@ export function betterPortalShellRuntimeSource(): string {
       let navigationPending: Promise<void> | null = null;
       let navigationGeneration = 0;
       let navigationHeaderState = "";
+      let navigationCommittedHeaderState = "";
       const refreshNavigation = (): Promise<void> => {
         const root = shellRoot();
         const endpoint = root?.getAttribute("data-bp-navigation-url");
@@ -1413,6 +1414,7 @@ export function betterPortalShellRuntimeSource(): string {
               htmx.process(nav);
               initializeBpElements(nav);
             }
+            navigationCommittedHeaderState = headerState;
             setActiveRoute(window.location.pathname);
             if (hasLoaded() && !configuredRouteFor(window.location.pathname)) {
               // Revoke already-rendered content and discard responses issued by that page.
@@ -1442,6 +1444,13 @@ export function betterPortalShellRuntimeSource(): string {
             if (generation === navigationGeneration) {
               root.setAttribute("data-bp-routes", "[]");
               for (const id of ["bp-nav-desktop", "bp-nav-mobile"]) document.getElementById(id)?.replaceChildren();
+              if (headerState !== navigationCommittedHeaderState && hasLoaded()) {
+                mainRequestGeneration++;
+                const main = mainOutlet();
+                main?.removeAttribute("data-bp-loaded");
+                main?.removeAttribute("hx-get");
+                main?.removeAttribute("hx-trigger");
+              }
               if (!hasLoaded() && !mainOutlet()?.getAttribute("hx-get")) {
                 replaceMainWithError("Navigation unavailable", "Try again to load this page.", { kind: "navigation-retry", label: "Retry" }, window.location.pathname);
               }

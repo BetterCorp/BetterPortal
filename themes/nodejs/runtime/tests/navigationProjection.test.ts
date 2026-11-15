@@ -146,3 +146,31 @@ test("a failed newer projection offers Retry and rejects an older response with 
   await page.waitForSelector("#recovered");
   assert.deepEqual(errors, []);
 });
+
+
+test("a failed logout projection removes loaded private content and Retry recovers anonymously", async t => {
+  let failed = false;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") {
+      const authorized = route.request().headers().authorization === "Bearer allowed";
+      if (!authorized && !failed) { failed = true; return route.fulfill({ status: 503, body: "{}" }); }
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: authorized,
+        routes: authorized ? [{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }]
+          : [{ href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" }],
+        desktop: authorized ? '<span id="private-menu">Private</span>' : '', mobile: '' }) });
+    }
+    return html(route, route.request().url().includes("auth.test") ? '<p id="anonymous-login">Sign in</p>' : '<p id="private-content">Private data</p>');
+  }, { authorization: { value: "Bearer allowed", owner: "auth", scope: null } }, "", "/tools/dashboard", true);
+  await page.waitForSelector("#private-content");
+  await page.evaluate(() => {
+    localStorage.setItem("bp.headers", "{}");
+    document.body.dispatchEvent(new CustomEvent("bp:fragments-changed"));
+  });
+  await page.waitForSelector('[data-bp-error-action="navigation-retry"]');
+  assert.equal(await page.locator("#private-content").count(), 0);
+  assert.equal(await page.locator("#private-menu").count(), 0);
+  assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-routes"), "[]");
+  await page.locator('[data-bp-error-action="navigation-retry"]').click();
+  await page.waitForSelector("#anonymous-login");
+  assert.deepEqual(errors, []);
+});
