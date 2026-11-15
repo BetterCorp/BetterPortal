@@ -381,3 +381,23 @@ test("a superseded initial request cannot replace the new account page with a ne
   assert.doesNotMatch(await page.locator("#bp-main").innerText(), /Connection Error/);
   assert.deepEqual(errors, []);
 });
+
+
+for (const outcome of ["success", "network"] as const) test(`shells without navigation projection retain recovery after stale initial ${outcome}`, async t => {
+  let initial: Route | undefined;
+  const { page, errors } = await shell(t, route => { initial = route; return Promise.resolve(); },
+    { authorization: { value: "Bearer initial", owner: "auth", scope: null } });
+  for (let attempt = 0; !initial && attempt < 30; attempt++) await page.waitForTimeout(10);
+  assert.ok(initial);
+  await page.evaluate(() => {
+    localStorage.setItem("bp.headers", JSON.stringify({ authorization: { value: "Bearer renewed", owner: "auth", scope: null } }));
+    window.dispatchEvent(new StorageEvent("storage", { key: "bp.headers" }));
+  });
+  if (outcome === "network") await initial.abort("failed");
+  else await html(initial, '<p id="stale-legacy">Old</p>');
+  await page.waitForSelector('[data-bp-error-action="reload"]');
+  assert.equal(await page.locator("#stale-legacy").count(), 0);
+  assert.match(await page.locator("#bp-main").innerText(), outcome === "network" ? /Connection Error/ : /Session changed/);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("bp.headers") || "{}").authorization.value), "Bearer renewed");
+  assert.deepEqual(errors, []);
+});

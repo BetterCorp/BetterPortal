@@ -3319,7 +3319,8 @@ export function betterPortalShellRuntimeSource(): string {
             mainPendingGeneration = undefined;
             if (!hasLoaded() && ctx.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) {
               disableInitialMainLoad();
-              void refreshNavigation();
+              if (shellRoot()?.getAttribute("data-bp-navigation-url")) void refreshNavigation();
+              else renderRouteError("Session changed", "Reload this page to continue with your current session.", { kind: "reload", label: "Reload" }, ctx.sourceElement);
             }
           }
           const target = ctx?.__bpRequestTarget ?? ctx?.target;
@@ -3373,7 +3374,8 @@ export function betterPortalShellRuntimeSource(): string {
         htmx_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;
           if (ctx?.__bpMainGeneration !== undefined && ctx.__bpMainGeneration !== mainRequestGeneration) return;
-          if (requestTargetsMain(detail) && ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) {
+          if (requestTargetsMain(detail) && shellRoot()?.getAttribute("data-bp-navigation-url")
+            && ctx?.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) {
             setLoading(false);
             return;
           }
