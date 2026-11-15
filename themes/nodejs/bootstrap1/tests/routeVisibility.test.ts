@@ -85,6 +85,7 @@ test("fullscreen chrome keeps the normal shell and does not imply auth", () => {
   assert.match(html, /data-bp-chrome-full-screen="true"/);
   assert.match(html, /data-bp-services="[^"\n]*fragment[^"\n]*https:\/\/fragment\.test/);
   assert.match(html, /class="bp-admin"/);
+  assert.doesNotMatch(html, /data-bp-back|data-bp-up/);
   assert.doesNotMatch(html, /data-bp-auth-mode/);
 });
 

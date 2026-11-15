@@ -22,11 +22,11 @@ return order;
 - A parent starting with `/` is a service path relative to the responding service, never a precomputed UI route. Preserve query parameters and resolve it through existing mounted-route logic. Reject protocol-relative `//` destinations rather than treating them as another origin.
 - A parent without a leading `/` is literal breadcrumb text. Render it as escaped text without an anchor; never interpret it as HTML or a URL.
 - For path breadcrumbs, prefer the configured app/UI route title, then the service view title. Carry the required trusted metadata to the runtime if its current route index lacks the fallback title. Omit unresolved destinations rather than inventing a route or silently linking to the service origin.
-- The last parent is the logical parent. It can supply an Up link only when it resolves to a navigable path; do not substitute an earlier breadcrumb when the last entry is text. Browser Back remains browser history, with no history fallback for Up.
+- Every resolvable parent path is a clickable breadcrumb at every depth. Text parents and the current page remain plain text. Use browser Back/Forward for history; do not render navbar Back or Up buttons.
 - A nonempty custom title replaces the visible page title and sets the browser title to `Custom title - App Name`. With no custom title, preserve existing defaults exactly. Do not scrape service headings.
 - Apply metadata only when a successful HTML page response is committed to the main outlet. JSON, nested fragments, component mutations, errors and background/preload requests must not change the active page header. Store preloaded metadata until navigation commits it.
 - Reset omitted metadata on a new page and restore matching metadata on history navigation. Breadcrumbs remain theme-owned, with accessible labels and current-page semantics.
-- When the active theme supplies the page title/header and Back/Up controls, service views must omit their own page titles and Back/Up buttons or links. State this in theme notes, UI guides, skills and templates. Keep meaningful section headings and task-specific actions; themes that delegate these responsibilities to service content must document that explicitly.
+- When the active theme supplies the page title/header and breadcrumb navigation, service views must omit their own page titles or breadcrumb rows. State this in theme notes, UI guides, skills and templates. Keep meaningful section headings and task-specific actions; themes that delegate these responsibilities to service content must document that explicitly.
 
 ## Implementation boundaries
 
