@@ -88,7 +88,11 @@ export function resolveRequestPermissionServiceId(
   const operation = route.methodRoutes?.[method as HttpMethod]?.operationId;
   const path = route.sse ? pathname.replace(/\/__sse\/?$/, "") : pathname;
   const matches = (pattern: string): boolean => {
-    const parts = (value: string) => value.split(/[?#]/, 1)[0].replace(/\/+$/, "").split("/");
+    const parts = (value: string) => {
+      const segments = value.split(/[?#]/, 1)[0].split("/");
+      while (segments.length > 1 && segments[segments.length - 1] === "") segments.pop();
+      return segments;
+    };
     const template = parts(pattern), actual = parts(path);
     if (template.length !== actual.length) return false;
     return template.every((part, index) => {

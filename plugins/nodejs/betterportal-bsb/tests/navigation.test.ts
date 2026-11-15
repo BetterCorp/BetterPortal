@@ -65,6 +65,7 @@ test("host permission ownership follows identity, selected operation and matched
       current.permissionServiceId ?? "", "batches", "GET"), current.appAuthConfig, current.serviceIdAliases);
   };
   assert.equal(context().permissionServiceId, owner);
+  assert.equal(context("/a////").permissionServiceId, owner, "trailing separators retain the same owning path");
   assert.equal(allowed(), false, "another installation's grant cannot authorize the owning host");
   auth.roles[0].permissions[0].serviceId = owner;
   assert.equal(allowed(), true);
