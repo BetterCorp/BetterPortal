@@ -1531,7 +1531,7 @@ export abstract class BPService<
   }
 
   private resolveAuthForRequest(event: BetterPortalEvent, route: RegisteredRoute): H3AuthContext | undefined {
-    const ctx = event as unknown as { __bpTenantId?: string; __bpAppId?: string };
+    const ctx = event as unknown as { __bpTenantId?: string; __bpAppId?: string; __bpApp?: BetterPortalResolvedRequestContext["app"] };
     const managementRoute = isBpManagementAuthRoute(route);
     const management = managementRoute ? this.managementRequestContext() : null;
     const tenantId = management?.tenant.id ?? ctx.__bpTenantId;
@@ -1544,7 +1544,15 @@ export abstract class BPService<
     if (!verifier && !serviceVerifier) return undefined;
     const localIds = new Set(this.scopedConfig?.m2m?.localServiceIds ?? []);
     if (this.scopedConfig?.serviceIdentity?.id) localIds.add(this.scopedConfig.serviceIdentity.id);
-    const app = management?.app ?? this.scopedConfig?.apps.find(candidate => candidate.id === appId && candidate.tenantId === tenantId);
+    const aliases = this.getServiceIdAliases(tenantId);
+    const storedApp = !this.scopedConfig && this.requireBetterPortalConfigSource === false
+      && ctx.__bpApp?.id === appId && ctx.__bpApp.tenantId === tenantId ? ctx.__bpApp : undefined;
+    if (storedApp) {
+      // A storage-backed control plane has no scoped sync identity. Resolve concrete
+      // candidates only from its trusted tenant aliases and matched app operations.
+      for (const [id, plugin] of Object.entries(aliases ?? {})) if (plugin === this.manifest.pluginId) localIds.add(id);
+    }
+    const app = management?.app ?? this.scopedConfig?.apps.find(candidate => candidate.id === appId && candidate.tenantId === tenantId) ?? storedApp;
     const identityId = this.scopedConfig?.serviceIdentity?.id;
     const activations = new Set(this.scopedConfig?.tenants?.find(tenant => tenant.id === tenantId)?.services
       .filter(service => service.enabled !== false && service.sharedServiceId === identityId).map(service => service.id) ?? []);
@@ -1565,7 +1573,7 @@ export abstract class BPService<
       tenantId,
       appId,
       appAuthConfig: this.getAppAuthConfig(tenantId, appId),
-      serviceIdAliases: this.getServiceIdAliases(tenantId),
+      serviceIdAliases: aliases,
       platformRoot: this.getPlatformRootAuthScope(tenantId, appId)
     };
   }

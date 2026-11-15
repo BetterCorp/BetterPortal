@@ -1054,7 +1054,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               operationId: operation.operationId,
               method: operation.method,
               ...(operation.role ? { role: operation.role } : {}),
-              requiredPermissions: effectiveRouteAuth(operation.auth ?? { required: operation.authRequired, permissions: operation.permissions }, svc.serviceId, view.viewId, operation.method).permissions
+              requiredPermissions: effectiveRouteAuth(operation.auth ?? { required: operation.authRequired, permissions: operation.permissions }, svc.id, view.viewId, operation.method).permissions
             }))
           }))
         : [];

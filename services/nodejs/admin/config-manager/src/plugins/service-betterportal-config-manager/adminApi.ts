@@ -386,7 +386,7 @@ function automationServiceCatalog(config: AppEditorData, appDef: BetterPortalApp
           method: operation.method,
           title: operation.title,
           renderable: operation.renderable,
-          permissions: effectiveRouteAuth(operation.auth ?? { required: operation.authRequired, permissions: operation.permissions }, service.serviceId, view.viewId, operation.method).permissions,
+          permissions: effectiveRouteAuth(operation.auth ?? { required: operation.authRequired, permissions: operation.permissions }, service.id, view.viewId, operation.method).permissions,
           role: operation.role,
           chrome: operation.chrome,
           dependencies: operation.dependencies,

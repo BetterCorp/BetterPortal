@@ -1,3 +1,4 @@
+import { isStreamHandler } from "../../contracts/streaming.js";
 import type { ScopedApp } from "../../contracts/controlPlane.js";
 import type { ThemeAuthContext } from "./menu.js";
 import type { RegisteredRoute } from "../../contracts/registry.js";
@@ -89,7 +90,7 @@ export function resolveRequestPermissionServiceId(
   if (route.path.startsWith("/.well-known/")) return unique(new Set(localIds));
   if (!app) return null;
   const operation = route.methodRoutes?.[method as HttpMethod]?.operationId;
-  const path = route.sse ? pathname.replace(/\/__sse\/?$/, "") : pathname;
+  const path = route.sse || isStreamHandler(route.handlers?.GET) ? pathname.replace(/\/__sse\/?$/, "") : pathname;
   const matches = (pattern: string): boolean => {
     const parts = (value: string) => {
       const segments = value.split(/[?#]/, 1)[0].split("/");

@@ -5,7 +5,7 @@ import { registerWebhookRoutes } from "../src/plugins/service-betterportal-confi
 import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
 import { test } from "node:test";
 import * as av from "anyvali";
-import { BetterPortalConfigSchema, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
+import { BetterPortalConfigSchema, createBetterPortalApp, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
 const managementViewContext = {
   route: (input: { path?: string; query?: Record<string, string>; component?: string }) => {
     const url = new URL(input.path ?? "/", "https://config.example");
@@ -2337,4 +2337,35 @@ test("page configuration is shared only within a request and failed reads can re
   await assert.rejects(plugin.loadRequestConfig(failed), /read failed/);
   plugin.postgresStorage.loadConfig = async () => ({ revision: 3 });
   assert.deepEqual(await plugin.loadRequestConfig(failed), { revision: 3 });
+});
+
+test("permission catalogs publish instance baselines and preserve authored plugin requirements", async t => {
+  const tenantId = uuidv7(), appId = uuidv7(), instanceId = uuidv7();
+  const pluginId = "org.example.catalog";
+  const additional = { serviceId: "org.example.reports", viewId: "reports", permissions: ["update"] };
+  const config = BetterPortalConfigSchema.parse({
+    tenants: [{ id: tenantId, slug: "catalog", title: "Catalog", services: [{ id: instanceId, serviceId: pluginId,
+      hostname: "https://service.test", createdAt: new Date().toISOString() }] }],
+    apps: [{ id: appId, tenantId, slug: "app", title: "App", hostnames: ["app.test"] }],
+    manifestCache: [{ serviceId: pluginId, manifestVersion: "1", fetchedAt: new Date().toISOString(), viewIndex: {
+      catalog: { viewId: "catalog", title: "Catalog", description: "Catalog", path: "/catalog", operations: [{ operationId: "catalog.read", method: "GET",
+        title: "Read", description: "Read catalog", authRequired: true, renderable: true, permissions: [additional],
+        auth: { required: true, permissions: [additional] } }] }
+    } }]
+  });
+  hydrateManifestCache(config);
+  t.after(() => getManifestCache().clear());
+  const expected = [{ serviceId: instanceId, viewId: "catalog", permissions: ["read"] }, additional];
+  const server = createBetterPortalApp();
+  registerAdminApiRoutes(server, new MemoryStorage(config), { issuer: "https://config.test" } as never);
+  const response = await server.request("/.well-known/bp/automation/catalog?appId=" + appId);
+  assert.equal(response.status, 200);
+  const catalog = await response.json();
+  assert.deepEqual(catalog.services[0].actions[0].permissions, expected);
+  const plugin = Object.create(ConfigManagerPlugin.prototype) as any;
+  plugin.loadEditorPage = async () => ({ ...config, appChoices: config.apps });
+  plugin.cpState = { issuer: "https://config.test" };
+  const event = { req: new Request("https://config.test/auth?appId=" + appId) } as any;
+  await plugin.populateAdminAuthContext(event);
+  assert.deepEqual(event.__bpResponseModel.servicePermissions[0].views[0].operations[0].requiredPermissions, expected);
 });

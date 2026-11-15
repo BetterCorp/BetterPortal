@@ -1,8 +1,9 @@
+import * as av from "anyvali";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { generateKeyPairSync } from "node:crypto";
 import { BPService } from "../src/service.js";
-import { effectiveRouteAuth, hasRoutePermissions, signJwt, uuidv7 } from "@betterportal/framework";
+import { createStreamHandler, effectiveRouteAuth, hasRoutePermissions, signJwt, uuidv7 } from "@betterportal/framework";
 
 test("navigation verifies tokens, scopes users, uses current grants and invalidates cached verification keys", async () => {
   const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -118,4 +119,55 @@ test("shared hosts resolve only activations belonging to their trusted catalog i
   app.slots = [];
   assert.equal(context("/a").permissionServiceId, null, "fragment bindings require an explicit fragment request");
   assert.equal(context("/a?_f=nav.badge", "text/html").permissionServiceId, other);
+});
+
+
+test("storage-backed hosts resolve their concrete operation owner from trusted request context", () => {
+  const tenantId = uuidv7(), appId = uuidv7(), owner = uuidv7(), other = uuidv7();
+  const service = Object.create(BPService.prototype) as any;
+  service.requireBetterPortalConfigSource = false;
+  service.manifest = { pluginId: "org.betterportal.config-manager" };
+  const claims = { tenantId, appId, roles: ["reader"] } as any;
+  const auth = { roles: [{ id: "reader", permissions: [{ serviceId: other, viewId: "tenants.index", permissions: ["read"] }] }] } as any;
+  service.getJwtVerifier = () => ({ verify: async () => claims });
+  service.getServiceTokenVerifier = () => undefined;
+  service.getAppAuthConfig = () => auth;
+  service.getServiceIdAliases = () => ({ [owner]: service.manifest.pluginId, [other]: service.manifest.pluginId });
+  service.getPlatformRootAuthScope = () => undefined;
+  const app = { id: appId, tenantId, routes: [{ serviceId: owner, viewId: "tenants.index", enabled: true,
+    operations: ["tenants.read"], resolvedServicePath: "/tenants" }], slots: [], fragments: {} };
+  const route = { path: "/tenants", viewId: "tenants.index", methodRoutes: { GET: { operationId: "tenants.read", auth: { required: true, permissions: [] } } } };
+  const event = { __bpTenantId: tenantId, __bpAppId: appId, __bpApp: app, req: new Request("https://config.test/tenants") };
+  const context = () => service.resolveAuthForRequest(event, route);
+  const allowed = () => hasRoutePermissions(claims, effectiveRouteAuth({ required: true, permissions: [] }, context().permissionServiceId ?? "", "tenants.index", "GET"), auth, context().serviceIdAliases);
+  assert.equal(context().permissionServiceId, owner);
+  assert.equal(allowed(), false);
+  auth.roles[0].permissions[0].serviceId = owner;
+  assert.equal(allowed(), true, "a non-root management role can use its own instance grant");
+  event.__bpApp = { ...app, id: uuidv7() };
+  assert.equal(context().permissionServiceId, null, "mismatched request context cannot supply authority");
+  event.__bpApp = app;
+  service.requireBetterPortalConfigSource = true;
+  assert.equal(context().permissionServiceId, null, "managed hosts cannot use the storage-backed fallback");
+});
+
+test("generated stream endpoints inherit the mounted GET owner without authorizing unrelated paths", () => {
+  const tenantId = uuidv7(), appId = uuidv7(), owner = uuidv7();
+  const service = Object.create(BPService.prototype) as any;
+  service.scopedConfig = { serviceIdentity: { id: owner }, apps: [{ id: appId, tenantId, routes: [{ serviceId: owner, viewId: "feed", enabled: true,
+    operations: ["feed.read"], resolvedServicePath: "/feed" }], slots: [], fragments: {} }] };
+  service.getJwtVerifier = () => ({ verify: async () => ({}) });
+  service.getServiceTokenVerifier = () => undefined;
+  service.getAppAuthConfig = () => undefined;
+  service.getServiceIdAliases = () => ({});
+  service.getPlatformRootAuthScope = () => undefined;
+  const handler = createStreamHandler({ item: av.string() }, async function* () { yield "row"; });
+  const route = { path: "/feed", viewId: "feed", handlers: { GET: handler }, methodRoutes: { GET: {
+    operationId: "feed.read", auth: { required: true, permissions: [] } } } };
+  const context = (path: string) => service.resolveAuthForRequest({ __bpTenantId: tenantId, __bpAppId: appId,
+    req: new Request("https://service.test" + path, { headers: { Accept: "text/event-stream" } }) }, route);
+  assert.equal(context("/feed/__sse").permissionServiceId, owner);
+  assert.equal(context("/feed/__sse/").permissionServiceId, owner);
+  assert.equal(context("/unrelated/__sse").permissionServiceId, null);
+  assert.equal(context("/feed/not-a-stream").permissionServiceId, null);
 });
