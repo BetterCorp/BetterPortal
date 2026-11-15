@@ -187,7 +187,7 @@ are separate from runtime app lookup.
 the registered operation against enabled inbound app mounts. Pass the matched
 registered path to `allows` for a view with path variants. GET fragment selectors
 and slot mounts are supported; `appRoutes`/`appFragments` are catalogs, not inbound
-allowlists. `permission_aliases()` restricts role aliases to enabled local service
+allowlists. `permission_aliases()` identifies enabled local service
 instances referenced by this app; pass the route and method to resolve its local owning operation. `Service` keeps that baseline owner separate from `additional_permission_aliases()`, which includes other enabled app-mounted services for authored requirements. Machine and delegated audiences must match the owning normal route or fragment. Hosts must still run caller authorization and
 representation selection. Well-known routes use their own declared auth policy.
 

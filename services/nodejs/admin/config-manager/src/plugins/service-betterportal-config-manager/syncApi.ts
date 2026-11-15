@@ -588,7 +588,7 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
   });
 
   const resolveFragments = (locations: ScopedServiceConfig["apps"][number]["fragments"]) => Object.fromEntries(
-    Object.entries(locations).map(([location, fragments]) => [location, fragments.map(fragment => {
+    Object.entries(locations ?? {}).map(([location, fragments]) => [location, fragments.map(fragment => {
       const unresolved = { ...fragment, resolvedPolicy: undefined };
       const cached = manifestCache.get(fragment.serviceId) ?? manifestCache.get(serviceManifestKeys.get(fragment.serviceId) ?? "");
       if (!fragment.enabled || !cached) return unresolved;
