@@ -249,7 +249,7 @@ export function getManifestCache(): ReadonlyMap<string, CachedManifest> {
 export function hydrateManifestCache(config: ServiceRegistryContext & Pick<BetterPortalConfig, "manifestCache">): void {
   manifestCache.clear();
   for (const stored of config.manifestCache ?? []) {
-    const manifest = normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0]);
+    const manifest = normalizeManifest({ ...stored, serviceId: getServicePluginId(config, stored.serviceId) ?? stored.serviceId } as unknown as Parameters<typeof normalizeManifest>[0]);
     cacheManifest(stored.serviceId, manifest);
     for (const tenant of config.tenants) {
       for (const service of tenant.services.filter((candidate) =>
@@ -282,7 +282,7 @@ export function getCachedManifestForService(
     // Keep the fast path only when it describes this committed snapshot.
     if (hot && (!stored || (hot.fetchedAt === Date.parse(stored.fetchedAt) && hot.manifestVersion === stored.manifestVersion))) return hot;
     return stored
-      ? normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0])
+      ? normalizeManifest({ ...stored, serviceId: getServicePluginId(config, stored.serviceId) ?? stored.serviceId } as unknown as Parameters<typeof normalizeManifest>[0])
       : cache.get(key);
   };
   const keys = [serviceInstanceId];

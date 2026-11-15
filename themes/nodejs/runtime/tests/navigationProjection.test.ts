@@ -303,7 +303,7 @@ test("committed projections repair main-content links without duplicate request 
   const { page, errors } = await shell(t, route => {
     if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") {
       if (++projections === 1) { delayed = route; return Promise.resolve(); }
-      return route.fulfill({ contentType: "application/json", body: JSON.stringify(projection) });
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ...projection, desktop: `<span id="projection-${projections}"></span>` }) });
     }
     if (new URL(route.request().url()).pathname === "/reports") {
       reportRequests++; return html(route, '<p id="report-ready">Report</p>');
@@ -315,7 +315,7 @@ test("committed projections repair main-content links without duplicate request 
   await delayed.fulfill({ contentType: "application/json", body: JSON.stringify(projection) });
   await page.waitForFunction(() => !document.querySelector("#waiting-link")?.hasAttribute("data-bp-route-error") && document.querySelector("#waiting-link")?.getAttribute("hx-get") === "https://service.test/reports");
   await page.evaluate(() => document.body.dispatchEvent(new CustomEvent("bp:menu-changed")));
-  for (let attempt = 0; projections < 2 && attempt < 30; attempt++) await page.waitForTimeout(10);
+  await page.waitForSelector("#projection-2", { state: "attached" });
   assert.equal(projections, 2);
   await page.locator("#waiting-link").click();
   await page.waitForSelector("#report-ready");
@@ -350,5 +350,33 @@ test("token renewal replaces an obsolete pending initial page request", async t 
   assert.deepEqual(tokens, ["Bearer initial", "Bearer renewed"]);
   assert.equal(await page.locator("#obsolete-initial").count(), 0);
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("bp.headers") || "{}").authorization.value), "Bearer renewed");
+  assert.deepEqual(errors, []);
+});
+
+
+test("a superseded initial request cannot replace the new account page with a network error", async t => {
+  let initial: Route | undefined;
+  let requests = 0;
+  const { page, errors } = await shell(t, route => {
+    const authorization = route.request().headers().authorization;
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") {
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, principal: authorization,
+        routes: [{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }],
+        desktop: '<span id="network-menu">Ready</span>', mobile: '' }) });
+    }
+    if (++requests === 1) { initial = route; return Promise.resolve(); }
+    return html(route, '<p id="current-account-page">Current</p>');
+  }, { authorization: { value: "Bearer first", owner: "auth", scope: null } }, "https://service.test/dashboard", "/tools/dashboard", true);
+  await page.waitForSelector("#network-menu");
+  assert.ok(initial);
+  await page.evaluate(() => {
+    localStorage.setItem("bp.headers", JSON.stringify({ authorization: { value: "Bearer second", owner: "auth", scope: null } }));
+    window.dispatchEvent(new StorageEvent("storage", { key: "bp.headers" }));
+  });
+  await page.waitForSelector("#current-account-page");
+  await initial.abort("failed");
+  await page.waitForTimeout(100);
+  assert.equal(await page.locator("#current-account-page").count(), 1);
+  assert.doesNotMatch(await page.locator("#bp-main").innerText(), /Connection Error/);
   assert.deepEqual(errors, []);
 });

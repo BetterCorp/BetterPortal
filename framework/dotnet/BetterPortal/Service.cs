@@ -85,7 +85,8 @@ public sealed partial class Service : IAsyncDisposable
             ? ((string)management["adminTenantId"]!, (string)management["managementAppId"]!) : null;
         var permissionAliases = access.PermissionAliases(route, method, matchedPath, fragment);
         var owner = (string?)((Node)config.GetValueOrDefault("serviceIdentity", new Node())!).GetValueOrDefault("id");
-        if (owner is not null && !(matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal) && !permissionAliases.ContainsKey(owner))
+        var wellKnown = (matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal);
+        if (owner is not null && !wellKnown && !permissionAliases.ContainsKey(owner))
         {
             var activations = ((List<object?>)scope.Tenant["services"]!).Cast<Node>()
                 .Where(service => Equals(service.GetValueOrDefault("sharedServiceId"), owner) && permissionAliases.ContainsKey((string)service["id"]!))
@@ -93,9 +94,9 @@ public sealed partial class Service : IAsyncDisposable
             if (activations.Length != 1) throw new RequestException(404, "Route not found", responseHeaders, scope);
             owner = activations[0];
         }
-        if (owner is null && (matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal) && current.Snapshot.LocalServiceIds.Count == 1)
+        if (owner is null && wellKnown && current.Snapshot.LocalServiceIds.Count == 1)
             owner = current.Snapshot.LocalServiceIds.Single();
-        if (owner is null && permissionAliases.Count == 1) owner = permissionAliases.Keys.Single();
+        if (owner is null && !wellKnown && permissionAliases.Count == 1) owner = permissionAliases.Keys.Single();
         var auth = new AuthContext(scope.TenantId, scope.AppId, appAuth, client is null ? null : client.ResolveAsync,
             (Node?)config.GetValueOrDefault("m2m"), access.AdditionalPermissionAliases(), root);
         try

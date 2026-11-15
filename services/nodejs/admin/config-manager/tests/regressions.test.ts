@@ -585,7 +585,7 @@ test("duplicate route keys follow runtime route matching", () => {
 });
 
 test("baseline permissions derive exact dependencies with empty additional requirements", () => {
-  const { sourceId, targetId } = s2sConfig();
+  const { config, sourceId, targetId } = s2sConfig();
   const operation = (operationId: string, dependencies: CachedManifest["viewIndex"][string]["operations"][number]["dependencies"], permissions: CachedManifest["viewIndex"][string]["operations"][number]["permissions"]) => ({
     operationId,
     method: "GET" as const,
@@ -636,6 +636,18 @@ test("baseline permissions derive exact dependencies with empty additional requi
   assert.equal(auth.roles[0].permissions.length, 1);
   assert.deepEqual(result.auth.roles[0].permissions[1], { serviceId: targetId, viewId: "target.view", permissions: ["read"] });
   assert.equal(result.auth.roles[1].permissions.length, 1);
+  config.manifestCache = BetterPortalConfigSchema.parse({ manifestCache: [...manifests].map(([id, item]) => ({
+    ...item, serviceId: id, fetchedAt: new Date(item.fetchedAt).toISOString()
+  })) }).manifestCache;
+  hydrateManifestCache(config);
+  try {
+    const hydrated = deriveRolePermissions(auth, routes, id => getCachedManifestForService(config, id));
+    const cold = deriveRolePermissions(auth, routes, id => getCachedManifestForService(config, id, new Map()));
+    assert.deepEqual(hydrated, result, "restart hydration retains authored plugin dependencies");
+    assert.deepEqual(cold, result, "cold persisted-cache reads retain plugin identity");
+    assert.deepEqual(config.manifestCache.map(item => item.serviceId), [sourceId, targetId], "persisted cache keys remain instance IDs");
+  } finally { getManifestCache().clear(); }
+
   manifests.get(sourceId)!.viewIndex["source.view"].operations[0].authRequired = false;
   assert.deepEqual(deriveRolePermissions(auth, routes, id => manifests.get(id)).derived, [], "a public route must not grant protected dependencies to every role");
   assert.deepEqual(result.derived[0]?.requiredBy, [{ serviceId: sourceId, operationId: "source.read", method: "GET" }]);

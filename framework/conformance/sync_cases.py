@@ -215,6 +215,7 @@ def run_sync(urls, labels):
                     for theme in ("bootstrap5", "other") for kind in ("page", "fragment")]
                 source["routes"][0]["operations"][0]["declaration"].update(dependencies=[{"operationId": "items.write", "method": "POST"}],
                     robots=[{"userAgent": "*", "access": "disallow"}], chrome={"hideMenu": True})
+                source["routes"][0]["operations"][1]["declaration"]["auth"] = {"required": True, "permissions": [], "callers": ["user", "service", "delegated"], "elevation": {"minimum": "mfa", "maxAgeSeconds": 120}}
                 source["routes"][0]["operations"][1].update(raw=True)
                 source["routes"][0]["operations"][1]["declaration"]["apiContracts"] = [{"id": "write", "version": "1.0.0", "title": "Write"}]
                 source["declaration"].update(shell={"service": "example", "renderer": "bootstrap5"},
@@ -228,6 +229,8 @@ def run_sync(urls, labels):
                 assert view["pathVariants"] == ["/items/:key", "/items"] and len(view["fragments"]) == 1, value
                 assert view["fragments"][0] == {"fragmentId": "nav.profile", "targetPath": "/items/:key", "operationId": "items.read", "method": "GET"}, value
                 assert read["renderers"] == ["bootstrap5", "other"] and read["renderModes"] == ["page", "fragment"] and not read["authRequired"], value
+                assert write["auth"] == source["routes"][0]["operations"][1]["declaration"]["auth"], value
+                assert read["auth"]["required"] == read["authRequired"] and read["auth"]["permissions"] == read["permissions"], value
                 assert write["authRequired"] and write["raw"] and write["schemas"]["response"] == {} and "metadataResponse" in write["schemas"], value
                 assert len(value["apiContracts"]) == len(value["configSchemas"]) == len(value["m2mRequests"]) == len(value["webhooks"]) == len(value["developerResources"]) == 1, value
                 assert value["shell"]["renderer"] == "bootstrap5" and value["authProvider"]["audience"] == "app", value

@@ -395,6 +395,12 @@ def run_hosting(urls, labels):
                 value["snapshot"]["m2m"] = {"localServiceIds": [TARGET, SOURCE] if ambiguous else [TARGET], "services": [], "bindings": [], "grants": []}
             auth_case("well-known-unique-local-owner", local_well_known, native=True)
             auth_case("well-known-ambiguous-local-owner", lambda value: local_well_known(value, True), 403, native=True)
+            def well_known_single_alias(value):
+                mount = deepcopy(mounted(value))
+                local_well_known(value, True)
+                value["snapshot"]["m2m"]["localServiceIds"] = [TARGET, BINDING]
+                app(value)["routes"] = [mount]
+            auth_case("well-known-ambiguous-owner-single-app-alias", well_known_single_alias, 403, native=True)
 
             auth_case("well-known-missing-credential", lambda value: (service_api(value), value["request"]["headers"].pop("authorization")), 401)
             auth_case("well-known-wrong-scope", lambda value: (service_api(value), value["request"]["headers"].update(authorization="Bearer " + wrong_scope)), 401)

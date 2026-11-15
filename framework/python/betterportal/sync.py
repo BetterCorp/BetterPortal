@@ -34,7 +34,7 @@ def build_submission(manifest: PluginManifest, *, key_pair: KeyPair | None = Non
             renderers = operation["html"]["renderers"]
             item = {key: operation[key] for key in ("operationId", "method", "title", "description", "robots", "dependencies", "renderable", "apiContracts", "demoScenarios")}
             item.update(renderers=list(renderers), renderModes=list(dict.fromkeys(mode for theme in renderers.values() for mode in theme["renderModes"])),
-                        authRequired=operation["auth"]["required"], permissions=operation["auth"]["permissions"],
+                        auth=operation["auth"], authRequired=operation["auth"]["required"], permissions=operation["auth"]["permissions"],
                         schemas={target: operation[source] for target, source in (("query", "querySchema"), ("headers", "headersSchema"),
                             ("request", "bodySchema"), ("response", "jsonResponseSchema"), ("metadataResponse", "metadataResponseSchema"))})
             item.update({key: operation[key] for key in ("role", "sitemap", "chrome", "menu", "raw") if key in operation})
