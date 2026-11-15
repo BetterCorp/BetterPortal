@@ -1,4 +1,4 @@
-import { createNavigationAccess, parseAcceptHeader, resolveRequestPermissionServiceId, type BetterPortalApp, type NavigationAccess } from "@betterportal/framework";
+import { createNavigationAccess, parseAcceptHeader, resolveRequestedRepresentation, resolveRequestPermissionServiceId, type BetterPortalApp, type NavigationAccess } from "@betterportal/framework";
 import { resolveThemeAuth } from "@betterportal/framework";
 import {
   BSBService,
@@ -1549,8 +1549,13 @@ export abstract class BPService<
     const activations = new Set(this.scopedConfig?.tenants?.find(tenant => tenant.id === tenantId)?.services
       .filter(service => service.enabled !== false && service.sharedServiceId === identityId).map(service => service.id) ?? []);
     const requestUrl = new URL(event.req.url);
-    const fragment = requestUrl.searchParams.get("_f") ?? parseAcceptHeader(event.req.headers.get("accept") ?? undefined)
-      .find(entry => entry.mediaType === "text/html" && entry.parameters.fragment)?.parameters.fragment;
+    const accept = event.req.headers.get("accept") ?? undefined;
+    let html = false;
+    try { html = resolveRequestedRepresentation(accept).kind === "html"; } catch { /* Invalid representations are rejected by negotiation. */ }
+    const fragment = html || route.sse && requestUrl.pathname.endsWith("/__sse")
+      ? requestUrl.searchParams.get("_f") ?? parseAcceptHeader(accept)
+        .find(entry => entry.mediaType === "text/html" && entry.parameters.fragment)?.parameters.fragment
+      : undefined;
     const permissionServiceId = resolveRequestPermissionServiceId(app, route, event.req.method,
       requestUrl.pathname, localIds, { identityId, activationIds: activations, fragment });
     return {

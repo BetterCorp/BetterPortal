@@ -107,14 +107,15 @@ test("shared hosts resolve only activations belonging to their trusted catalog i
   app.slots = [{ serviceId: other, viewId: "batches", enabled: true }];
   app.fragments = { nav: [{ serviceId: other, fragmentId: "badge", targetPath: "/a", enabled: true }] };
   assert.equal(context("/a").permissionServiceId, activation, "an alternate slot or fragment cannot obscure a selected page owner");
-  assert.equal(context("/a?_f=nav.badge").permissionServiceId, other);
+  assert.equal(context("/a?_f=nav.badge", "text/html").permissionServiceId, other);
   assert.equal(context("/a", "text/html; fragment=nav.badge").permissionServiceId, other);
-  assert.equal(context("/a?_f=nav.missing").permissionServiceId, activation, "a page may render its own unmounted fragment");
+  assert.equal(context("/a?_f=nav.badge").permissionServiceId, activation, "JSON requests retain the page owner");
+  assert.equal(context("/a?_f=nav.missing", "text/html").permissionServiceId, activation, "a page may render its own unmounted fragment");
   app.routes[1].targetPath = "/a";
   assert.equal(context("/a").permissionServiceId, null, "two matching activations remain ambiguous");
   app.routes = [];
   assert.equal(context("/a").permissionServiceId, other, "slots are considered when no selected page owner exists");
   app.slots = [];
   assert.equal(context("/a").permissionServiceId, null, "fragment bindings require an explicit fragment request");
-  assert.equal(context("/a?_f=nav.badge").permissionServiceId, other);
+  assert.equal(context("/a?_f=nav.badge", "text/html").permissionServiceId, other);
 });

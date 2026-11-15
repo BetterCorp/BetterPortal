@@ -405,6 +405,10 @@ def run_hosting(urls, labels):
             def shared_fragment(value, grant=False):
                 shared_alternate(value, "fragment")
                 value["request"]["path"] = "/check/item?_f=nav.badge"
+                value["request"]["headers"]["accept"] = "text/html"
+                app(value)["shell"] = {"serviceId": SOURCE, "service": "bootstrap1", "renderer": "bootstrap5"}
+                value["routes"][0]["operations"][0]["renderers"] = [{"declaration": {"renderer": "bootstrap5", "kind": "fragment", "key": "nav.badge"},
+                    "text": json.dumps({"caller": "user", "user": "user-1"})}]
                 if grant:
                     app(value)["auth"]["roles"][0]["permissions"][0]["serviceId"] = SOURCE
             auth_case("shared-explicit-fragment-requires-owner", shared_fragment, 403, native=True)
