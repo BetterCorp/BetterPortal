@@ -258,6 +258,12 @@ export const BetterPortalSlotAssignmentSchema = av.object({
 export type BetterPortalSlotAssignment = Infer<typeof BetterPortalSlotAssignmentSchema>;
 
 export const BetterPortalFragmentAssignmentSchema = av.object({
+  /** Manifest-derived GET policy for server-side fragment navigation; never emit to browsers. */
+  resolvedPolicy: av.optional(av.object({
+    viewId: NonEmptyStringSchema,
+    operationId: NonEmptyStringSchema,
+    auth: ApiAuthRequirementSchema
+  })),
   serviceId: UuidV7Schema,
   fragmentId: NonEmptyStringSchema,
   targetPath: NonEmptyStringSchema,

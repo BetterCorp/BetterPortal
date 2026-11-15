@@ -354,10 +354,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           serviceId: route.serviceId, active: route.path === currentPath }];
       });
     for (const fragment of context.app.fragments.embedded ?? []) {
-      if (!fragment.enabled) continue;
-      const mounted = context.app.routes.find((route: BetterPortalRouteMount) => route.serviceId === fragment.serviceId
-        && (route.resolvedServicePath ?? route.targetPath) === fragment.targetPath && access.canAccess(route));
-      if (!mounted) continue;
+      if (!access.canAccessFragment(fragment)) continue;
       const binding = resolveServiceForTenant(portalConfig, fragment.serviceId, context);
       if (!binding) continue;
       const target = resolveSafeServiceTarget(binding.service, fragment.targetPath, origin);

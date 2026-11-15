@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 1f5791e270c923d7a9fe3d3a109a0ffbef48cc93026eff77de1431ad95ce7d23
+// Generated from AnyVali documents; do not edit. SHA256: 650443d8e05ee7a13dd3fe49ceeb9950ba78d68a1e9c8579264123b6ac0aa015
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -937,6 +937,9 @@ public sealed record BetterPortalConfigWebhooks
 
 public sealed record BetterPortalFragmentAssignment
 {
+    [JsonPropertyName("resolvedPolicy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<BetterPortalFragmentAssignmentResolvedPolicy> ResolvedPolicy { get; init; }
     [JsonPropertyName("serviceId")]
     public required string ServiceId { get; init; }
     [JsonPropertyName("fragmentId")]
@@ -949,6 +952,9 @@ public sealed record BetterPortalFragmentAssignment
 
 public sealed record BetterPortalFragmentAssignmentInput
 {
+    [JsonPropertyName("resolvedPolicy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<BetterPortalFragmentAssignmentInputResolvedPolicy> ResolvedPolicy { get; init; }
     [JsonPropertyName("serviceId")]
     public required string ServiceId { get; init; }
     [JsonPropertyName("fragmentId")]
@@ -958,6 +964,26 @@ public sealed record BetterPortalFragmentAssignmentInput
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Enabled { get; init; }
+}
+
+public sealed record BetterPortalFragmentAssignmentInputResolvedPolicy
+{
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("auth")]
+    public required ApiAuthRequirementInput Auth { get; init; }
+}
+
+public sealed record BetterPortalFragmentAssignmentResolvedPolicy
+{
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("auth")]
+    public required ApiAuthRequirement Auth { get; init; }
 }
 
 public sealed record BetterPortalLock
@@ -7754,7 +7780,7 @@ public sealed record ScopedApp
     [JsonPropertyName("slots")]
     public required IReadOnlyList<ScopedAppSlotsItem> Slots { get; init; }
     [JsonPropertyName("fragments")]
-    public required IReadOnlyDictionary<string, IReadOnlyList<BetterPortalFragmentAssignment>> Fragments { get; init; }
+    public required IReadOnlyDictionary<string, IReadOnlyList<ScopedAppFragmentsItemItem>> Fragments { get; init; }
     [JsonPropertyName("shellFragments")]
     public required IReadOnlyDictionary<string, IReadOnlyDictionary<string, BetterPortalShellFragmentSetting>> ShellFragments { get; init; }
     [JsonPropertyName("auth")]
@@ -7851,6 +7877,31 @@ public sealed record ScopedAppAuthRolesItem
     public required IReadOnlyList<AppAuthPermissionGrant> Permissions { get; init; }
 }
 
+public sealed record ScopedAppFragmentsItemItem
+{
+    [JsonPropertyName("resolvedPolicy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedAppFragmentsItemItemResolvedPolicy> ResolvedPolicy { get; init; }
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("fragmentId")]
+    public required string FragmentId { get; init; }
+    [JsonPropertyName("targetPath")]
+    public required string TargetPath { get; init; }
+    [JsonPropertyName("enabled")]
+    public required bool Enabled { get; init; }
+}
+
+public sealed record ScopedAppFragmentsItemItemResolvedPolicy
+{
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("auth")]
+    public required ScopedAppRoutesItemResolvedAuthItemAuth Auth { get; init; }
+}
+
 public sealed record ScopedAppInput
 {
     [JsonPropertyName("id")]
@@ -7889,7 +7940,7 @@ public sealed record ScopedAppInput
     public Optional<IReadOnlyList<ScopedAppInputSlotsItem>> Slots { get; init; }
     [JsonPropertyName("fragments")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, IReadOnlyList<BetterPortalFragmentAssignmentInput>>> Fragments { get; init; }
+    public Optional<IReadOnlyDictionary<string, IReadOnlyList<ScopedAppInputFragmentsItemItem>>> Fragments { get; init; }
     [JsonPropertyName("shellFragments")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, IReadOnlyDictionary<string, BetterPortalShellFragmentSettingInput>>> ShellFragments { get; init; }
@@ -7989,6 +8040,32 @@ public sealed record ScopedAppInputAuthRolesItem
     [JsonPropertyName("permissions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<AppAuthPermissionGrantInput>> Permissions { get; init; }
+}
+
+public sealed record ScopedAppInputFragmentsItemItem
+{
+    [JsonPropertyName("resolvedPolicy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedAppInputFragmentsItemItemResolvedPolicy> ResolvedPolicy { get; init; }
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("fragmentId")]
+    public required string FragmentId { get; init; }
+    [JsonPropertyName("targetPath")]
+    public required string TargetPath { get; init; }
+    [JsonPropertyName("enabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Enabled { get; init; }
+}
+
+public sealed record ScopedAppInputFragmentsItemItemResolvedPolicy
+{
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("auth")]
+    public required ScopedAppInputRoutesItemResolvedAuthItemAuth Auth { get; init; }
 }
 
 public sealed record ScopedAppInputMenuItem

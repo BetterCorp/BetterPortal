@@ -783,7 +783,7 @@ export abstract class BPService<
         user = await this.getJwtVerifier(app.tenantId, app.id)?.verify(bearer.slice(7), { tenantId: app.tenantId, appId: app.id });
       } catch { /* Invalid, expired or unavailable credentials yield the anonymous projection. */ }
     }
-    if (snapshot !== this.scopedConfig) return { status: "unknown", permissions: [], canAccess: () => false };
+    if (snapshot !== this.scopedConfig) return { status: "unknown", permissions: [], canAccess: () => false, canAccessFragment: () => false };
     return createNavigationAccess(app, user, this.getServiceIdAliases(app.tenantId), {
       tenantId: this.scopedConfig?.configManagement?.adminTenantId,
       appId: this.scopedConfig?.configManagement?.managementAppId

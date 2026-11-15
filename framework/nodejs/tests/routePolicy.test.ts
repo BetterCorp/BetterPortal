@@ -103,3 +103,20 @@ test("hosting binding identity keeps same-plugin grants scoped to the owning ins
   assert.equal(hasRoutePermissions(claims, effective, appAuth([{ ...baseline, serviceId: "org.example.batches" }]), aliases), false,
     "a plugin-wide grant cannot satisfy the concrete baseline even in an unparsed custom host context");
 });
+
+test("fragment-only navigation evaluates its own synced GET policy", () => {
+  const app = { id: appId, tenantId, auth: appAuth([baseline]) } as BetterPortalApp;
+  const fragment = { serviceId, fragmentId: "card", targetPath: "/batches", enabled: true,
+    resolvedPolicy: { viewId: "batches", operationId: "batches.read", auth } };
+  assert.equal(createNavigationAccess(app, claims).canAccessFragment(fragment), true);
+  assert.equal(createNavigationAccess(app, undefined).canAccessFragment(fragment), false);
+  assert.equal(createNavigationAccess(app, claims).canAccessFragment({ ...fragment, resolvedPolicy: undefined }), false);
+  assert.equal(createNavigationAccess(app, claims).canAccessFragment({ ...fragment, enabled: false }), false);
+  assert.equal(createNavigationAccess(app, claims).canAccessFragment({ ...fragment, serviceId: uuidv7() }), false);
+  assert.equal(createNavigationAccess(app, claims).canAccessFragment({ ...fragment,
+    resolvedPolicy: { ...fragment.resolvedPolicy, auth: { required: false, permissions: [], callers: ["service"] } } }), false);
+  assert.equal(createNavigationAccess(app, undefined).canAccessFragment({ ...fragment,
+    resolvedPolicy: { ...fragment.resolvedPolicy, auth: { required: false, permissions: [] } } }), true);
+  app.auth = appAuth([]);
+  assert.equal(createNavigationAccess(app, claims).canAccessFragment(fragment), false);
+});

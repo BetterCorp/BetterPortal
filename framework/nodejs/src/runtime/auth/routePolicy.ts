@@ -6,7 +6,7 @@ import { routeMountServicePath } from "../configProvider.js";
 import type { ApiAuthRequirement } from "../../contracts/route.js";
 import type { AppAuthConfig, AppAuthPermissionAction, JwtClaims } from "../../contracts/auth.js";
 import type { HttpMethod } from "../../contracts/common.js";
-import type { BetterPortalApp, BetterPortalRouteMount } from "../../contracts/platformConfig.js";
+import type { BetterPortalApp, BetterPortalFragmentAssignment, BetterPortalRouteMount } from "../../contracts/platformConfig.js";
 
 /** Baseline action of an HTTP operation. CORS preflight is handled before authorization. */
 export function routePermissionAction(method: HttpMethod): AppAuthPermissionAction {
@@ -43,6 +43,7 @@ export function hasRoutePermissions(
 export interface NavigationAccess extends ThemeAuthContext {
   readonly user?: JwtClaims;
   canAccess(route: BetterPortalRouteMount, method?: HttpMethod): boolean;
+  canAccessFragment(fragment: BetterPortalFragmentAssignment): boolean;
 }
 
 /** Build a per-request projection evaluator. Only pass claims verified for this app and tenant. */
@@ -51,6 +52,11 @@ export function createNavigationAccess(
   root?: { tenantId?: string; appId?: string }
 ): NavigationAccess {
   const scopedUser = user?.tenantId === app.tenantId && user?.appId === app.id ? user : undefined;
+  const canUse = (requirement: ApiAuthRequirement, serviceId: string, viewId: string, method: HttpMethod) => {
+    if (!(requirement.callers ?? ["user"]).includes("user")) return false;
+    const auth = effectiveRouteAuth(requirement, serviceId, viewId, method);
+    return !auth.required || Boolean(scopedUser && hasRoutePermissions(scopedUser, auth, app.auth, aliases, root));
+  };
   return {
     status: scopedUser ? "authenticated" : "anonymous",
     permissions: (app.auth?.roles ?? []).filter(role => scopedUser?.roles.includes(role.id)).flatMap(role => role.permissions),
@@ -59,10 +65,11 @@ export function createNavigationAccess(
       if (!route.enabled) return false;
       const operation = route.resolvedAuth?.find(item => item.method === method && route.operations.includes(item.operationId));
       // A route without a synced policy must not be disclosed as public.
-      if (!operation || !(operation.auth.callers ?? ["user"]).includes("user")) return false;
-      const auth = effectiveRouteAuth(operation.auth, route.serviceId, route.viewId, method);
-      if (!auth.required) return true;
-      return Boolean(scopedUser && hasRoutePermissions(scopedUser, auth, app.auth, aliases, root));
+      return Boolean(operation && canUse(operation.auth, route.serviceId, route.viewId, method));
+    },
+    canAccessFragment(fragment) {
+      const policy = fragment.resolvedPolicy;
+      return Boolean(fragment.enabled && policy && canUse(policy.auth, fragment.serviceId, policy.viewId, "GET"));
     }
   };
 }

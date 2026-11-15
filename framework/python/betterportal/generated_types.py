@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: e231f45b8dfb9a3095417d0879c256b8a6a4f90a014ae1b32c952da65388989a
+# Generated from AnyVali documents; do not edit. SHA256: ec6b77bbfdee7041959d8aa8935487cb73838d0295dcd568372e18a5665485e1
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -406,6 +406,7 @@ BetterPortalConfigWebhooks = TypedDict('BetterPortalConfigWebhooks', {
 })
 
 BetterPortalFragmentAssignment = TypedDict('BetterPortalFragmentAssignment', {
+    'resolvedPolicy': NotRequired['BetterPortalFragmentAssignmentResolvedpolicy'],
     'serviceId': Required['str'],
     'fragmentId': Required['str'],
     'targetPath': Required['str'],
@@ -413,10 +414,23 @@ BetterPortalFragmentAssignment = TypedDict('BetterPortalFragmentAssignment', {
 })
 
 BetterPortalFragmentAssignmentInput = TypedDict('BetterPortalFragmentAssignmentInput', {
+    'resolvedPolicy': NotRequired['BetterPortalFragmentAssignmentInputResolvedpolicy'],
     'serviceId': Required['str'],
     'fragmentId': Required['str'],
     'targetPath': Required['str'],
     'enabled': NotRequired['bool'],
+})
+
+BetterPortalFragmentAssignmentInputResolvedpolicy = TypedDict('BetterPortalFragmentAssignmentInputResolvedpolicy', {
+    'viewId': Required['str'],
+    'operationId': Required['str'],
+    'auth': Required['ApiAuthRequirementInput'],
+})
+
+BetterPortalFragmentAssignmentResolvedpolicy = TypedDict('BetterPortalFragmentAssignmentResolvedpolicy', {
+    'viewId': Required['str'],
+    'operationId': Required['str'],
+    'auth': Required['ApiAuthRequirement'],
 })
 
 BetterPortalJsonValue: TypeAlias = 'Union[None, bool, str, float, list[JsonValue], JsonObject]'
@@ -3033,7 +3047,7 @@ ScopedApp = TypedDict('ScopedApp', {
     'routes': Required['list[ScopedAppRoutesItem]'],
     'menu': Required['list[ScopedAppMenuItem]'],
     'slots': Required['list[ScopedAppSlotsItem]'],
-    'fragments': Required['dict[str, list[BetterPortalFragmentAssignment]]'],
+    'fragments': Required['dict[str, list[ScopedAppFragmentsItemItem]]'],
     'shellFragments': Required['dict[str, dict[str, BetterPortalShellFragmentSetting]]'],
     'auth': NotRequired['ScopedAppAuth'],
     'managementAuthServiceOrigins': NotRequired['dict[str, str]'],
@@ -3078,6 +3092,20 @@ ScopedAppAuthRolesItem = TypedDict('ScopedAppAuthRolesItem', {
     'permissions': Required['list[AppAuthPermissionGrant]'],
 })
 
+ScopedAppFragmentsItemItem = TypedDict('ScopedAppFragmentsItemItem', {
+    'resolvedPolicy': NotRequired['ScopedAppFragmentsItemItemResolvedpolicy'],
+    'serviceId': Required['str'],
+    'fragmentId': Required['str'],
+    'targetPath': Required['str'],
+    'enabled': Required['bool'],
+})
+
+ScopedAppFragmentsItemItemResolvedpolicy = TypedDict('ScopedAppFragmentsItemItemResolvedpolicy', {
+    'viewId': Required['str'],
+    'operationId': Required['str'],
+    'auth': Required['ScopedAppRoutesItemResolvedauthItemAuth'],
+})
+
 ScopedAppInput = TypedDict('ScopedAppInput', {
     'id': Required['str'],
     'tenantId': Required['str'],
@@ -3092,7 +3120,7 @@ ScopedAppInput = TypedDict('ScopedAppInput', {
     'routes': NotRequired['list[ScopedAppInputRoutesItem]'],
     'menu': NotRequired['list[ScopedAppInputMenuItem]'],
     'slots': NotRequired['list[ScopedAppInputSlotsItem]'],
-    'fragments': NotRequired['dict[str, list[BetterPortalFragmentAssignmentInput]]'],
+    'fragments': NotRequired['dict[str, list[ScopedAppInputFragmentsItemItem]]'],
     'shellFragments': NotRequired['dict[str, dict[str, BetterPortalShellFragmentSettingInput]]'],
     'auth': NotRequired['ScopedAppInputAuth'],
     'managementAuthServiceOrigins': NotRequired['dict[str, str]'],
@@ -3135,6 +3163,20 @@ ScopedAppInputAuthRolesItem = TypedDict('ScopedAppInputAuthRolesItem', {
     'title': Required['str'],
     'description': NotRequired['str'],
     'permissions': NotRequired['list[AppAuthPermissionGrantInput]'],
+})
+
+ScopedAppInputFragmentsItemItem = TypedDict('ScopedAppInputFragmentsItemItem', {
+    'resolvedPolicy': NotRequired['ScopedAppInputFragmentsItemItemResolvedpolicy'],
+    'serviceId': Required['str'],
+    'fragmentId': Required['str'],
+    'targetPath': Required['str'],
+    'enabled': NotRequired['bool'],
+})
+
+ScopedAppInputFragmentsItemItemResolvedpolicy = TypedDict('ScopedAppInputFragmentsItemItemResolvedpolicy', {
+    'viewId': Required['str'],
+    'operationId': Required['str'],
+    'auth': Required['ScopedAppInputRoutesItemResolvedauthItemAuth'],
 })
 
 ScopedAppInputMenuItem = TypedDict('ScopedAppInputMenuItem', {

@@ -587,11 +587,56 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
     };
   });
 
+  const resolveFragments = (locations: ScopedServiceConfig["apps"][number]["fragments"]) => Object.fromEntries(
+    Object.entries(locations).map(([location, fragments]) => [location, fragments.map(fragment => {
+      const unresolved = { ...fragment, resolvedPolicy: undefined };
+      const cached = manifestCache.get(fragment.serviceId) ?? manifestCache.get(serviceManifestKeys.get(fragment.serviceId) ?? "");
+      if (!fragment.enabled || !cached) return unresolved;
+      const keys = new Set([fragment.fragmentId, `${location}.${fragment.fragmentId}`]);
+      const parts = (value: string) => {
+        const segments = value.split(/[?#]/, 1)[0].split("/");
+        while (segments.length > 1 && segments[segments.length - 1] === "") segments.pop();
+        return segments;
+      };
+      const matches = (template: string): boolean => {
+        const pattern = parts(template), actual = parts(fragment.targetPath);
+        return pattern.length === actual.length && pattern.every((part, index) => {
+          if (part.startsWith(":") || /^\{[^}]+\}$/.test(part)) return Boolean(actual[index]);
+          try { return decodeURIComponent(part) === decodeURIComponent(actual[index]); } catch { return false; }
+        });
+      };
+      const specificity = (template: string) => parts(template)
+        .map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 0 : 1);
+      const compare = (left: number[], right: number[]) => {
+        for (let index = 0; index < Math.max(left.length, right.length); index++) {
+          const difference = (left[index] ?? 0) - (right[index] ?? 0);
+          if (difference) return difference;
+        }
+        return 0;
+      };
+      const views = Object.values(cached.viewIndex).filter(view => view.operations.some(operation => operation.method === "GET"))
+        .flatMap(view => [view.path, ...(view.pathVariants ?? [])]
+        .filter(matches).map(path => ({ view, rank: specificity(path) })));
+      views.sort((left, right) => compare(right.rank, left.rank));
+      const best = views[0]?.rank;
+      const candidates = views.filter(candidate => best && compare(candidate.rank, best) === 0).flatMap(({ view }) => {
+        return (view.fragments ?? []).filter(item => item.method === "GET" && keys.has(item.fragmentId)).flatMap(item => {
+          const operation = view.operations.find(candidate => candidate.operationId === item.operationId && candidate.method === "GET");
+          return operation?.auth ? [{ viewId: view.viewId, operationId: operation.operationId, auth: ApiAuthRequirementSchema.parse(operation.auth) }] : [];
+        });
+      });
+      const unique = [...new Map(candidates.map(policy => [JSON.stringify([policy.viewId, policy.operationId]), policy])).values()];
+      return unique.length === 1 ? { ...fragment, resolvedPolicy: unique[0] } : unresolved;
+    })])
+  );
+
   const apps = scoped.apps.map((app) => {
     const routes = resolveRoutes(app.routes);
     return {
       ...app,
       routes,
+      fragments: resolveFragments(app.fragments),
+      ...(app.appFragments ? { appFragments: resolveFragments(app.appFragments) } : {}),
       ...(app.appRoutes ? { appRoutes: resolveRoutes(app.appRoutes) } : {}),
       ...(app.auth ? {
         auth: deriveRolePermissions(
