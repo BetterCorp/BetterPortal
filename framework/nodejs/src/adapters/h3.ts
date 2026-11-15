@@ -408,8 +408,9 @@ async function prepareSseContext(
   }
 
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
-  const apiAuth = effectiveRouteAuth(operation.auth, requestPermissionOwner(authResolved, routerOptions), route.viewId, "GET");
-  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, "GET", obs, operation.auth.permissions ?? []);
+  const owner = requestPermissionOwner(authResolved, routerOptions);
+  const apiAuth = effectiveRouteAuth(operation.auth, owner, route.viewId, "GET");
+  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, "GET", owner, obs, operation.auth.permissions ?? []);
   if (authResult.error) {
     return coreJsonResponse(
       { error: authResult.error, status: authResult.status } as unknown as JsonValue,
@@ -1301,7 +1302,7 @@ async function handleRouteRequest(
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const owner = requestPermissionOwner(authResolved, routerOptions);
   const apiAuth = effectiveRouteAuth(methodRoute.auth, owner, route.viewId, method);
-  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs, methodRoute.auth.permissions ?? []);
+  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, owner, obs, methodRoute.auth.permissions ?? []);
   presentationAccess = (requirement, serviceId, viewId, method) => presentationRouteAccess(
     effectiveRouteAuth(requirement, serviceId, viewId, method), authResult.user, authResolved);
   if (authResult.error) {
@@ -1803,6 +1804,7 @@ async function resolveRequestAuth(
   authContext: H3AuthContext | undefined,
   route: RegisteredRoute,
   method: HttpMethod,
+  permissionServiceId: string,
   obs?: BetterPortalObservability,
   additionalPermissions: ApiAuthRequirement["permissions"] = apiAuth.permissions
 ): Promise<AuthResult> {
@@ -1868,8 +1870,7 @@ async function resolveRequestAuth(
         // The exact approved binding/view/method is the machine baseline.
         requiredPermissions: additionalPermissions.flatMap((requirement) => requirement.permissions)
       });
-      if (!route.path.startsWith("/.well-known/") && authContext.permissionServiceId !== undefined
-        && claims.aud !== authContext.permissionServiceId) {
+      if (!route.path.startsWith("/.well-known/") && claims.aud !== permissionServiceId) {
         return { status: 403, error: "Service access denied", code: "s2s.access_denied" };
       }
       return claims;

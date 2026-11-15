@@ -158,7 +158,7 @@ test("generated SSE streams require elevation before any handler effects", async
 
 test("machine audiences must match the trusted owning installation even on optional routes", async () => {
   let audience = uuidv7(), effects = 0;
-  let owner: string | null = serviceId;
+  let owner: string | null | undefined = serviceId;
   const source = uuidv7();
   const handler = () => { effects++; return { ok: true }; };
   const requirement = { required: false, callers: ["service"], permissions: [] };
@@ -182,4 +182,11 @@ test("machine audiences must match the trusted owning installation even on optio
   owner = null;
   assert.equal((await request()).status, 403);
   assert.equal(effects, 1);
+  owner = undefined;
+  audience = uuidv7();
+  assert.equal((await request()).status, 403);
+  assert.equal(effects, 1);
+  audience = serviceId;
+  assert.equal((await request()).status, 200);
+  assert.equal(effects, 2);
 });
