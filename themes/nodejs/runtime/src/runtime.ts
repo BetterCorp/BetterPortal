@@ -1261,6 +1261,7 @@ export function betterPortalShellRuntimeSource(): string {
         };
         configuredRoutes().forEach((route) => addRoute(route.href || "/", route.requestUrl || "", route.serviceId || "", route.kind, route.servicePath, route.methods, route.fixedParams, route.serviceBaseUrl));
         routeLinks().forEach((link) => {
+          if (shellRoot()?.hasAttribute("data-bp-navigation-url")) return;
           const href = link.getAttribute("href") || "/";
           const serviceId = link.getAttribute("data-bp-service") || "";
           if (routes.some(route => route.tenantPath === tenantRoutePath(href) && route.serviceId === serviceId)) return;
@@ -1374,7 +1375,93 @@ export function betterPortalShellRuntimeSource(): string {
         }
       };
 
+      let navigationPending: Promise<void> | null = null;
+      let navigationGeneration = 0;
+      let navigationHeaderState = "";
+      const refreshNavigation = (): Promise<void> => {
+        const root = shellRoot();
+        const endpoint = root?.getAttribute("data-bp-navigation-url");
+        if (!root || !endpoint) return Promise.resolve();
+        const generation = ++navigationGeneration;
+        const headerState = JSON.stringify(liveBpHeaders());
+        const changed = navigationHeaderState !== headerState;
+        navigationHeaderState = headerState;
+        if (changed) {
+          root.setAttribute("data-bp-routes", "[]");
+          for (const id of ["bp-nav-desktop", "bp-nav-mobile"]) document.getElementById(id)?.replaceChildren();
+        }
+        const navigationUrl = new URL(endpoint, window.location.origin);
+        // The theme verifies user access tokens too. Never forward refresh credentials or
+        // service-scoped headers, and never send a token to an arbitrary configured URL.
+        if (navigationUrl.origin !== window.location.origin || navigationUrl.pathname !== "/.well-known/bp/theme/navigation") return Promise.resolve();
+        const headers: Record<string, string> = { Accept: "application/json", "HX-Current-URL": window.location.href };
+        const authorization = liveBpHeaders().authorization;
+        const secure = navigationUrl.protocol === "https:" || (navigationUrl.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(navigationUrl.hostname));
+        if (secure && authorization && (!authorization.scope || authorization.scope === navigationUrl.origin)) headers.Authorization = authorization.value;
+        const pending = (async () => {
+          try {
+            const response = await fetch(endpoint, { headers, cache: "no-store", credentials: "omit", redirect: "error" });
+            if (!response.ok) throw new Error("Navigation unavailable");
+            const projection = await response.json();
+            if (generation !== navigationGeneration || headerState !== JSON.stringify(liveBpHeaders())) return;
+            if (!Array.isArray(projection.routes)) throw new Error("Invalid navigation projection");
+            root.setAttribute("data-bp-routes", JSON.stringify(projection.routes));
+            for (const [id, key] of [["bp-nav-desktop", "desktop"], ["bp-nav-mobile", "mobile"]]) {
+              const nav = document.getElementById(id);
+              if (!nav || typeof projection[key] !== "string") continue;
+              nav.innerHTML = projection[key];
+              htmx.process(nav);
+              initializeBpElements(nav);
+            }
+            setActiveRoute(window.location.pathname);
+            if (!hasLoaded() && !mainOutlet()?.getAttribute("hx-get")) {
+              const fallback = resolveRootFallback(window.location.pathname + window.location.search + window.location.hash);
+              const route = configuredRouteFor(window.location.pathname);
+              if (fallback || route?.requestUrl) {
+                // Schedule after this projection is committed, so parameterized routes use its map.
+                window.setTimeout(() => {
+                  if (generation === navigationGeneration && headerState === JSON.stringify(liveBpHeaders())) {
+                    triggerShellLink(fallback?.tenantUrl ?? window.location.pathname + window.location.search + window.location.hash, fallback?.requestUrl, true);
+                  }
+                }, 0);
+              } else if (!projection.authenticated && root.getAttribute("data-bp-login-url")) {
+                window.setTimeout(() => {
+                  if (generation === navigationGeneration && headerState === JSON.stringify(liveBpHeaders())) loadLoginIntoShell(root.getAttribute("data-bp-login-url") || "");
+                }, 0);
+              } else {
+                renderRouteError("Access denied", "This page is unavailable or you do not have permission to access it.", undefined, undefined);
+              }
+            }
+          } catch {
+            if (generation === navigationGeneration) {
+              root.setAttribute("data-bp-routes", "[]");
+              for (const id of ["bp-nav-desktop", "bp-nav-mobile"]) document.getElementById(id)?.replaceChildren();
+              if (!hasLoaded() && !mainOutlet()?.getAttribute("hx-get")) {
+                replaceMainWithError("Navigation unavailable", "Try again to load this page.", { kind: "navigation-retry", label: "Retry" }, window.location.pathname);
+              }
+              setLoading(false);
+            }
+          } finally {
+            if (generation === navigationGeneration) navigationPending = null;
+          }
+        })();
+        navigationPending = pending;
+        return pending;
+      };
+      document.body.addEventListener("bp:fragments-changed", () => { void refreshNavigation(); });
+      document.body.addEventListener("bp:menu-changed", () => { void refreshNavigation(); });
+      window.addEventListener("storage", event => {
+        if (event.key === BP_HEADERS_KEY) triggerBodyEvent("bp:fragments-changed");
+      });
+
       const triggerShellLink = (tenantUrl: string, serviceUrl?: string, replace = false) => {
+        if (navigationPending) {
+          const authState = JSON.stringify(liveBpHeaders());
+          void navigationPending.then(() => {
+            if (authState === JSON.stringify(liveBpHeaders())) triggerShellLink(tenantUrl, serviceUrl, replace);
+          });
+          return;
+        }
         try {
           const fallback = resolveRootFallback(tenantUrl);
           const resolved = fallback?.tenantUrl ?? navigationUrl(tenantUrl);
@@ -1384,6 +1471,10 @@ export function betterPortalShellRuntimeSource(): string {
           tenantUrl = destination.pathname + destination.search + destination.hash;
         } catch { return; }
         serviceUrl ??= serviceUrlForTenantUrl(tenantUrl);
+        if (shellRoot()?.hasAttribute("data-bp-navigation-url") && new URL(serviceUrl, window.location.origin).origin === window.location.origin) {
+          renderRouteError("Access denied", "This page is unavailable or you do not have permission to access it.", undefined, undefined);
+          return;
+        }
         const link = document.createElement("a");
         link.href = tenantUrl;
         link.setAttribute("hx-get", serviceUrl);
@@ -1419,6 +1510,7 @@ export function betterPortalShellRuntimeSource(): string {
         const isSafeRootRoute = (route: ConfiguredRoute) => {
           if (!route.href || !route.requestUrl || !isGetPageRoute(route) || authServiceIds.has(route.serviceId)) return false;
           const matchingRoutes = routes.filter(candidate => tenantRoutePath(candidate.href || "/") === tenantRoutePath(route.href!));
+          if (shellRoot()?.hasAttribute("data-bp-navigation-url") && !matchingRoutes.some(candidate => isGetPageRoute(candidate) && candidate.requestUrl === route.requestUrl)) return false;
           if (matchingRoutes.length && !matchingRoutes.some(isGetPageRoute)) return false;
           try {
             const pattern = route.href.split(/[?#]/, 1)[0];
@@ -2339,6 +2431,7 @@ export function betterPortalShellRuntimeSource(): string {
         const trigger = (event.target as Element)?.closest?.("[data-bp-error-action]");
         if (!trigger) return;
         const action = trigger.getAttribute("data-bp-error-action");
+        if (action === "navigation-retry") { event.preventDefault(); void refreshNavigation(); return; }
         if (action === "login") {
           const loginUrl = shellRoot()?.getAttribute("data-bp-login-url");
           if (loginUrl) loadLoginIntoShell(loginUrl);
@@ -2410,7 +2503,8 @@ export function betterPortalShellRuntimeSource(): string {
           setInterval(runMenuHealthChecks, 60 * 60 * 1000);
           syncMenuVisibility();
         }
-        redirectMissingRoot();
+        if (shellRoot()?.hasAttribute("data-bp-navigation-url")) void refreshNavigation();
+        else redirectMissingRoot();
       });
 
       document.addEventListener("click", (event) => {

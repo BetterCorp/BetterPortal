@@ -1,3 +1,4 @@
+import { effectiveRouteAuth, hasRoutePermissions, resolvePermissionServiceId } from "../runtime/auth/routePolicy.js";
 import { createRouteResult, viewRouteResolver, type RouteAccess } from "../runtime/routeResult.js";
 import { routeMountServicePath, safeServiceBaseUrl } from "../runtime/configProvider.js";
 import type { RouteInput, RouteOptions, RouteResolver } from "../contracts/routing.js";
@@ -117,7 +118,7 @@ export interface H3RouterObservabilityOptions {
   serviceId?: string;
   /** Current installed instance used for URL resolution; evaluated after configuration/installation changes. */
   resolveRouteServiceId?: () => string | undefined;
-  /** Resolve auth context for a request. Returning undefined disables auth enforcement for the request. */
+  /** Resolve auth context for a request. Protected operations fail closed when no auth context is available. */
   resolveAuth?: (event: BetterPortalEvent, route: RegisteredRoute) => Promise<H3AuthContext | undefined> | H3AuthContext | undefined;
   /**
    * Validate that the resolved (tenantId, appId) is allowed to use this service.
@@ -135,6 +136,8 @@ type RequiredHandlerContext =
 type ViewRenderContextSource = Pick<RouteHandlerContext, "tenant" | "app" | "method" | "path" | "params" | "query" | "route">;
 
 export interface H3AuthContext {
+  /** Concrete owning binding, resolved by the host from trusted scoped configuration. */
+  readonly permissionServiceId?: string | null;
   readonly verifier?: JwtVerifier;
   readonly serviceVerifier?: ServiceTokenVerifier;
   readonly tenantId: string;
@@ -405,7 +408,8 @@ async function prepareSseContext(
   }
 
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
-  const authResult = await resolveRequestAuth(operation.auth, event, authResolved, route, "GET", obs);
+  const apiAuth = effectiveRouteAuth(operation.auth, requestPermissionOwner(authResolved, routerOptions), route.viewId, "GET");
+  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, "GET", obs, operation.auth.permissions ?? []);
   if (authResult.error) {
     return coreJsonResponse(
       { error: authResult.error, status: authResult.status } as unknown as JsonValue,
@@ -904,7 +908,7 @@ function createRouteResolver(
   aliases: Readonly<Record<string, string>>,
   currentServiceId: string | undefined,
   current: { path: string; template: string; method: HttpMethod; params: Record<string, string>; query: Record<string, unknown> },
-  access?: (requirement: ApiAuthRequirement) => RouteAccess
+  access?: (requirement: ApiAuthRequirement, serviceId: string, viewId: string, method: HttpMethod) => RouteAccess
 ): RouteResolver {
   const resolve: RouteResolver = (input: RouteInput = {}) => {
     // Also reject legacy options from untyped callers, rather than silently guessing.
@@ -1030,7 +1034,7 @@ function createRouteResolver(
       absoluteApiPath: serviceBase ? renderUrl(path, { query, sse: input.sse }, serviceBase) : null,
       absoluteViewPath: serviceBase ? renderUrl(path, options, serviceBase) : null,
       absoluteUiPath: uiPath && appBase ? new URL(uiPath, appBase).toString() : null
-    }, resolve, input, "apiPath", { serviceId, method, access: target && access ? access(target.methodRoutes?.[method]?.auth ?? { required: false, permissions: [] }) : "unknown" });
+    }, resolve, input, "apiPath", { serviceId, method, access: target && access ? access(target.methodRoutes?.[method]?.auth ?? { required: false, permissions: [] }, serviceId, viewId, method) : "unknown" });
   };
   return resolve;
 }
@@ -1269,8 +1273,8 @@ async function handleRouteRequest(
     return rejectUnallowedAppRoute(obs, route, method, extraContext, routeAllowance.reason ?? "route_not_mounted_for_app");
   }
 
-  let presentationAccess: (requirement: ApiAuthRequirement) => RouteAccess = () => "unknown";
-  const routeResolver = createRouteResolver(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteServiceId?.() ?? routerOptions.serviceId, { path: url.pathname, template: route.path, method, params, query: query as Record<string, unknown> }, requirement => presentationAccess(requirement));
+  let presentationAccess: (requirement: ApiAuthRequirement, serviceId: string, viewId: string, method: HttpMethod) => RouteAccess = () => "unknown";
+  const routeResolver = createRouteResolver(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteServiceId?.() ?? routerOptions.serviceId, { path: url.pathname, template: route.path, method, params, query: query as Record<string, unknown> }, (...args) => presentationAccess(...args));
   const earlyRenderContext = (status: number): ViewRenderContext | undefined => {
     const renderer = rendererFromEvent(event);
     return renderer ? createViewRenderContext(route, {
@@ -1286,10 +1290,12 @@ async function handleRouteRequest(
 
   // -- Auth resolution (per spec section 0.5) ----------------------
 
-  const apiAuth: ApiAuthRequirement = { ...methodRoute.auth, required: methodRoute.auth.required || !!methodRoute.auth.elevation };
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
-  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs);
-  presentationAccess = requirement => presentationRouteAccess(requirement, authResult.user, authResolved);
+  const owner = requestPermissionOwner(authResolved, routerOptions);
+  const apiAuth = effectiveRouteAuth(methodRoute.auth, owner, route.viewId, method);
+  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs, methodRoute.auth.permissions ?? []);
+  presentationAccess = (requirement, serviceId, viewId, method) => presentationRouteAccess(
+    effectiveRouteAuth(requirement, serviceId, viewId, method), authResult.user, authResolved);
   if (authResult.error) {
     return renderAuthError(
       route,
@@ -1759,6 +1765,12 @@ interface AuthResult {
   requiredPermissions?: ReadonlyArray<RequiredPermissionDescriptor>;
 }
 
+function requestPermissionOwner(auth: H3AuthContext | undefined, options: H3RouterObservabilityOptions): string {
+  // null is an explicit rejection by the host; never replace it with a plugin alias.
+  if (auth?.permissionServiceId !== undefined) return auth.permissionServiceId ?? "";
+  return resolvePermissionServiceId(options.resolveRouteServiceId?.() ?? options.serviceId ?? "", auth?.serviceIdAliases) ?? "";
+}
+
 async function loadAuthContext(
   event: BetterPortalEvent,
   route: RegisteredRoute,
@@ -1783,7 +1795,8 @@ async function resolveRequestAuth(
   authContext: H3AuthContext | undefined,
   route: RegisteredRoute,
   method: HttpMethod,
-  obs?: BetterPortalObservability
+  obs?: BetterPortalObservability,
+  additionalPermissions: ApiAuthRequirement["permissions"] = apiAuth.permissions
 ): Promise<AuthResult> {
   const required = apiAuth.required;
   const primaryHeader = event.req.headers.get("authorization");
@@ -1841,7 +1854,8 @@ async function resolveRequestAuth(
         method,
         mode,
         sourceServiceId,
-        requiredPermissions: apiAuth.permissions.flatMap((requirement) => requirement.permissions)
+        // The exact approved binding/view/method is the machine baseline.
+        requiredPermissions: additionalPermissions.flatMap((requirement) => requirement.permissions)
       });
     } catch (err) {
       obs?.logger.warn("Service token verification failed: {msg}", { msg: (err as Error).message });
@@ -1940,21 +1954,8 @@ async function resolveUserRequestAuth(
       });
     }
 
-    const granted = expandRolesToPermissions(claims.roles, authContext.appAuthConfig);
-    const aliases = authContext.serviceIdAliases ?? {};
-    const serviceIdsMatch = (grantServiceId: string, requiredServiceId: string): boolean =>
-      grantServiceId === requiredServiceId
-      || aliases[grantServiceId] === requiredServiceId
-      || aliases[requiredServiceId] === grantServiceId;
-    const ok = apiAuth.permissions.every((requirement) =>
-      requirement.permissions.every((action) =>
-        granted.some((grant) =>
-          serviceIdsMatch(grant.serviceId, requirement.serviceId)
-          && grant.viewId === requirement.viewId
-          && grant.permissions.includes(action)
-        )
-      )
-    );
+    const ok = hasRoutePermissions(claims, apiAuth, authContext.appAuthConfig,
+      authContext.serviceIdAliases, authContext.platformRoot);
     if (!ok) {
       if (required) {
         return {

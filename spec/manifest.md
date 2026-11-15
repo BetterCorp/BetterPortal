@@ -225,16 +225,16 @@ SDKs MUST be able to round-trip a schema through this format (parse the manifest
 
 ## 5. permissions
 
-Free-form strings the service understands. Surfaced so admin tooling can assign them to roles.
+The top-level permission definitions are descriptive catalog metadata. They do not
+create runtime grants or authorize routes by themselves.
 
-```jsonc
-[
-  { "id": "config.write",    "title": "Edit configuration",     "description": "..." },
-  { "id": "orders.refund",   "title": "Refund orders",          "description": "..." }
-]
-```
+Runtime `auth.permissions` is an array of additional `{ serviceId, viewId,
+permissions: ["read" | "create" | "update" | "delete"] }` requirements. Every
+protected operation also requires its automatic own-route grant. Empty additional
+requirements do not open a protected operation. Arbitrary capability strings such
+as `orders.refund` are not supported as runtime permission actions.
 
-Per-view requirements reference these IDs in `auth.permissions` (see `auth.md`).
+See [auth.md](auth.md) for method mapping and role enforcement.
 
 ## 6. adminApis
 

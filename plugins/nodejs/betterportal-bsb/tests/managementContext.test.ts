@@ -28,6 +28,7 @@ test("management auth stays root while handler routing uses the requested tenant
 
   const event = {
     url: new URL("https://workos.test/.well-known/bp/config/workos-role-sync?tenantId=target-tenant&appId=target-app"),
+    req: new Request("https://workos.test/.well-known/bp/config/workos-role-sync?tenantId=target-tenant&appId=target-app"),
   } as any;
   const route = {
     path: "/.well-known/bp/config/workos-role-sync",

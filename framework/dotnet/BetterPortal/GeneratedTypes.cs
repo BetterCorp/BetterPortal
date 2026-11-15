@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 81e3cb86dffc23172ebde94d39d2939343e492f8388b4c6849397a414aeed70f
+// Generated from AnyVali documents; do not edit. SHA256: 1f5791e270c923d7a9fe3d3a109a0ffbef48cc93026eff77de1431ad95ce7d23
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -3623,6 +3623,9 @@ public sealed record BetterPortalRouteMount
     [JsonPropertyName("fixedParams")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, string>> FixedParams { get; init; }
+    [JsonPropertyName("resolvedAuth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<BetterPortalRouteMountResolvedAuthItem>> ResolvedAuth { get; init; }
     [JsonPropertyName("authRequired")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AuthRequired { get; init; }
@@ -3698,6 +3701,9 @@ public sealed record BetterPortalRouteMountInput
     [JsonPropertyName("fixedParams")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, string>> FixedParams { get; init; }
+    [JsonPropertyName("resolvedAuth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<BetterPortalRouteMountInputResolvedAuthItem>> ResolvedAuth { get; init; }
     [JsonPropertyName("authRequired")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AuthRequired { get; init; }
@@ -3772,6 +3778,16 @@ public sealed record BetterPortalRouteMountInputMenuPermissionsItem
     public required string ViewId { get; init; }
     [JsonPropertyName("permissions")]
     public required IReadOnlyList<string> Permissions { get; init; }
+}
+
+public sealed record BetterPortalRouteMountInputResolvedAuthItem
+{
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("method")]
+    public required HttpMethodInput Method { get; init; }
+    [JsonPropertyName("auth")]
+    public required ApiAuthRequirementInput Auth { get; init; }
 }
 
 public sealed record BetterPortalRouteMountInputRobotsItem
@@ -3858,6 +3874,16 @@ public sealed record BetterPortalRouteMountMenuPermissionsItem
     public required string ViewId { get; init; }
     [JsonPropertyName("permissions")]
     public required IReadOnlyList<string> Permissions { get; init; }
+}
+
+public sealed record BetterPortalRouteMountResolvedAuthItem
+{
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("method")]
+    public required HttpMethod Method { get; init; }
+    [JsonPropertyName("auth")]
+    public required ApiAuthRequirement Auth { get; init; }
 }
 
 public sealed record BetterPortalRouteMountRobotsItem
@@ -5290,6 +5316,9 @@ public sealed record ControlPlaneSubmissionInputViewIndexItemOperationsItem
     public Optional<string> Role { get; init; }
     [JsonPropertyName("authRequired")]
     public required bool AuthRequired { get; init; }
+    [JsonPropertyName("auth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ApiAuthRequirementInput> Auth { get; init; }
     [JsonPropertyName("sitemap")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteMountInputSitemap> Sitemap { get; init; }
@@ -5409,6 +5438,9 @@ public sealed record ControlPlaneSubmissionViewIndexItemOperationsItem
     public Optional<string> Role { get; init; }
     [JsonPropertyName("authRequired")]
     public required bool AuthRequired { get; init; }
+    [JsonPropertyName("auth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ApiAuthRequirement> Auth { get; init; }
     [JsonPropertyName("sitemap")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteMountSitemap> Sitemap { get; init; }
@@ -9226,6 +9258,9 @@ public sealed record ScopedAppInputRoutesItem
     [JsonPropertyName("fixedParams")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, string>> FixedParams { get; init; }
+    [JsonPropertyName("resolvedAuth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ScopedAppInputRoutesItemResolvedAuthItem>> ResolvedAuth { get; init; }
     [JsonPropertyName("authRequired")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AuthRequired { get; init; }
@@ -9294,6 +9329,41 @@ public sealed record ScopedAppInputRoutesItemChromeFields
     public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
+}
+
+public sealed record ScopedAppInputRoutesItemResolvedAuthItem
+{
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("method")]
+    public required HttpMethodInput Method { get; init; }
+    [JsonPropertyName("auth")]
+    public required ScopedAppInputRoutesItemResolvedAuthItemAuth Auth { get; init; }
+}
+
+public sealed record ScopedAppInputRoutesItemResolvedAuthItemAuth
+{
+    [JsonPropertyName("required")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Required { get; init; }
+    [JsonPropertyName("elevation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedAppInputRoutesItemResolvedAuthItemAuthElevation> Elevation { get; init; }
+    [JsonPropertyName("callers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ApiCallerModeInput>> Callers { get; init; }
+    [JsonPropertyName("permissions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ApiAuthRequirementInputPermissionsItem>> Permissions { get; init; }
+}
+
+public sealed record ScopedAppInputRoutesItemResolvedAuthItemAuthElevation
+{
+    [JsonPropertyName("minimum")]
+    public required ElevationRequirementInputMinimum Minimum { get; init; }
+    [JsonPropertyName("maxAgeSeconds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> MaxAgeSeconds { get; init; }
 }
 
 public sealed record ScopedAppInputRoutesItemRobotsItem
@@ -10554,6 +10624,9 @@ public sealed record ScopedAppRoutesItem
     [JsonPropertyName("fixedParams")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, string>> FixedParams { get; init; }
+    [JsonPropertyName("resolvedAuth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ScopedAppRoutesItemResolvedAuthItem>> ResolvedAuth { get; init; }
     [JsonPropertyName("authRequired")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AuthRequired { get; init; }
@@ -10621,6 +10694,38 @@ public sealed record ScopedAppRoutesItemChromeFields
     public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
+}
+
+public sealed record ScopedAppRoutesItemResolvedAuthItem
+{
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("method")]
+    public required HttpMethod Method { get; init; }
+    [JsonPropertyName("auth")]
+    public required ScopedAppRoutesItemResolvedAuthItemAuth Auth { get; init; }
+}
+
+public sealed record ScopedAppRoutesItemResolvedAuthItemAuth
+{
+    [JsonPropertyName("required")]
+    public required bool Required { get; init; }
+    [JsonPropertyName("elevation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedAppRoutesItemResolvedAuthItemAuthElevation> Elevation { get; init; }
+    [JsonPropertyName("callers")]
+    public required IReadOnlyList<ApiCallerMode> Callers { get; init; }
+    [JsonPropertyName("permissions")]
+    public required IReadOnlyList<ApiAuthRequirementPermissionsItem> Permissions { get; init; }
+}
+
+public sealed record ScopedAppRoutesItemResolvedAuthItemAuthElevation
+{
+    [JsonPropertyName("minimum")]
+    public required ElevationRequirementMinimum Minimum { get; init; }
+    [JsonPropertyName("maxAgeSeconds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> MaxAgeSeconds { get; init; }
 }
 
 public sealed record ScopedAppRoutesItemRobotsItem
@@ -11839,6 +11944,9 @@ public sealed record ServiceManifestCacheEntryInputViewIndexItemOperationsItem
     public Optional<string> Role { get; init; }
     [JsonPropertyName("authRequired")]
     public required bool AuthRequired { get; init; }
+    [JsonPropertyName("auth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ApiAuthRequirementInput> Auth { get; init; }
     [JsonPropertyName("sitemap")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteMountInputSitemap> Sitemap { get; init; }
@@ -11932,6 +12040,9 @@ public sealed record ServiceManifestCacheEntryViewIndexItemOperationsItem
     public Optional<string> Role { get; init; }
     [JsonPropertyName("authRequired")]
     public required bool AuthRequired { get; init; }
+    [JsonPropertyName("auth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ApiAuthRequirement> Auth { get; init; }
     [JsonPropertyName("sitemap")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteMountSitemap> Sitemap { get; init; }

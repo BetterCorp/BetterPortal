@@ -18,10 +18,11 @@ export async function authorization(body) {
     title: "Check", description: "", auth, cacheHints: {}, demoScenarios: [], renderers: {} };
   const context = body.context;
   createH3Router({ routes: [route] }, app, {
+    serviceId: "org.betterportal.test",
     resolveContext: () => ({ tenant: { id: context.tenantId, slug: "tenant", title: "Tenant", services: [], activatedPlatformServices: [] },
       app: { id: context.appId, slug: "app", title: "App", hostnames: ["service.test"], routes: [{ viewId, operations: ["check"], targetPath: "/check" }],
         fragments: {}, slots: [], shell: { renderer: "test" } } }),
-    resolveAuth: () => ({ tenantId: context.tenantId, appId: context.appId, appAuthConfig: context.appAuth,
+    resolveAuth: () => ({ permissionServiceId: context.permissionServiceId, tenantId: context.tenantId, appId: context.appId, appAuthConfig: context.appAuth,
       serviceIdAliases: context.serviceAliases, platformRoot: context.managementScope,
       verifier: context.appAuth && body.userKey ? { verify: token => verifyJwt(token, {
         expectedIssuer: context.appAuth.expectedIssuer, expectedAudience: context.appAuth.expectedAudience, expectedTokenType: "access",

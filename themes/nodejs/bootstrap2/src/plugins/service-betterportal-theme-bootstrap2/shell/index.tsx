@@ -62,6 +62,7 @@ export interface Bootstrap2HostPageContext {
   initialServiceId?: string;
   initialRouteError?: string;
   initialRouteStatus?: number;
+  navigationUrl?: string;
   routeLinks: Bootstrap2RouteLink[];
   serviceOrigins?: Record<string, string>;
   navItems?: Bootstrap2NavItem[];
@@ -2207,6 +2208,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
       data-bp-shell-root=""
       data-bp-services={JSON.stringify(serviceMap)}
       data-bp-routes={JSON.stringify(context.routeLinks)}
+      data-bp-navigation-url={context.navigationUrl}
       data-bp-dev-reload="auto"
       data-bp-login-url={context.loginUrl}
       data-bp-auth-service={context.authServiceId}
@@ -2229,7 +2231,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
               class="bp-admin__nav"
               id="bp-nav-mobile"
               hx-get="/.well-known/bp/theme/nav?mobile=1"
-              hx-trigger="load, bp:menu-changed from:body, bp:fragments-changed from:body"
+              hx-trigger={context.navigationUrl ? undefined : "load, bp:menu-changed from:body, bp:fragments-changed from:body"}
               hx-swap="innerHTML"
               data-bp-no-route=""
             >{renderNavItems(navItems, true)}</nav>
@@ -2244,7 +2246,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
               class="bp-admin__nav"
               id="bp-nav-desktop"
               hx-get="/.well-known/bp/theme/nav"
-              hx-trigger="load, bp:menu-changed from:body, bp:fragments-changed from:body"
+              hx-trigger={context.navigationUrl ? undefined : "load, bp:menu-changed from:body, bp:fragments-changed from:body"}
               hx-swap="innerHTML"
               data-bp-no-route=""
             >{renderNavItems(navItems)}</nav>

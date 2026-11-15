@@ -123,7 +123,7 @@ Declare it alongside existing route authorization:
 ```ts
 export const auth = {
   required: true,
-  permissions: [], // Supply this action's actual permissions.
+  permissions: [], // Additional requirements; BP always checks this protected route's own grant.
   elevation: { minimum: "mfa" as const, maxAgeSeconds: 300 }
 };
 ```

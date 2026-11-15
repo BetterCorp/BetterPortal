@@ -83,11 +83,15 @@ public sealed partial class Service : IAsyncDisposable
         var management = (Node)config.GetValueOrDefault("configManagement", new Node())!;
         (string, string)? root = management.ContainsKey("adminTenantId") && management.ContainsKey("managementAppId")
             ? ((string)management["adminTenantId"]!, (string)management["managementAppId"]!) : null;
+        var permissionAliases = access.PermissionAliases(route, method, matchedPath, fragment);
+        var owner = (string?)((Node)config.GetValueOrDefault("serviceIdentity", new Node())!).GetValueOrDefault("id");
+        if (owner is not null && !route.Paths[0].StartsWith("/.well-known/", StringComparison.Ordinal) && !permissionAliases.ContainsKey(owner))
+            throw new RequestException(404, "Route not found", responseHeaders, scope);
         var auth = new AuthContext(scope.TenantId, scope.AppId, appAuth, client is null ? null : client.ResolveAsync,
-            (Node?)config.GetValueOrDefault("m2m"), access.PermissionAliases(route, method, matchedPath, fragment), root);
+            (Node?)config.GetValueOrDefault("m2m"), permissionAliases, root);
         try
         {
-            var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken);
+            var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken, owner ?? schema.Manifest.PluginId);
             if (!ReferenceEquals(state, current) || !Ready) throw new RequestException(503, "Configuration changed during authentication");
             if (caller.Service is not null && !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!)) throw new RequestException(403, "Access denied", responseHeaders, scope);
             var values = current.PreviewScope == (scope.TenantId, scope.AppId) ? (Node)Json.Read(Json.Write(current.Preview))! : new Node();

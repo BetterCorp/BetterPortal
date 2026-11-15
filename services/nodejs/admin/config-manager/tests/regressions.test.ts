@@ -584,7 +584,7 @@ test("duplicate route keys follow runtime route matching", () => {
   assert.notEqual(appRoutePatternKey("/users/new"), appRoutePatternKey("/users/:id"));
 });
 
-test("role permissions derive exact operation dependencies without mutating explicit grants", () => {
+test("baseline permissions derive exact dependencies with empty additional requirements", () => {
   const { sourceId, targetId } = s2sConfig();
   const operation = (operationId: string, dependencies: CachedManifest["viewIndex"][string]["operations"][number]["dependencies"], permissions: CachedManifest["viewIndex"][string]["operations"][number]["permissions"]) => ({
     operationId,
@@ -614,8 +614,8 @@ test("role permissions derive exact operation dependencies without mutating expl
     fetchedAt: Date.now()
   });
   const manifests = new Map([
-    [sourceId, manifest("org.example.source", "source.view", operation("source.read", [{ serviceId: "org.example.target", operationId: "target.read", method: "GET" }], [{ serviceId: "org.example.source", viewId: "source.view", permissions: ["read"] }]))],
-    [targetId, manifest("org.example.target", "target.view", operation("target.read", [], [{ serviceId: "org.example.target", viewId: "target.view", permissions: ["read"] }]))]
+    [sourceId, manifest("org.example.source", "source.view", operation("source.read", [{ serviceId: "org.example.target", operationId: "target.read", method: "GET" }], []))],
+    [targetId, manifest("org.example.target", "target.view", operation("target.read", [], []))]
   ]);
   const routes = [
     { id: uuidv7(), kind: "page" as const, path: "/source", serviceId: sourceId, viewId: "source.view", enabled: true, operations: ["source.read"] },
@@ -636,6 +636,8 @@ test("role permissions derive exact operation dependencies without mutating expl
   assert.equal(auth.roles[0].permissions.length, 1);
   assert.deepEqual(result.auth.roles[0].permissions[1], { serviceId: targetId, viewId: "target.view", permissions: ["read"] });
   assert.equal(result.auth.roles[1].permissions.length, 1);
+  manifests.get(sourceId)!.viewIndex["source.view"].operations[0].authRequired = false;
+  assert.deepEqual(deriveRolePermissions(auth, routes, id => manifests.get(id)).derived, [], "a public route must not grant protected dependencies to every role");
   assert.deepEqual(result.derived[0]?.requiredBy, [{ serviceId: sourceId, operationId: "source.read", method: "GET" }]);
 });
 
@@ -1070,6 +1072,50 @@ test("fragment editor only offers fragments for the selected shell location", as
     })
   });
   assert.equal(response.status, 400);
+});
+
+test("sync delivers selected operation policies and drops untrusted policy without a manifest", async () => {
+  const handlers = new Map<string, (event: unknown) => Response | Promise<Response>>();
+  const serviceId = uuidv7();
+  const route = { id: uuidv7(), serviceId, viewId: "batches", path: "/batches", enabled: true, operations: ["batches.read"],
+    resolvedAuth: [{ operationId: "batches.read", method: "GET", auth: { required: false, permissions: [] } }] };
+  const cache = getManifestCache();
+  const operation: CachedManifest["viewIndex"][string]["operations"][number] = { operationId: "batches.read", method: "GET" as const, title: "Batches", description: "Batches",
+    renderers: ["bootstrap5"], renderModes: ["page" as const], authRequired: true, robots: [], dependencies: [],
+    permissions: [{ serviceId: "org.example.batches", viewId: "approval", permissions: ["update" as const] }],
+    renderable: true, apiContracts: [], demoScenarios: [] };
+  cache.set(serviceId, { serviceId: "org.example.batches", manifestVersion: "1", fetchedAt: Date.now(), capabilities: [],
+    apiContracts: [], m2mRequests: [], developerResources: [], configSchemas: [], webhooks: [],
+    viewIndex: { batches: { viewId: "batches", title: "Batches", description: "Batches", path: "/batches", pathVariants: [], fragments: [],
+      operations: [operation, { ...operation, operationId: "batches.delete", method: "DELETE" }] } } });
+  let invalidate = () => {};
+  const service = { id: serviceId, enabled: true, hostname: "https://service.test", lastSeenAt: new Date().toISOString(), lastSyncAt: new Date().toISOString() };
+  registerSyncEndpoint({
+    get: (path: string, handler: (event: unknown) => Response | Promise<Response>) => handlers.set(`GET ${path}`, handler),
+    post: (path: string, handler: (event: unknown) => Response | Promise<Response>) => handlers.set(`POST ${path}`, handler)
+  } as never, {
+    loadConfig: async () => ({ tenants: [{ id: "tenant", services: [service] }], platformServices: [], sharedServiceActivations: [], sharedServiceCatalog: [] }),
+    saveConfig: async () => {},
+    validateApiKey: async () => ({ scope: "tenant", tenantId: "tenant", serviceId, service }),
+    getScopedConfig: async () => ({ managementOrigins: [], tenants: [], apps: [{ routes: [route] }] }),
+    onChange: (callback: () => void) => { invalidate = callback; return () => {}; }
+  } as never);
+  const poll = handlers.get("GET /.well-known/bp/sync/poll")!;
+  const request = () => poll({ req: new Request("https://config.test/.well-known/bp/sync/poll", { headers: { authorization: "Bearer test" } }) });
+  operation.auth = { required: true, callers: ["user"], permissions: operation.permissions };
+  const delivered = await (await request()).json();
+  assert.deepEqual(delivered.apps[0].routes[0].resolvedAuth, [{ operationId: "batches.read", method: "GET", auth: {
+    required: true, callers: ["user"], permissions: operation.permissions
+  } }]);
+  assert.equal(route.resolvedAuth[0].auth.required, false, "projection must not mutate persisted configuration");
+  delete operation.auth;
+  invalidate();
+  const legacy = await (await request()).json();
+  assert.deepEqual(legacy.apps[0].routes[0].resolvedAuth, [], "legacy summary fields do not claim a complete operation policy");
+  cache.delete(serviceId);
+  invalidate();
+  const missing = await (await request()).json();
+  assert.equal(missing.apps[0].routes[0].resolvedAuth, undefined);
 });
 
 test("poll sync records service presence and config delivery", async () => {

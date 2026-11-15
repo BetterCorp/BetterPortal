@@ -12,12 +12,15 @@ public sealed record AuthorizedCaller(string? Mode = null, Node? User = null, No
 
 public static class RequestAuthorization
 {
-    public static async Task<Node> AuthorizeUserAsync(string token, Node requirement, AuthContext context,
-        CancellationToken cancellationToken = default)
+    public static Task<Node> AuthorizeUserAsync(string token, Node requirement, AuthContext context,
+        CancellationToken cancellationToken = default) => AuthorizeUserPolicyAsync(token,
+            (Node)Contracts.Parse("ApiAuthRequirementSchema", requirement)!, context, cancellationToken);
+
+    private static async Task<Node> AuthorizeUserPolicyAsync(string token, Node required, AuthContext context,
+        CancellationToken cancellationToken)
     {
         if (context.AppAuth is null || context.KeyResolver is null) throw new TokenException("User authentication context unavailable", 503);
         var policy = (Node)Contracts.Parse("AppAuthConfigSchema", context.AppAuth)!;
-        var required = (Node)Contracts.Parse("ApiAuthRequirementSchema", requirement)!;
         var aliases = new Dictionary<string, string>(context.ServiceAliases ?? new Dictionary<string, string>());
         var roles = ((IEnumerable<object?>)policy["roles"]!).Cast<Node>().ToArray();
         if (roles.Select(role => (string)role["id"]!).Distinct(StringComparer.Ordinal).Count() != roles.Length)
@@ -34,6 +37,21 @@ public static class RequestAuthorization
                 if (!grants.Any(grant => Matches((string)grant["serviceId"]!, (string)item["serviceId"]!) && Equals(grant["viewId"], item["viewId"])
                     && ((IEnumerable<object?>)grant["permissions"]!).Contains(action))) throw new TokenException("Insufficient user permissions", 403);
         return claims;
+    }
+
+    /// <summary>Add the automatic baseline grant while preserving additional permissions.</summary>
+    public static Node EffectiveRouteAuth(Node requirement, string serviceId, string viewId, string method)
+    {
+        var policy = (Node)Contracts.Parse("ApiAuthRequirementSchema", requirement)!;
+        var required = policy["required"] is true || policy.ContainsKey("elevation");
+        policy["required"] = required;
+        if (required)
+        {
+            var action = method switch { "POST" => "create", "PUT" or "PATCH" => "update", "DELETE" => "delete", _ => "read" };
+            policy["permissions"] = new List<object?> { new Node { ["serviceId"] = serviceId, ["viewId"] = viewId,
+                ["permissions"] = new List<object?> { action } } }.Concat((IEnumerable<object?>)policy["permissions"]!).ToList();
+        }
+        return policy;
     }
 
     internal static string? Bearer(string? value)
@@ -57,9 +75,15 @@ public static class RequestAuthorization
 
     /// <summary>Complete request policy. Machine envelopes fail closed even when user auth is optional.</summary>
     public static async Task<AuthorizedCaller> AuthorizeAsync(IReadOnlyDictionary<string, string> headers, Node requirement,
-        AuthContext context, string viewId, string method, CancellationToken cancellationToken = default)
+        AuthContext context, string viewId, string method, CancellationToken cancellationToken = default, string? serviceId = null)
     {
-        var policy = (Node)Contracts.Parse("ApiAuthRequirementSchema", requirement)!;
+        var additional = (IEnumerable<object?>)((Node)Contracts.Parse("ApiAuthRequirementSchema", requirement)!)["permissions"]!;
+        var services = context.ServiceAliases?.Values.Distinct(StringComparer.Ordinal).ToArray() ?? [];
+        var target = serviceId ?? (services.Length == 1 ? services[0] : "org.betterportal.unresolved");
+        var owners = context.ServiceAliases?.Where(pair => pair.Value == target).Select(pair => pair.Key).ToArray() ?? [];
+        if (context.ServiceAliases?.ContainsKey(target) != true)
+            target = owners.Length == 1 ? owners[0] : owners.Length > 1 ? "org.betterportal.unresolved" : target;
+        var policy = EffectiveRouteAuth(requirement, target, viewId, method);
         var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, value) in headers)
             if (!normalized.TryAdd(name, value)) throw new TokenException("Duplicate request headers");
@@ -77,7 +101,7 @@ public static class RequestAuthorization
                 throw new TokenException("Incomplete service envelope");
             if (!((IEnumerable<object?>)policy["callers"]!).Contains(mode)) throw new TokenException("Caller mode is not allowed", 403);
             if (!machine) {
-                var human = await AuthorizeUserAsync(primary, policy, context, cancellationToken);
+                var human = await AuthorizeUserPolicyAsync(primary, policy, context, cancellationToken);
                 if (policy.GetValueOrDefault("elevation") is Node elevation) Elevation.Require(human, elevation);
                 return new("user", human);
             }
@@ -86,10 +110,10 @@ public static class RequestAuthorization
             if (context.ServicePolicy is null) throw new TokenException("Service authentication context unavailable", 503);
             var secondary = Bearer(normalized.GetValueOrDefault("x-bp-service-authorization"));
             if (delegated && (secondary is null || service)) throw new TokenException("Delegated calls require user and service credentials");
-            var user = delegated ? await AuthorizeUserAsync(primary, policy, context, cancellationToken) : null;
+            var user = delegated ? await AuthorizeUserPolicyAsync(primary, policy, context, cancellationToken) : null;
             var caller = await Authorization.AuthorizeServiceAsync(delegated ? secondary! : primary, context.ServicePolicy,
                 normalized["x-bp-service-id"], context.TenantId, context.AppId, viewId, method, mode,
-                ((IEnumerable<object?>)policy["permissions"]!).Cast<Node>().SelectMany(item => ((IEnumerable<object?>)item["permissions"]!).Cast<string>()).ToArray(), cancellationToken);
+                additional.Cast<Node>().SelectMany(item => ((IEnumerable<object?>)item["permissions"]!).Cast<string>()).ToArray(), cancellationToken);
             if (policy.GetValueOrDefault("elevation") is Node requirementElevation) {
                 if (user is null) throw new TokenException("Human authentication required for elevation", 403);
                 Elevation.Require(user, requirementElevation);

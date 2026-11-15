@@ -312,10 +312,14 @@ class Service:
         keys = state.keys.get((app_auth["expectedIssuer"], secure_endpoint(app_auth["jwksUri"], allow_query=True))) if app_auth else None
         management = state.config.get("configManagement", {})
         root = (management["adminTenantId"], management["managementAppId"]) if "adminTenantId" in management and "managementAppId" in management else None
+        permission_aliases = access.permission_aliases(route, method, path=matched_path, fragment=fragment)
+        owner = state.config.get("serviceIdentity", {}).get("id")
+        if owner and not route.paths[0].startswith("/.well-known/") and owner not in permission_aliases:
+            raise RequestError(404, "Route not found", response_headers, scope=scope)
         auth = AuthContext(scope.tenant_id, scope.app_id, app_auth, keys.resolve if keys else None,
-                           state.config.get("m2m"), access.permission_aliases(route, method, path=matched_path, fragment=fragment), root)
+                           state.config.get("m2m"), permission_aliases, root)
         async def verify():
-            try: return await authorize_request(normalized, operation.declaration["auth"], auth, view_id=route.view_id, method=method)
+            try: return await authorize_request(normalized, operation.declaration["auth"], auth, view_id=route.view_id, method=method, service_id=owner or self._schema["manifest"]["pluginId"])
             except asyncio.CancelledError:
                 if self._state is not state or not self.ready:
                     raise TokenError("Configuration verifier was retired") from None

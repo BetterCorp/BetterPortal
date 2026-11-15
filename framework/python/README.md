@@ -402,7 +402,7 @@ service authorization against current scoped bindings and grants, static JWKS
 imports and a cancellable remote JWKS cache. Cryptography
 uses PyJWT/OpenSSL; validation uses AnyVali exclusively.
 
-`betterportal.authorization.authorize_request` accepts a trusted `AuthContext`
+`betterportal.authorization.authorize_request` adds the protected operation's own service/view/HTTP-action grant before checking additional `permissions`. Empty additional requirements retain that baseline. It accepts a trusted `AuthContext`
 from one scoped snapshot and enforces user/service/delegated caller policy.
 User role IDs expand through current app grants, with trusted service aliases.
 Root elevation requires the configured management tenant/app. Delegated requests
@@ -417,14 +417,17 @@ from betterportal.authorization import AuthContext, authorize_request
 from betterportal.security import KeyPair, TokenIssuer, uuid7
 
 async def example():
-    key, tenant, app = KeyPair.generate(), uuid7(), uuid7()
+    key, tenant, app, service = KeyPair.generate(), uuid7(), uuid7(), uuid7()
     trusted_keys = {key.kid: key.public_key_pem}
     pair = TokenIssuer(key, "https://auth.example", "app").issue_pair(
-        {"sub": "user-1", "tenantId": tenant, "appId": app, "roles": []}, include_refresh=False)
+        {"sub": "user-1", "tenantId": tenant, "appId": app, "roles": ["reader"]}, include_refresh=False)
     context = AuthContext(tenant, app, {"serviceId": uuid7(), "expectedIssuer": "https://auth.example",
-        "expectedAudience": "app", "jwksUri": "https://auth.example/jwks", "roles": []}, trusted_keys.__getitem__)
+        "expectedAudience": "app", "jwksUri": "https://auth.example/jwks", "roles": [
+            {"id": "reader", "title": "Reader", "permissions": [
+                {"serviceId": service, "viewId": "hello", "permissions": ["read"]}]}]},
+        trusted_keys.__getitem__, service_aliases={service: "org.example.hello"})
     caller = await authorize_request({"authorization": "Bearer " + pair["accessToken"]}, {"required": True},
-        context, view_id="hello", method="GET")
+        context, view_id="hello", method="GET", service_id="org.example.hello")
     assert caller.user is not None and caller.user["sub"] == "user-1"
 asyncio.run(example())
 ```
@@ -1122,3 +1125,5 @@ rejected consumer typing examples.
 
 See [PUBLISHING.md](PUBLISHING.md) for trusted-publisher setup, release versioning
 and the signed-tag publishing workflow.
+
+Protected operations require their own service/view/action grant (GET/OPTIONS read, POST create, PUT/PATCH update, DELETE delete). The `permissions` array adds requirements; an empty array retains the baseline. Existing login-only protected routes need explicit role grants. Hosts resolve the concrete installation before evaluating the baseline and reject ambiguous ownership.

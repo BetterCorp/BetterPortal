@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 5565dd36d587bc9dc7f6927d3a7de036e506b71cce200afc1a80a0bf0f75375c
+# Generated from AnyVali documents; do not edit. SHA256: e231f45b8dfb9a3095417d0879c256b8a6a4f90a014ae1b32c952da65388989a
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -1439,6 +1439,7 @@ BetterPortalRouteMount = TypedDict('BetterPortalRouteMount', {
     'viewId': Required['str'],
     'servicePathVariant': NotRequired['str'],
     'fixedParams': NotRequired['dict[str, str]'],
+    'resolvedAuth': NotRequired['list[BetterPortalRouteMountResolvedauthItem]'],
     'authRequired': NotRequired['bool'],
     'menuPermissions': NotRequired['list[BetterPortalRouteMountMenupermissionsItem]'],
     'sitemap': NotRequired['BetterPortalRouteMountSitemap'],
@@ -1464,6 +1465,7 @@ BetterPortalRouteMountInput = TypedDict('BetterPortalRouteMountInput', {
     'viewId': Required['str'],
     'servicePathVariant': NotRequired['str'],
     'fixedParams': NotRequired['dict[str, str]'],
+    'resolvedAuth': NotRequired['list[BetterPortalRouteMountInputResolvedauthItem]'],
     'authRequired': NotRequired['bool'],
     'menuPermissions': NotRequired['list[BetterPortalRouteMountInputMenupermissionsItem]'],
     'sitemap': NotRequired['BetterPortalRouteMountInputSitemap'],
@@ -1487,6 +1489,12 @@ BetterPortalRouteMountInputMenupermissionsItem = TypedDict('BetterPortalRouteMou
     'permissions': Required['list[str]'],
 })
 
+BetterPortalRouteMountInputResolvedauthItem = TypedDict('BetterPortalRouteMountInputResolvedauthItem', {
+    'operationId': Required['str'],
+    'method': Required['HttpMethodInput'],
+    'auth': Required['ApiAuthRequirementInput'],
+})
+
 BetterPortalRouteMountInputRobotsItem = TypedDict('BetterPortalRouteMountInputRobotsItem', {
     'userAgent': Required['str'],
     'access': Required["Literal['allow', 'disallow']"],
@@ -1504,6 +1512,12 @@ BetterPortalRouteMountMenupermissionsItem = TypedDict('BetterPortalRouteMountMen
     'serviceId': Required['str'],
     'viewId': Required['str'],
     'permissions': Required['list[str]'],
+})
+
+BetterPortalRouteMountResolvedauthItem = TypedDict('BetterPortalRouteMountResolvedauthItem', {
+    'operationId': Required['str'],
+    'method': Required['HttpMethod'],
+    'auth': Required['ApiAuthRequirement'],
 })
 
 BetterPortalRouteMountRobotsItem = TypedDict('BetterPortalRouteMountRobotsItem', {
@@ -2026,6 +2040,7 @@ ControlPlaneSubmissionInputViewindexItemOperationsItem = TypedDict('ControlPlane
     'renderModes': NotRequired['list[RenderModeInput]'],
     'role': NotRequired['str'],
     'authRequired': Required['bool'],
+    'auth': NotRequired['ApiAuthRequirementInput'],
     'sitemap': NotRequired['BetterPortalRouteMountInputSitemap'],
     'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
     'menu': NotRequired['bool'],
@@ -2081,6 +2096,7 @@ ControlPlaneSubmissionViewindexItemOperationsItem = TypedDict('ControlPlaneSubmi
     'renderModes': Required['list[RenderMode]'],
     'role': NotRequired['str'],
     'authRequired': Required['bool'],
+    'auth': NotRequired['ApiAuthRequirement'],
     'sitemap': NotRequired['BetterPortalRouteMountSitemap'],
     'robots': Required['list[BetterPortalRouteMountRobotsItem]'],
     'menu': NotRequired['bool'],
@@ -3609,6 +3625,7 @@ ScopedAppInputRoutesItem = TypedDict('ScopedAppInputRoutesItem', {
     'viewId': Required['str'],
     'servicePathVariant': NotRequired['str'],
     'fixedParams': NotRequired['dict[str, str]'],
+    'resolvedAuth': NotRequired['list[ScopedAppInputRoutesItemResolvedauthItem]'],
     'authRequired': NotRequired['bool'],
     'menuPermissions': NotRequired['list[BetterPortalRouteMountInputMenupermissionsItem]'],
     'sitemap': NotRequired['ScopedAppInputRoutesItemSitemap'],
@@ -3624,6 +3641,24 @@ ScopedAppInputRoutesItem = TypedDict('ScopedAppInputRoutesItem', {
     'operations': Required['list[str]'],
     'menu': NotRequired['bool'],
     'chrome': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, list[str]]]'],
+})
+
+ScopedAppInputRoutesItemResolvedauthItem = TypedDict('ScopedAppInputRoutesItemResolvedauthItem', {
+    'operationId': Required['str'],
+    'method': Required['HttpMethodInput'],
+    'auth': Required['ScopedAppInputRoutesItemResolvedauthItemAuth'],
+})
+
+ScopedAppInputRoutesItemResolvedauthItemAuth = TypedDict('ScopedAppInputRoutesItemResolvedauthItemAuth', {
+    'required': NotRequired['bool'],
+    'elevation': NotRequired['ScopedAppInputRoutesItemResolvedauthItemAuthElevation'],
+    'callers': NotRequired['list[ApiCallerModeInput]'],
+    'permissions': NotRequired['list[ApiAuthRequirementInputPermissionsItem]'],
+})
+
+ScopedAppInputRoutesItemResolvedauthItemAuthElevation = TypedDict('ScopedAppInputRoutesItemResolvedauthItemAuthElevation', {
+    'minimum': Required["Literal['confirm', 'mfa']"],
+    'maxAgeSeconds': NotRequired['int'],
 })
 
 ScopedAppInputRoutesItemRobotsItem = TypedDict('ScopedAppInputRoutesItemRobotsItem', {
@@ -4181,6 +4216,7 @@ ScopedAppRoutesItem = TypedDict('ScopedAppRoutesItem', {
     'viewId': Required['str'],
     'servicePathVariant': NotRequired['str'],
     'fixedParams': NotRequired['dict[str, str]'],
+    'resolvedAuth': NotRequired['list[ScopedAppRoutesItemResolvedauthItem]'],
     'authRequired': NotRequired['bool'],
     'menuPermissions': NotRequired['list[BetterPortalRouteMountMenupermissionsItem]'],
     'sitemap': NotRequired['ScopedAppRoutesItemSitemap'],
@@ -4196,6 +4232,24 @@ ScopedAppRoutesItem = TypedDict('ScopedAppRoutesItem', {
     'operations': Required['list[str]'],
     'menu': NotRequired['bool'],
     'chrome': NotRequired['dict[str, Union[BetterPortalRouteChromeValue, list[str]]]'],
+})
+
+ScopedAppRoutesItemResolvedauthItem = TypedDict('ScopedAppRoutesItemResolvedauthItem', {
+    'operationId': Required['str'],
+    'method': Required['HttpMethod'],
+    'auth': Required['ScopedAppRoutesItemResolvedauthItemAuth'],
+})
+
+ScopedAppRoutesItemResolvedauthItemAuth = TypedDict('ScopedAppRoutesItemResolvedauthItemAuth', {
+    'required': Required['bool'],
+    'elevation': NotRequired['ScopedAppRoutesItemResolvedauthItemAuthElevation'],
+    'callers': Required['list[ApiCallerMode]'],
+    'permissions': Required['list[ApiAuthRequirementPermissionsItem]'],
+})
+
+ScopedAppRoutesItemResolvedauthItemAuthElevation = TypedDict('ScopedAppRoutesItemResolvedauthItemAuthElevation', {
+    'minimum': Required["Literal['confirm', 'mfa']"],
+    'maxAgeSeconds': NotRequired['int'],
 })
 
 ScopedAppRoutesItemRobotsItem = TypedDict('ScopedAppRoutesItemRobotsItem', {
@@ -4731,6 +4785,7 @@ ServiceManifestCacheEntryInputViewindexItemOperationsItem = TypedDict('ServiceMa
     'renderModes': NotRequired['list[RenderModeInput]'],
     'role': NotRequired['str'],
     'authRequired': Required['bool'],
+    'auth': NotRequired['ApiAuthRequirementInput'],
     'sitemap': NotRequired['BetterPortalRouteMountInputSitemap'],
     'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
     'menu': NotRequired['bool'],
@@ -4772,6 +4827,7 @@ ServiceManifestCacheEntryViewindexItemOperationsItem = TypedDict('ServiceManifes
     'renderModes': Required['list[RenderMode]'],
     'role': NotRequired['str'],
     'authRequired': Required['bool'],
+    'auth': NotRequired['ApiAuthRequirement'],
     'sitemap': NotRequired['BetterPortalRouteMountSitemap'],
     'robots': Required['list[BetterPortalRouteMountRobotsItem]'],
     'menu': NotRequired['bool'],

@@ -58,6 +58,11 @@ A provider route must opt into machine access with `auth.callers: ["service"]`, 
 
 Providers declare `apiContracts` with supported `modes`, methods, capabilities, and permissions. Callers declare `m2mRequests` with one requested `mode`. Config-manager's Services page shows compatible app-scoped requests and creates one `m2m.binding` plus one least-privilege `m2m.grant` only after an administrator approves the request. Provisioning and manifest sync never approve access automatically.
 
+For machine callers, the approved service binding and exact view/method grant
+supply baseline route authorization. Authored additional permission actions still
+apply. Delegated calls additionally require the user's automatic route grant and
+all authored requirements; a service grant never substitutes for user authority.
+
 Pure service calls use:
 
 ```http
@@ -89,7 +94,17 @@ Revocation removes the binding and grant. Already-issued tokens fail after the t
 
 ## Route policy
 
-Each method operation declares its own route policy:
+Protected operations (`required: true`, or an elevation requirement) always require
+an app role grant for their own service instance, view and HTTP action: GET and
+explicit OPTIONS require `read`, POST requires `create`, PUT/PATCH require `update`,
+and DELETE requires `delete`. Framework-handled CORS preflight runs separately.
+SSE, streamed HTML and HEAD inherit the owning GET policy.
+
+`auth.permissions` contains **additional** service/view/action requirements. Every
+additional action must be granted as well as the baseline. An empty or omitted
+list never disables baseline authorization. For example, this protected GET needs
+its own `read` grant and the extra report-update grant:
+
 
 ```ts
 export const auth = {
@@ -103,7 +118,37 @@ export const auth = {
 
 The manifest advertises this policy so themes, admin tools, and gateways can reason about access.
 
-Methods sharing one `viewId` do not share policy. Their unique `operationId` values select the correct allowlist and contract, while role grants remain `serviceId + viewId + action`. For example, GET may require `read` and POST may require `create`.
+Methods sharing one `viewId` do not share policy. Their unique `operationId` values
+select the correct allowlist and contract, while role grants remain
+`serviceId + viewId + action`. Additional requirements cannot replace the baseline.
+A POST representing an update still needs its baseline `create` grant; declare
+`update` as an additional requirement when the business action requires it.
+
+`required: false` retains public/optional user authentication. Explicitly review
+public declarations; setting `permissions` does not make optional auth mandatory.
+With required auth, missing credentials return 401, missing grants return 403, and
+missing verification configuration returns 503 before the handler.
+
+This change preserves the `permissions` field and shape but tightens access:
+existing routes that used `required: true, permissions: []` for login-only access
+now require route grants. Assign the intended grants through role administration;
+do not turn protected routes public to retain access. Existing explicit own-route
+requirements can remain in the additional list.
+
+Themes receive selected operation policies through Config Manager and verify the
+user token before rendering permission-required menus. Unauthorized items and empty
+groups are omitted from server output; client route metadata is projected separately
+by access, including allowed routes absent from menus. Missing operation policy is
+not treated as public. An explicit always-show menu setting remains a presentation
+choice and grants no API authority. The full trusted service-origin map remains
+available for credential routing, auth refresh and service fragments; filtering
+route metadata does not promise to conceal service origins or public discovery.
+
+The initial document can only use credentials in that request. With browser-managed
+header authentication, the shell subsequently requests an authenticated navigation
+projection. Login/logout and header changes replace both menus and route metadata;
+late responses from an earlier auth state are discarded. Projections are `no-store`.
+API checks remain authoritative for direct URLs and stale clients.
 
 ## Secrets
 

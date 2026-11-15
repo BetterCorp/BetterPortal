@@ -34,10 +34,14 @@ class AuthorizedCaller:
 
 async def authorize_user(token: str, requirement: Mapping[str, Any], context: AuthContext) -> dict[str, Any]:
     """Verify an access credential and expand its role IDs through current app policy."""
+    return await _authorize_user_policy(token, parse("ApiAuthRequirementSchema", dict(requirement)), context)
+
+
+async def _authorize_user_policy(token: str, required: Mapping[str, Any], context: AuthContext) -> dict[str, Any]:
+    """Evaluate trusted effective policy after the declared wire requirement was validated."""
     if context.app_auth is None or context.key_resolver is None:
         raise AuthUnavailable("User authentication context unavailable")
     policy = parse("AppAuthConfigSchema", dict(context.app_auth))
-    required = parse("ApiAuthRequirementSchema", dict(requirement))
     aliases = dict(context.service_aliases)
     roles = policy["roles"]
     if len({role["id"] for role in roles}) != len(roles):
@@ -55,6 +59,18 @@ async def authorize_user(token: str, requirement: Mapping[str, Any], context: Au
                    for grant in grants) for item in required["permissions"] for action in item["permissions"]):
         raise PermissionDenied("Insufficient user permissions")
     return claims
+
+
+def effective_route_auth(requirement: Mapping[str, Any], service_id: str, view_id: str, method: str) -> dict[str, Any]:
+    """Additional permissions never replace a protected operation's own service/view/action grant."""
+    policy = parse("ApiAuthRequirementSchema", dict(requirement))
+    required = policy["required"] or bool(policy.get("elevation"))
+    actions = {"POST": "create", "PUT": "update", "PATCH": "update", "DELETE": "delete"}
+    policy["required"] = required
+    if required:
+        policy["permissions"] = [{"serviceId": service_id, "viewId": view_id,
+                                  "permissions": [actions.get(method, "read")]}, *policy["permissions"]]
+    return policy
 
 
 def _bearer(value: str | None) -> str | None:
@@ -88,9 +104,15 @@ def is_machine_request(headers: Mapping[str, str]) -> bool:
 
 
 async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str, Any], context: AuthContext,
-                            *, view_id: str, method: str) -> AuthorizedCaller:
+                            *, view_id: str, method: str, service_id: str | None = None) -> AuthorizedCaller:
     """Complete caller policy. Machine envelopes always fail closed, even on optional-auth operations."""
-    policy = parse("ApiAuthRequirementSchema", dict(requirement))
+    services = set(context.service_aliases.values())
+    target = service_id or (next(iter(services)) if len(services) == 1 else "org.betterportal.unresolved")
+    owners = [identifier for identifier, plugin in context.service_aliases.items() if plugin == target]
+    if target not in context.service_aliases:
+        target = owners[0] if len(owners) == 1 else "org.betterportal.unresolved" if owners else target
+    additional = parse("ApiAuthRequirementSchema", dict(requirement))["permissions"]
+    policy = effective_route_auth(requirement, target, view_id, method)
     normalized = {name.lower(): value for name, value in headers.items()}
     if len(normalized) != len(headers):
         raise TokenError("Duplicate request headers")
@@ -108,7 +130,7 @@ async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str
         if mode not in policy["callers"]:
             raise PermissionDenied("Caller mode is not allowed")
         if not machine:
-            human = await authorize_user(primary, policy, context)
+            human = await _authorize_user_policy(primary, policy, context)
             if policy.get("elevation"): require_elevation(human, policy["elevation"])
             return AuthorizedCaller("user", human)
         if (normalized["x-bp-tenant-id"], normalized["x-bp-app-id"]) != (context.tenant_id, context.app_id):
@@ -118,14 +140,14 @@ async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str
         secondary = _bearer(normalized.get("x-bp-service-authorization"))
         if delegated and (secondary is None or service):
             raise TokenError("Delegated calls require user and service credentials")
-        user = await authorize_user(primary, policy, context) if delegated else None
+        user = await _authorize_user_policy(primary, policy, context) if delegated else None
         credential = secondary if delegated else primary
         if credential is None:
             raise TokenError("Service credential required")
         caller = await authorize_service(credential, context.service_policy,
             source_service_id=normalized["x-bp-service-id"], tenant_id=context.tenant_id, app_id=context.app_id,
             view_id=view_id, method=method, mode=mode,
-            required_permissions=tuple(action for item in policy["permissions"] for action in item["permissions"]))
+            required_permissions=tuple(action for item in additional for action in item["permissions"]))
         if policy.get("elevation"):
             if user is None: raise PermissionDenied("Human authentication required for elevation")
             require_elevation(user, policy["elevation"])

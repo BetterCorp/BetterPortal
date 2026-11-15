@@ -1,3 +1,4 @@
+import { createNavigationAccess, resolveRequestPermissionServiceId, type BetterPortalApp, type NavigationAccess } from "@betterportal/framework";
 import { resolveThemeAuth } from "@betterportal/framework";
 import {
   BSBService,
@@ -766,31 +767,45 @@ export abstract class BPService<
 
   /**
    * Override to provide a JWT verifier for incoming requests.
-   * Receives the resolved tenant/app context. Return undefined to skip auth for the request.
+   * Receives the resolved tenant/app context. Missing verifiers fail closed for protected operations and yield anonymous optional-auth context.
    */
   protected getJwtVerifier(_tenantId: string, _appId: string): JwtVerifier | undefined {
     return this.getConfiguredJwtVerifier(_tenantId, _appId);
   }
 
+  /** Verify the caller once before projecting menus and route metadata. Never trust browser role hints. */
+  protected async navigationAccess(event: BetterPortalEvent, app: BetterPortalApp): Promise<NavigationAccess> {
+    const snapshot = this.scopedConfig;
+    let user: import("@betterportal/framework").JwtClaims | undefined;
+    const bearer = event.req.headers.get("authorization");
+    if (bearer?.startsWith("Bearer ")) {
+      try {
+        user = await this.getJwtVerifier(app.tenantId, app.id)?.verify(bearer.slice(7), { tenantId: app.tenantId, appId: app.id });
+      } catch { /* Invalid, expired or unavailable credentials yield the anonymous projection. */ }
+    }
+    if (snapshot !== this.scopedConfig) return { status: "unknown", permissions: [], canAccess: () => false };
+    return createNavigationAccess(app, user, this.getServiceIdAliases(app.tenantId), {
+      tenantId: this.scopedConfig?.configManagement?.adminTenantId,
+      appId: this.scopedConfig?.configManagement?.managementAppId
+    });
+  }
+
+  private configuredJwtVerifiers?: Map<string, { metadata: string; verifier: JwtVerifier }>;
+
   private getConfiguredJwtVerifier(tenantId: string, appId: string): JwtVerifier | undefined {
     const auth = this.getAppAuthConfig(tenantId, appId);
     if (!auth) return undefined;
-
-    if (auth.publicKeys) {
-      return createStaticJwksVerifier({
-        jwks: auth.publicKeys,
-        expectedIssuer: auth.expectedIssuer,
-        expectedAudience: auth.expectedAudience,
-        expectedTokenType: "access"
-      });
-    }
-
-    return createJwksVerifier({
-      jwksUri: auth.jwksUri,
-      expectedIssuer: auth.expectedIssuer,
-      expectedAudience: auth.expectedAudience,
-      expectedTokenType: "access"
-    });
+    const key = `${tenantId}:${appId}`;
+    const metadata = JSON.stringify([auth.expectedIssuer, auth.expectedAudience, auth.jwksUri, auth.publicKeys]);
+    const verifiers = this.configuredJwtVerifiers ??= new Map();
+    const cached = verifiers.get(key);
+    if (cached?.metadata === metadata) return cached.verifier;
+    const common = { expectedIssuer: auth.expectedIssuer, expectedAudience: auth.expectedAudience, expectedTokenType: "access" as const };
+    const verifier = auth.publicKeys
+      ? createStaticJwksVerifier({ ...common, jwks: auth.publicKeys })
+      : createJwksVerifier({ ...common, jwksUri: auth.jwksUri });
+    verifiers.set(key, { metadata, verifier });
+    return verifier;
   }
 
   /**
@@ -1252,7 +1267,8 @@ export abstract class BPService<
             renderers: Object.keys(operation.html.renderers),
             renderModes: [...new Set(Object.values(operation.html.renderers).flatMap((renderer) => renderer.renderModes))],
             ...(operation.role ? { role: operation.role } : {}),
-            authRequired: operation.auth.required,
+            authRequired: operation.auth.required || Boolean(operation.auth.elevation),
+            auth: operation.auth,
             ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
             robots: [...operation.robots],
             ...(operation.menu !== undefined ? { menu: operation.menu } : {}),
@@ -1526,7 +1542,13 @@ export abstract class BPService<
       : this.getJwtVerifier(tenantId, appId);
     const serviceVerifier = this.getServiceTokenVerifier();
     if (!verifier && !serviceVerifier) return undefined;
+    const localIds = new Set(this.scopedConfig?.m2m?.localServiceIds ?? []);
+    if (this.scopedConfig?.serviceIdentity?.id) localIds.add(this.scopedConfig.serviceIdentity.id);
+    const app = management?.app ?? this.scopedConfig?.apps.find(candidate => candidate.id === appId && candidate.tenantId === tenantId);
+    const permissionServiceId = resolveRequestPermissionServiceId(app, route, event.req.method,
+      new URL(event.req.url).pathname, localIds, this.scopedConfig?.serviceIdentity?.id);
     return {
+      permissionServiceId,
       ...(verifier ? { verifier } : {}),
       ...(serviceVerifier ? { serviceVerifier } : {}),
       tenantId,

@@ -28,6 +28,7 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Hello View";
 export const description = "Example BetterPortal view with JSON, HTML, and metadata representations.";
 
+// Deliberately public demo. With required: true, [] retains BP's own-route grant check.
 export const auth: ApiAuthRequirement = {
   required: false,
   permissions: []

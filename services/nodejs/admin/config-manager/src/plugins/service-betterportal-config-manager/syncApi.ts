@@ -1,3 +1,4 @@
+import { effectiveRouteAuth, ApiAuthRequirementSchema } from "@betterportal/framework";
 import type { ServiceRegistryContext } from "./storage/core.js";
 import { createEventStream } from "h3";
 import type {
@@ -93,6 +94,7 @@ export interface CachedManifestOperation {
   renderModes: RenderMode[];
   role?: string;
   authRequired: boolean;
+  auth?: NonNullable<BetterPortalRouteMount["resolvedAuth"]>[number]["auth"];
   sitemap?: {
     kind: "default" | "exclude" | "metadata" | "provider";
     lastModified?: string;
@@ -174,9 +176,13 @@ export function deriveRolePermissions(
   };
   const derived: DerivedRolePermission[] = [];
 
+  const requirementsFor = (candidate: typeof mounted[number]) => effectiveRouteAuth(
+    candidate.operation.auth ?? { required: candidate.operation.authRequired, permissions: candidate.operation.permissions },
+    candidate.manifest.serviceId, candidate.route.viewId, candidate.operation.method).permissions;
+
   const roles = auth.roles.map((role) => {
     const permissions = role.permissions.map((grant) => ({ ...grant, permissions: [...grant.permissions] }));
-    const queued = mounted.filter((candidate) => candidate.operation.permissions.every((required) => {
+    const queued = mounted.filter((candidate) => requirementsFor(candidate).length > 0 && requirementsFor(candidate).every((required) => {
       const serviceId = required.serviceId === candidate.manifest.serviceId
         ? candidate.route.serviceId
         : instanceId(required.serviceId);
@@ -194,7 +200,7 @@ export function deriveRolePermissions(
         const target = resolveDependency(source, requirement);
         if (!target) continue;
         queued.push(target);
-        for (const required of target.operation.permissions) {
+        for (const required of requirementsFor(target)) {
           const serviceId = required.serviceId === target.manifest.serviceId
             ? target.route.serviceId
             : instanceId(required.serviceId);
@@ -467,7 +473,8 @@ export async function reconcileServiceRegistry(
           renderers,
           renderModes,
           ...(operation.role ? { role: operation.role } : {}),
-          authRequired: operation.auth.required,
+          authRequired: operation.auth.required || Boolean(operation.auth.elevation),
+          auth: ApiAuthRequirementSchema.parse(operation.auth),
           sitemap: sitemapMetadata(operation.sitemap),
           robots: [...(operation.robots ?? [])],
           ...(operation.menu !== undefined ? { menu: operation.menu } : {}),
@@ -541,14 +548,16 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
   }
 
   const resolveRoutes = (routes: ScopedServiceConfig["apps"][number]["routes"]) => routes.map((route) => {
+    // Never trust persisted/client-supplied derived policy when a manifest is unavailable.
+    const unresolved = { ...route, resolvedAuth: undefined };
     const cached = manifestCache.get(route.serviceId)
       ?? manifestCache.get(serviceManifestKeys.get(route.serviceId) ?? "");
-    if (!cached) return route;
+    if (!cached) return unresolved;
     const view = cached.viewIndex[route.viewId];
-    if (!view) return route;
+    if (!view) return unresolved;
     const operation = view.operations.find((candidate) => route.operations.includes(candidate.operationId) && isPageOperation(candidate))
       ?? view.operations.find((candidate) => route.operations.includes(candidate.operationId));
-    if (!operation) return route;
+    if (!operation) return unresolved;
     const resolvedMethods = view.operations
       .filter((candidate) => route.operations.includes(candidate.operationId))
       .map((candidate) => candidate.method);
@@ -561,9 +570,13 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
         ? route.servicePathVariant
         : view.path,
       resolvedMethods,
-      authRequired: operation.authRequired,
+      resolvedAuth: view.operations.filter(candidate => route.operations.includes(candidate.operationId) && candidate.auth).map(candidate => ({
+        operationId: candidate.operationId, method: candidate.method,
+        auth: ApiAuthRequirementSchema.parse(candidate.auth)
+      })),
+      authRequired: (operation.auth?.required ?? operation.authRequired) || Boolean(operation.auth?.elevation),
       menu: operation.menu !== false,
-      menuPermissions: operation.permissions.map(requirement => ({
+      menuPermissions: effectiveRouteAuth(operation.auth ?? { required: operation.authRequired, permissions: operation.permissions }, route.serviceId, route.viewId, operation.method).permissions.map(requirement => ({
         ...requirement,
         serviceId: [...serviceManifestKeys].find(([id, plugin]) => plugin === requirement.serviceId && id === route.serviceId)?.[0]
           ?? requirement.serviceId

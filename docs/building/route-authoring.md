@@ -52,6 +52,7 @@ import { createHandler } from "../../.bp-generated/route-runtime.js";
 export const operationId = "hello.get";
 export const title = "Hello";
 export const description = "Hello operation";
+// This example is deliberately public. Protected routes use required: true.
 export const auth = { required: false, permissions: [] };
 export const ResponseSchema = av.string();
 
@@ -188,7 +189,8 @@ and unregistered paths retain the containing application's error behavior.
 
 Service APIs under `/.well-known/bp/` are independent of app page mounts, as in
 [the BP protocol](../../spec/protocol.md). Their operation auth still applies: declare
-required auth and permissions for protected APIs. An empty app route list does
+required auth for protected APIs. Their own service/view/action grant is automatic;
+`permissions` adds further requirements and never disables that baseline. An empty app route list does
 not disable these APIs, and placing a route here does not authenticate its caller.
 
 Schemas use AnyVali. Discovery rejects `any`, `unknown` and objects with

@@ -1,0 +1,13 @@
+# Unreleased
+
+## Route grants and verified navigation
+
+Protected operations now require a role grant for their own installed service, view and HTTP action, even when `auth.permissions` is empty. GET/HEAD/SSE and explicit OPTIONS require `read`, POST requires `create`, PUT/PATCH require `update`, and DELETE requires `delete`. Authored permissions remain additional requirements. Optional/public auth keeps its existing behavior; CORS preflight is handled separately.
+
+Node, Python and .NET enforce the same policy. A grant for another installation of the same plugin cannot authorize the owning installation. Ambiguous installation ownership fails closed. Pure service callers retain their approved binding and exact view/method baseline; delegated calls also require the user's route grant.
+
+Bootstrap1, Bootstrap2 and Embedded verify access tokens before projecting permitted route metadata. The bundled runtime refreshes menus and routes together after login, logout or header changes, rejects stale responses, and offers Retry if initial navigation cannot load. Explicit menu visibility overrides remain presentation choices. Breadcrumb parents remain clickable and the navbar has no Back or Up buttons, as released in [11.0.13](11.0.13.md).
+
+Before rollout, review roles for protected operations that previously relied on login alone. Assign the required own-route grants and resync service manifests through Config Manager to populate selected operation policies. Old manifest caches without full policies produce no permitted navigation entries until resynced. Deploy compatible framework, plugin and theme builds together; custom themes must rebuild their bundled runtime and adopt the [verified navigation projection](../building/themes.md#verified-navigation-projection).
+
+See [route policy and migration details](../platform/security-and-auth.md#route-policy).

@@ -52,7 +52,13 @@ Snapshot key changes must invalidate dependent verifier caches.
 ### 1.2 Method-specific authorization
 
 Each operation declares ApiAuthRequirement: required (default false), callers
-(default user only), and permissions (default empty).
+(default user only), and permissions (additional requirements, default empty).
+Protected operations (`required` or `elevation`) always require their own
+service/view/action grant: GET/explicit OPTIONS = read, POST = create,
+PUT/PATCH = update, DELETE = delete. HEAD and SSE inherit GET. CORS preflight
+is independent. The framework ANDs this baseline with every additional
+requirement; an empty permissions array never skips baseline authorization.
+Optional auth retains anonymous fallback and does not imply protected access.
 Permission requirements bind a serviceId (plugin ID), viewId, and an array of
 read/create/update/delete actions. Enforcement precedes the handler and uses
 the selected HTTP operation, including SSE's GET policy.
@@ -62,6 +68,10 @@ Each role grant binds a concrete service instance and view to allowed actions.
 Resolve aliases only through trusted tenant/app configuration. Every required
 action must be granted. Applying a changed snapshot therefore revokes role
 permissions even while a signed token remains unexpired.
+
+For machine callers, an approved exact view/method binding is the baseline;
+service grants must satisfy authored additional actions. Delegated calls also
+satisfy the automatic user baseline.
 
 The reserved platform-root role elevates only inside the configured management
 tenant/app. Preview and ordinary tenant requests cannot acquire management

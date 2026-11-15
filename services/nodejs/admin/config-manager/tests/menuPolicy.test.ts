@@ -92,12 +92,15 @@ test("scoped config carries authoritative menu requirements and updates them on 
     const projected = injectResolvedServicePaths(scoped).apps[0].routes[0];
     assert.equal(projected.menu, false);
     assert.equal(projected.authRequired, true);
-    assert.deepEqual(projected.menuPermissions, [{ serviceId, viewId: "accounts", permissions: ["read"] }]);
+    assert.deepEqual(projected.menuPermissions, [
+      { serviceId, viewId: "login", permissions: ["read"] },
+      { serviceId, viewId: "accounts", permissions: ["read"] }
+    ]);
     manifest.viewIndex.login.operations[0].menu = true;
     manifest.viewIndex.login.operations[0].permissions = [];
     const updated = injectResolvedServicePaths(scoped).apps[0].routes[0];
     assert.equal(updated.menu, true);
-    assert.deepEqual(updated.menuPermissions, []);
+    assert.deepEqual(updated.menuPermissions, [{ serviceId, viewId: "login", permissions: ["read"] }]);
   } finally { getManifestCache().delete(serviceId); }
 });
 
