@@ -34,7 +34,7 @@ async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) =>
     const action = buildServiceViewUrl({ hostname: "https://service.test" }, mount, url.pathname)! + url.search;
     return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><title>App</title><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse","implicitInheritance":${implicitInheritance}}'></head><body>
       <div data-bp-shell-root data-bp-menu-health="false" data-bp-document-title="App" data-bp-services='${JSON.stringify(Object.fromEntries(mounts.map(mount => [mount.serviceId, "https://service.test"])))}' data-bp-routes='${JSON.stringify(mounts)}'>
-      <h1 data-bp-current-title></h1><div data-bp-current-breadcrumb></div><a data-bp-up hidden>Up</a><button data-bp-back>Back</button>
+      <h1 data-bp-current-title></h1><div data-bp-current-breadcrumb></div>
       <main id="bp-main" data-bp-service="service" hx-get="${action}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></main></div><div id="error-outlet"></div><script>window.BetterPortalShellAdapter = { applyChrome: chrome => { window.appliedChrome = chrome; } ${errorOutlet ? ', showRequestError: (status, html) => { document.getElementById("error-outlet").innerHTML = html; }' : ''} };</script><script>${asset.body}</script></body></html>` });
   });
   await page.goto("https://app.test" + path);
@@ -208,7 +208,7 @@ test("current-page forms resolve the service path with explicit same-service own
   assert.deepEqual(errors, []);
 });
 
-test("page titles and parents commit on navigation and reset through Up and history", async t => {
+test("page titles and clickable parents commit on navigation and reset through history", async t => {
   const { page, errors } = await shell(t, [list, detail], route => new URL(route.request().url()).pathname === "/batches"
     ? response(route, '<a id="detail" href="/batches/1">Open</a>')
     : response(route, '<p id="batch">Batch</p>', { title: 'Batch 1; café "A"', parents: ['<Sales>', '/batches?tab=all'] }));
@@ -219,10 +219,10 @@ test("page titles and parents commit on navigation and reset through Up and hist
   assert.equal(await page.getByRole("navigation", { name: "Breadcrumb" }).locator("li").first().textContent(), "<Sales>");
   assert.equal(await page.locator('[aria-current="page"]').textContent(), 'Batch 1; café "A"');
   assert.equal(await page.getByRole("link", { name: "Import batches", exact: true }).getAttribute("href"), "/ui/batches?tab=all");
-  await page.getByRole("link", { name: "Up to Import batches" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Import batches", exact: true }).click();
   await page.waitForSelector("#detail");
   assert.equal(await page.locator("[data-bp-current-title]").textContent(), "Import batches");
-  assert.equal(await page.locator("[data-bp-up]").isVisible(), false);
+  assert.equal(await page.locator("[data-bp-up], [data-bp-back]").count(), 0);
   await page.goBack();
   await page.waitForSelector("#batch");
   assert.equal(await page.title(), 'Batch 1; café "A" - App');
@@ -255,7 +255,7 @@ test("preload and no-content or fragment responses leave active page metadata al
   assert.deepEqual(errors, []);
 });
 
-test("text immediate parents hide Up and unresolved or ambiguous paths are omitted", async t => {
+test("text parents remain plain text and unresolved or ambiguous paths are omitted", async t => {
   const alias = { ...list, href: "/alternate/batches" };
   const { page, errors } = await shell(t, [list, detail, alias], route => response(route, '<p id="batch">Batch</p>', {
     title: "123", parents: ["/batches", "/missing", "Imports", "Current workflow"]
@@ -263,7 +263,7 @@ test("text immediate parents hide Up and unresolved or ambiguous paths are omitt
   await page.waitForSelector("#batch");
   assert.equal(await page.locator("[data-bp-current-title]").textContent(), "123");
   assert.deepEqual(await page.getByRole("navigation", { name: "Breadcrumb" }).locator("li").allTextContents(), ["Imports", "Current workflow", "123"]);
-  assert.equal(await page.locator("[data-bp-up]").isVisible(), false);
+  assert.equal(await page.locator("[data-bp-up], [data-bp-back]").count(), 0);
   assert.deepEqual(errors, []);
 });
 
@@ -299,7 +299,7 @@ test("failed navigation preserves the last committed page presentation", async t
   assert.deepEqual(errors, []);
 });
 
-test("custom themes can expose Up without a breadcrumb outlet", async t => {
+test("custom themes can omit breadcrumb and navigation controls while retaining page titles", async t => {
   const { page, errors } = await shell(t, [list, detail], route => new URL(route.request().url()).pathname === "/batches"
     ? response(route, '<a id="detail" href="/batches/1">Open</a>')
     : response(route, '<p id="batch">Batch</p>', { title: "Batch 1", parents: ["/batches"] }));
@@ -307,7 +307,8 @@ test("custom themes can expose Up without a breadcrumb outlet", async t => {
   await page.evaluate(() => document.querySelector("[data-bp-current-breadcrumb]")?.remove());
   await page.locator("#detail").click();
   await page.waitForSelector("#batch");
-  assert.equal(await page.getByRole("link", { name: "Up to Import batches" }).getAttribute("href"), "/ui/batches");
+  assert.equal(await page.locator("[data-bp-current-title]").textContent(), "Batch 1");
+  assert.equal(await page.locator("[data-bp-up], [data-bp-back]").count(), 0);
   assert.deepEqual(errors, []);
 });
 
@@ -331,7 +332,7 @@ test("shells without an app-title attribute update and restore browser titles", 
   await page.locator("#detail").click();
   await page.waitForSelector("#batch");
   assert.equal(await page.title(), "Batch 1 - App");
-  await page.getByRole("link", { name: "Up to Import batches" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Import batches", exact: true }).click();
   await page.waitForSelector("#detail");
   assert.equal(await page.title(), "App");
   assert.deepEqual(errors, []);
@@ -347,7 +348,7 @@ test("custom chrome arrays retain their type without converting literal JSON str
   assert.deepEqual(chrome.tabs, ["summary", "//display"]);
   assert.equal(chrome.literal, '["summary","//display"]');
   assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-array-chrome-tabs"), "true");
-  await page.getByRole("link", { name: "Up to Import batches" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Import batches", exact: true }).click();
   await page.waitForSelector("#detail");
   assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-array-chrome-tabs"), null);
   assert.deepEqual(errors, []);
@@ -450,3 +451,32 @@ for (const swap of ["none", "beforeend"]) {
     assert.deepEqual(errors, []);
   });
 }
+
+test("every URL parent is clickable across multiple breadcrumb levels", async t => {
+  const imports = { ...list, href: "/ui/imports", requestUrl: "https://service.test/imports", title: "Imports" };
+  const item = { ...list, href: "/ui/batches/:batchId/items/:itemId", requestUrl: "https://service.test/batches/%3AbatchId/items/%3AitemId", title: "Item details" };
+  const parents = ["/imports?scope=all#overview", "/batches?tab=all", "/batches/1?tab=items#items"];
+  const destinations = ["/ui/imports?scope=all#overview", "/ui/batches?tab=all", "/ui/batches/1?tab=items#items"];
+  const labels = ["Imports", "Import batches", "Batch details"];
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, [imports, list, detail, item], route => {
+    requests.push(route.request().url());
+    return new URL(route.request().url()).pathname.endsWith("/items/9")
+      ? response(route, '<p id="item">Item 9</p>', { title: "Item 9", parents })
+      : response(route, '<p id="ancestor">Ancestor page</p>');
+  }, "/ui/batches/1/items/9");
+
+  for (let index = 0; index < parents.length; index++) {
+    if (index > 0) await page.goto("https://app.test/ui/batches/1/items/9");
+    await page.waitForSelector("#item");
+    const breadcrumbs = page.getByRole("navigation", { name: "Breadcrumb" });
+    assert.deepEqual(await breadcrumbs.locator("li").allTextContents(), [...labels, "Item 9"]);
+    assert.deepEqual(await breadcrumbs.locator("a").evaluateAll(links => links.map(link => link.getAttribute("href"))), destinations);
+    assert.equal(await breadcrumbs.locator('[aria-current="page"] a').count(), 0);
+    await breadcrumbs.getByRole("link", { name: labels[index], exact: true }).click();
+    await page.waitForSelector("#ancestor");
+    assert.equal(page.url(), "https://app.test" + destinations[index]);
+    assert.equal(requests.at(-1), "https://service.test" + parents[index].split("#")[0]);
+  }
+  assert.deepEqual(errors, []);
+});

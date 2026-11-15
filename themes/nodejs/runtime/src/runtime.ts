@@ -2265,16 +2265,14 @@ export function betterPortalShellRuntimeSource(): string {
         });
 
         const bcNode = breadcrumbNode();
-        let upHref: string | undefined;
-        let upLabel: string | undefined;
-        if (bcNode || document.querySelector("[data-bp-up]")) {
+        if (bcNode) {
           if (Array.isArray(activeChrome.parents)) {
             const list = document.createElement("ol");
             list.className = "breadcrumb mb-0";
             const nav = document.createElement("nav");
             nav.setAttribute("aria-label", "Breadcrumb");
             nav.appendChild(list);
-            activeChrome.parents.forEach((parent, index, parents) => {
+            activeChrome.parents.forEach(parent => {
               const item = document.createElement("li");
               item.className = "breadcrumb-item";
               if (parent.startsWith("/")) {
@@ -2290,10 +2288,6 @@ export function betterPortalShellRuntimeSource(): string {
                 anchor.setAttribute("href", match.route.tenantPath + url.search + url.hash);
                 anchor.setAttribute("data-bp-service", serviceId);
                 item.appendChild(anchor);
-                if (index === parents.length - 1) {
-                  upHref = match.route.tenantPath + url.search + url.hash;
-                  upLabel = label;
-                }
               } else item.textContent = parent;
               list.appendChild(item);
             });
@@ -2302,33 +2296,15 @@ export function betterPortalShellRuntimeSource(): string {
             current.setAttribute("aria-current", "page");
             current.textContent = pageTitle;
             list.appendChild(current);
-            if (bcNode) {
-              bcNode.replaceChildren(nav);
-              bcNode.removeAttribute("hidden");
-              resolveServiceLinks(bcNode);
-            }
-          } else if (bcNode) {
+            bcNode.replaceChildren(nav);
+            bcNode.removeAttribute("hidden");
+            resolveServiceLinks(bcNode);
+          } else {
             const breadcrumb = activeLink ? ((activeLink as Element).getAttribute("data-bp-route-breadcrumb") || "") : "";
             bcNode.textContent = breadcrumb;
             bcNode.toggleAttribute("hidden", !breadcrumb);
           }
         }
-        document.querySelectorAll("[data-bp-up]").forEach(node => {
-          node.toggleAttribute("hidden", !upHref);
-          if (upHref) {
-            node.setAttribute("href", upHref);
-            node.setAttribute("aria-label", `Up to ${upLabel}`);
-            if (serviceId) node.setAttribute("data-bp-service", serviceId);
-            node.removeAttribute("data-bp-shell-route");
-            node.removeAttribute("hx-get");
-            node.removeAttribute("hx-target");
-            resolveServiceLinks(node);
-          } else {
-            node.removeAttribute("href");
-            node.removeAttribute("aria-label");
-            node.removeAttribute("hx-get");
-          }
-        });
       };
 
       // -- Click handler: error actions --
@@ -2517,9 +2493,6 @@ export function betterPortalShellRuntimeSource(): string {
         event.stopImmediatePropagation();
         showRequestErrorModal(404, "This destination is not available in this app.", source);
       }, true);
-      document.body.addEventListener("click", event => {
-        if ((event.target as Element)?.closest?.("[data-bp-back]")) window.history.back();
-      });
       document.addEventListener("htmx:before:history:update", (event: Event) => {
         const detail = (event as CustomEvent<{ history?: { path?: string }; sourceElement?: Element; response?: { raw?: { url?: string } } }>).detail;
         if (detail?.history?.path) {
