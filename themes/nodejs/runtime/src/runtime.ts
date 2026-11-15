@@ -3315,7 +3315,13 @@ export function betterPortalShellRuntimeSource(): string {
         // request's loading state, leaving a newer request on the same target busy.
         htmx_finally_request(_elt: any, detail: any) {
           const ctx = detail.ctx;
-          if (ctx?.__bpMainGeneration === mainPendingGeneration) mainPendingGeneration = undefined;
+          if (ctx?.__bpMainGeneration === mainPendingGeneration) {
+            mainPendingGeneration = undefined;
+            if (!hasLoaded() && ctx.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) {
+              disableInitialMainLoad();
+              void refreshNavigation();
+            }
+          }
           const target = ctx?.__bpRequestTarget ?? ctx?.target;
           if (target instanceof Element && fragmentRequests.get(target) === ctx) {
             clearFragmentLoading(ctx, target);

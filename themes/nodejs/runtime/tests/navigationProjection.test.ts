@@ -323,3 +323,32 @@ test("committed projections repair main-content links without duplicate request 
   assert.equal(new URL(page.url()).pathname, "/tools/reports");
   assert.deepEqual(errors, []);
 });
+
+
+test("token renewal replaces an obsolete pending initial page request", async t => {
+  let initial: Route | undefined;
+  const tokens: string[] = [];
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/navigation") {
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ authenticated: true, principal: "user",
+        routes: [{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }],
+        desktop: `<span id="renewal-menu">${route.request().headers().authorization}</span>`, mobile: '' }) });
+    }
+    tokens.push(route.request().headers().authorization);
+    if (!initial) { initial = route; return Promise.resolve(); }
+    return html(route, '<p id="renewed-ready">Ready</p>');
+  }, { authorization: { value: "Bearer initial", owner: "auth", scope: null } }, "https://service.test/dashboard", "/tools/dashboard", true);
+  await page.waitForSelector("#renewal-menu");
+  assert.ok(initial);
+  await page.evaluate(() => {
+    localStorage.setItem("bp.headers", JSON.stringify({ authorization: { value: "Bearer renewed", owner: "auth", scope: null } }));
+    window.dispatchEvent(new StorageEvent("storage", { key: "bp.headers" }));
+  });
+  await page.waitForFunction(() => document.querySelector("#renewal-menu")?.textContent === "Bearer renewed");
+  await html(initial, '<p id="obsolete-initial">Old</p>', 200, { "BP-SetHeader": "Authorization=Bearer stale; locked=true" });
+  await page.waitForSelector("#renewed-ready");
+  assert.deepEqual(tokens, ["Bearer initial", "Bearer renewed"]);
+  assert.equal(await page.locator("#obsolete-initial").count(), 0);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("bp.headers") || "{}").authorization.value), "Bearer renewed");
+  assert.deepEqual(errors, []);
+});

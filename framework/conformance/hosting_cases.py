@@ -389,6 +389,13 @@ def run_hosting(urls, labels):
                 value["routes"][0]["operations"][0]["declaration"]["auth"]["permissions"] = []
             # Protocol service APIs use operation auth independently of page mounts.
             auth_case("well-known-user", service_api)
+            def local_well_known(value, ambiguous=False):
+                service_api(value)
+                value["snapshot"].pop("serviceIdentity", None)
+                value["snapshot"]["m2m"] = {"localServiceIds": [TARGET, SOURCE] if ambiguous else [TARGET], "services": [], "bindings": [], "grants": []}
+            auth_case("well-known-unique-local-owner", local_well_known, native=True)
+            auth_case("well-known-ambiguous-local-owner", lambda value: local_well_known(value, True), 403, native=True)
+
             auth_case("well-known-missing-credential", lambda value: (service_api(value), value["request"]["headers"].pop("authorization")), 401)
             auth_case("well-known-wrong-scope", lambda value: (service_api(value), value["request"]["headers"].update(authorization="Bearer " + wrong_scope)), 401)
             auth_case("preflight-before-auth", lambda body: (body["request"].update(method="OPTIONS"), body["request"]["headers"].update({"authorization": "invalid", "access-control-request-method": "GET"})), 204)

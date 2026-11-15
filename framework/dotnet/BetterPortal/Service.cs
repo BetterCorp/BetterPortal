@@ -93,6 +93,8 @@ public sealed partial class Service : IAsyncDisposable
             if (activations.Length != 1) throw new RequestException(404, "Route not found", responseHeaders, scope);
             owner = activations[0];
         }
+        if (owner is null && (matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal) && current.Snapshot.LocalServiceIds.Count == 1)
+            owner = current.Snapshot.LocalServiceIds.Single();
         if (owner is null && permissionAliases.Count == 1) owner = permissionAliases.Keys.Single();
         var auth = new AuthContext(scope.TenantId, scope.AppId, appAuth, client is null ? null : client.ResolveAsync,
             (Node?)config.GetValueOrDefault("m2m"), access.AdditionalPermissionAliases(), root);

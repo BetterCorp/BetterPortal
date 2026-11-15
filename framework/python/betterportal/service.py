@@ -320,6 +320,8 @@ class Service:
             if len(activations) != 1:
                 raise RequestError(404, "Route not found", response_headers, scope=scope)
             owner = activations[0]
+        if owner is None and (matched_path or route.paths[0]).startswith("/.well-known/") and len(state.snapshot.local_service_ids) == 1:
+            owner = next(iter(state.snapshot.local_service_ids))
         if owner is None and len(permission_aliases) == 1:
             owner = next(iter(permission_aliases))
         auth = AuthContext(scope.tenant_id, scope.app_id, app_auth, keys.resolve if keys else None,
