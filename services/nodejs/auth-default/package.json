@@ -41,7 +41,7 @@
     "@betterportal/plugin-bsb": "11.0.13",
     "@bsb/base": "^9.7.5",
     "@simplewebauthn/browser": "^14.0.0",
-    "@simplewebauthn/server": "^14.0.1",
+    "@simplewebauthn/server": "^14.1.0",
     "anyvali": "^1.1.7",
     "argon2": "^0.45.2",
     "bcrypt": "^6.0.0",
