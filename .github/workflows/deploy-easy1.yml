@@ -48,7 +48,7 @@ jobs:
         run: node scripts/deploy/easy1.mjs
       - name: Keep deployment outcome
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: easy1-deployment
           path: easy1-deployment.json
