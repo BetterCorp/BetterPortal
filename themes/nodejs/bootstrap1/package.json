@@ -39,7 +39,7 @@
     "@betterportal/theme-runtime": "11.0.13",
     "@bsb/base": "^9.7.5",
     "anyvali": "^1.1.7",
-    "bootstrap": "^5.3.8",
+    "bootstrap": "^5.3.9",
     "jsx-htmx": "4.0.100"
   },
   "files": [
