@@ -250,6 +250,12 @@ export type WorkOSState = {
   appSync: Record<string, WorkOSSyncAppState>;
 };
 
+export function resolveWorkOSSyncScope(
+  route: Pick<RouteHandlerContext, "tenant" | "app">
+): { tenantId: string; appId: string } {
+  return { tenantId: route.tenant.id, appId: route.app.id };
+}
+
 type SyncStatus = {
   level: "success" | "danger" | "warning" | "info";
   message: string;
@@ -737,11 +743,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     });
   }
 
-  async renderRoleSyncFragment(event: BetterPortalEvent, status?: SyncStatus, route?: RouteHandlerContext): Promise<Response> {
-    const url = new URL(event.req.url, "http://betterportal.invalid");
-    const tenantId = url.searchParams.get("tenantId") ?? "";
-    const appId = url.searchParams.get("appId") ?? "";
-    if (!tenantId || !appId) return htmlResponse(`<div class="alert alert-danger">tenantId and appId are required.</div>`, 400, "text/html; mode=fragment");
+  async renderRoleSyncFragment(event: BetterPortalEvent, status: SyncStatus | undefined, route: RouteHandlerContext): Promise<Response> {
+    const { tenantId, appId } = resolveWorkOSSyncScope(route);
     const permissionsUrl = route?.route?.({ path: "/.well-known/bp/config/workos-role-sync/permissions", method: "POST", query: { tenantId, appId } })?.absoluteViewPath;
     const rolesUrl = route?.route?.({ path: "/.well-known/bp/config/workos-role-sync/roles", method: "POST", query: { tenantId, appId } })?.absoluteViewPath;
     if (!permissionsUrl || !rolesUrl) {
@@ -813,10 +816,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     `, 200, "text/html; mode=fragment");
   }
 
-  async handlePermissionSync(event: BetterPortalEvent, route?: RouteHandlerContext): Promise<Response> {
-    const url = new URL(event.req.url, "http://betterportal.invalid");
-    const tenantId = url.searchParams.get("tenantId") ?? "";
-    const appId = url.searchParams.get("appId") ?? "";
+  async handlePermissionSync(event: BetterPortalEvent, route: RouteHandlerContext): Promise<Response> {
+    const { tenantId, appId } = resolveWorkOSSyncScope(route);
     const obs = eventObservability(event);
     const span = obs?.startSpan("workos.permissions.sync", {
       "bp.tenant.id": tenantId,
@@ -858,10 +859,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     }
   }
 
-  async handleRoleSync(event: BetterPortalEvent, route?: RouteHandlerContext): Promise<Response> {
-    const url = new URL(event.req.url, "http://betterportal.invalid");
-    const tenantId = url.searchParams.get("tenantId") ?? "";
-    const appId = url.searchParams.get("appId") ?? "";
+  async handleRoleSync(event: BetterPortalEvent, route: RouteHandlerContext): Promise<Response> {
+    const { tenantId, appId } = resolveWorkOSSyncScope(route);
     const obs = eventObservability(event);
     const span = obs?.startSpan("workos.roles.sync", {
       "bp.tenant.id": tenantId,
@@ -894,7 +893,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     }
   }
 
-  private async renderSyncFailure(event: BetterPortalEvent, error: Error, title: string, route?: RouteHandlerContext): Promise<Response> {
+  private async renderSyncFailure(event: BetterPortalEvent, error: Error, title: string, route: RouteHandlerContext): Promise<Response> {
     const fragment = await this.renderRoleSyncFragment(event, {
       level: "danger",
       message: title,
