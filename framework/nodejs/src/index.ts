@@ -57,3 +57,5 @@ export * from "./adapters/h3.js";
 
 export * from "./runtime/auth/elevation.js";
 export * from "./runtime/auth/menu.js";
+
+export * from "./runtime/auth/routePolicy.js";

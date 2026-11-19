@@ -16,9 +16,11 @@ import { ApiCallerModeSchema, type ApiCallerMode, type M2MCallerMode, type Servi
  * Per spec section 0.5, validation runs in 8 steps before the handler is invoked.
  */
 export const ApiAuthRequirementSchema = av.object({
+  /** Require a verified caller and baseline route authority; false retains optional user authentication. */
   required: av.bool().default(false),
   elevation: av.optional(ElevationRequirementSchema),
   callers: av.array(ApiCallerModeSchema).minItems(1).default(["user"]),
+  /** Additional requirements, ANDed with the automatic grant for protected operations. Empty never disables baseline authorization. */
   permissions: av.array(av.object({
     serviceId: PluginIdSchema,
     viewId: av.string().minLength(1),

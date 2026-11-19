@@ -1,3 +1,4 @@
+import { effectiveRouteAuth } from "@betterportal/framework";
 import type { PostgresConfigChanges } from "./storage/configChanges.js";
 import { isPageOperation } from "./routeMounts.js";
 import {
@@ -1053,7 +1054,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               operationId: operation.operationId,
               method: operation.method,
               ...(operation.role ? { role: operation.role } : {}),
-              requiredPermissions: operation.permissions
+              requiredPermissions: effectiveRouteAuth(operation.auth ?? { required: operation.authRequired, permissions: operation.permissions }, svc.id, view.viewId, operation.method).permissions
             }))
           }))
         : [];

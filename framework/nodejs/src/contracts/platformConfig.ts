@@ -1,3 +1,4 @@
+import { ApiAuthRequirementSchema } from "./route.js";
 import * as av from "anyvali";
 import type { BaseSchema, Infer, ParseContext, SchemaNode } from "anyvali";
 import {
@@ -137,6 +138,12 @@ export const BetterPortalRouteMountSchema = av.object({
   servicePathVariant: av.optional(NonEmptyStringSchema),
   /** Values supplied to service path params that are not present in the app path. */
   fixedParams: av.optional(av.record(av.string().minLength(1).maxLength(100))),
+  /** Selected operation policies synced by CM for server-side navigation filtering. Never emit to browsers. */
+  resolvedAuth: av.optional(av.array(av.object({
+    operationId: NonEmptyStringSchema,
+    method: HttpMethodSchema,
+    auth: ApiAuthRequirementSchema
+  }))),
   /** Manifest-derived access metadata injected by the control plane. */
   authRequired: av.optional(av.bool()),
   menuPermissions: av.optional(av.array(av.object({
@@ -251,6 +258,12 @@ export const BetterPortalSlotAssignmentSchema = av.object({
 export type BetterPortalSlotAssignment = Infer<typeof BetterPortalSlotAssignmentSchema>;
 
 export const BetterPortalFragmentAssignmentSchema = av.object({
+  /** Manifest-derived GET policy for server-side fragment navigation; never emit to browsers. */
+  resolvedPolicy: av.optional(av.object({
+    viewId: NonEmptyStringSchema,
+    operationId: NonEmptyStringSchema,
+    auth: ApiAuthRequirementSchema
+  })),
   serviceId: UuidV7Schema,
   fragmentId: NonEmptyStringSchema,
   targetPath: NonEmptyStringSchema,
@@ -437,6 +450,7 @@ export const ServiceManifestCacheEntrySchema = av.object({
       renderModes: av.array(RenderModeSchema).default([]),
       role: av.optional(NonEmptyStringSchema),
       authRequired: av.bool(),
+      auth: av.optional(ApiAuthRequirementSchema),
       sitemap: av.optional(av.object({
         kind: av.enum_(["default", "exclude", "metadata", "provider"] as const),
         lastModified: av.optional(av.string().format("date-time")),

@@ -5,7 +5,7 @@ import base64
 from pathlib import Path
 from access_cases import fixture as access_fixture
 from key_cases import peer
-from security_cases import post, TENANT, APP, SOURCE, TARGET, ISSUER, AUDIENCE, fixtures, verification
+from security_cases import post, TENANT, APP, SOURCE, TARGET, BINDING, ISSUER, AUDIENCE, fixtures, verification
 
 
 def fixture():
@@ -369,6 +369,14 @@ def run_hosting(urls, labels):
             def auth_case(name, change=lambda body: None, status=200, caller="user", native=False):
                 value = deepcopy(body); change(value); variants.append((name, value, status, caller, native))
             auth_case("user")
+            def cross_service_requirement(value, granted=True):
+                next(service for service in value["snapshot"]["tenants"][0]["services"] if service["id"] == SOURCE)["serviceId"] = "com.example.extra"
+                app(value)["routes"].append({**deepcopy(mounted(value)), "id": SOURCE, "serviceId": SOURCE, "viewId": "extra", "operations": ["extra.get"], "resolvedServicePath": "/extra", "path": "/extra"})
+                value["routes"][0]["operations"][0]["declaration"]["auth"]["permissions"] = [{"serviceId": "com.example.extra", "viewId": "extra", "permissions": ["read"]}]
+                if granted:
+                    app(value)["auth"]["roles"][0]["permissions"].append({"serviceId": SOURCE, "viewId": "extra", "permissions": ["read"]})
+            auth_case("additional-cross-service-grant", cross_service_requirement)
+            auth_case("additional-cross-service-grant-revoked", lambda value: cross_service_requirement(value, False), 403)
             auth_case("user-wrong-scope", lambda body: body["request"]["headers"].update(authorization="Bearer " + wrong_scope), 401)
             auth_case("user-forged-scope-hints", lambda body: body["request"]["headers"].update({"x-bp-tenant-id": SOURCE, "x-bp-app-id": SOURCE}))
             auth_case("revoked-role", lambda body: app(body)["auth"].update(roles=[]), 403)
@@ -381,10 +389,62 @@ def run_hosting(urls, labels):
                 value["routes"][0]["operations"][0]["declaration"]["auth"]["permissions"] = []
             # Protocol service APIs use operation auth independently of page mounts.
             auth_case("well-known-user", service_api)
+            def local_well_known(value, ambiguous=False):
+                service_api(value)
+                value["snapshot"].pop("serviceIdentity", None)
+                value["snapshot"]["m2m"] = {"localServiceIds": [TARGET, SOURCE] if ambiguous else [TARGET], "services": [], "bindings": [], "grants": []}
+            auth_case("well-known-unique-local-owner", local_well_known, native=True)
+            auth_case("well-known-ambiguous-local-owner", lambda value: local_well_known(value, True), 403, native=True)
+            def well_known_single_alias(value):
+                mount = deepcopy(mounted(value))
+                local_well_known(value, True)
+                value["snapshot"]["m2m"]["localServiceIds"] = [TARGET, BINDING]
+                app(value)["routes"] = [mount]
+                app(value)["auth"]["serviceId"] = TARGET
+            auth_case("well-known-ambiguous-owner-single-app-alias", well_known_single_alias, 403, native=True)
+
             auth_case("well-known-missing-credential", lambda value: (service_api(value), value["request"]["headers"].pop("authorization")), 401)
             auth_case("well-known-wrong-scope", lambda value: (service_api(value), value["request"]["headers"].update(authorization="Bearer " + wrong_scope)), 401)
             auth_case("preflight-before-auth", lambda body: (body["request"].update(method="OPTIONS"), body["request"]["headers"].update({"authorization": "invalid", "access-control-request-method": "GET"})), 204)
             auth_case("other-instance-role-alias", lambda body: app(body)["auth"]["roles"][0]["permissions"][0].update(serviceId=SOURCE), 403, native=True)
+            def shared_activation(value, linked=True):
+                value["snapshot"]["serviceIdentity"]["id"] = SOURCE
+                value["snapshot"]["m2m"] = {"localServiceIds": [SOURCE, TARGET], "services": [], "bindings": [], "grants": []}
+                if linked:
+                    next(service for service in value["snapshot"]["tenants"][0]["services"] if service["id"] == TARGET)["sharedServiceId"] = SOURCE
+            auth_case("shared-activation-owner", shared_activation, native=True)
+            def shared_normal_variant(value, catalog_grant=False):
+                shared_activation(value)
+                value["routes"][0].update(path="/.well-known/bp/check/:key", pathVariants=["/check/:key"])
+                value["routes"][0]["operations"][0]["declaration"]["auth"]["permissions"] = []
+                if catalog_grant:
+                    app(value)["auth"]["roles"][0]["permissions"][0]["serviceId"] = SOURCE
+            auth_case("shared-normal-variant-activation-grant", shared_normal_variant, native=True)
+            auth_case("shared-normal-variant-catalog-grant-denied", lambda value: shared_normal_variant(value, True), 403, native=True)
+            def shared_alternate(value, kind):
+                shared_activation(value)
+                value["snapshot"]["serviceIdentity"]["id"] = "01900000-0000-7000-8000-000000000099"
+                for service in value["snapshot"]["tenants"][0]["services"]:
+                    service["sharedServiceId"] = value["snapshot"]["serviceIdentity"]["id"]
+                if kind == "slot":
+                    app(value)["slots"] = [{"slotId": "header", "serviceId": SOURCE, "viewId": "check", "enabled": True}]
+                else:
+                    app(value)["fragments"] = {"nav": [{"serviceId": SOURCE, "fragmentId": "badge", "targetPath": "/check/:key", "enabled": True}]}
+            auth_case("shared-route-with-alternate-slot", lambda value: shared_alternate(value, "slot"), native=True)
+            auth_case("shared-route-with-alternate-fragment", lambda value: shared_alternate(value, "fragment"), native=True)
+            def shared_fragment(value, grant=False):
+                shared_alternate(value, "fragment")
+                value["request"]["path"] = "/check/item?_f=nav.badge"
+                value["request"]["headers"]["accept"] = "text/html"
+                app(value)["shell"] = {"serviceId": SOURCE, "service": "bootstrap1", "renderer": "bootstrap5"}
+                value["routes"][0]["operations"][0]["renderers"] = [{"declaration": {"renderer": "bootstrap5", "kind": "fragment", "key": "nav.badge"},
+                    "text": json.dumps({"caller": "user", "user": "user-1"})}]
+                if grant:
+                    app(value)["auth"]["roles"][0]["permissions"][0]["serviceId"] = SOURCE
+            auth_case("shared-explicit-fragment-requires-owner", shared_fragment, 403, native=True)
+            auth_case("shared-explicit-fragment-owner-granted", lambda value: shared_fragment(value, True), native=True)
+            auth_case("shared-activation-sibling-grant", lambda value: (shared_activation(value), app(value)["auth"]["roles"][0]["permissions"][0].update(serviceId=SOURCE)), 403, native=True)
+            auth_case("shared-activation-unrelated-catalog", lambda value: shared_activation(value, False), 404, native=True)
             def service(body, delegated=False):
                 policy = verification("service", claims["service"], machine, key)["service"]["policy"]
                 policy["services"][0].update(publicKeyPem=key["publicKeyPem"], keyId=key["kid"])
@@ -393,6 +453,32 @@ def run_hosting(urls, labels):
                 body["request"]["headers"].update({"x-bp-service-id": SOURCE, "x-bp-tenant-id": TENANT, "x-bp-app-id": APP,
                     "authorization": "Bearer " + (user if delegated else machine)})
                 if delegated: body["request"]["headers"]["x-bp-service-authorization"] = "Bearer " + machine
+            def well_known_binding(value, delegated=False):
+                service_api(value)
+                service(value, delegated)
+                value["snapshot"]["serviceIdentity"]["id"] = SOURCE
+                value["snapshot"]["m2m"]["localServiceIds"] = [SOURCE, TARGET]
+                app(value)["auth"]["roles"][0]["permissions"][0]["serviceId"] = SOURCE
+            auth_case("well-known-independent-machine-binding", well_known_binding, caller="service", native=True)
+            auth_case("well-known-independent-delegated-binding", lambda value: well_known_binding(value, True), caller="delegated", native=True)
+            fragment_machine = post(signer, {"action": "jwt-sign", "purpose": "service", "claims": {**claims["service"], "aud": BINDING}})["token"]
+            def machine_fragment(value, correct=False, delegated=False):
+                shared_fragment(value)
+                service(value, delegated)
+                value["snapshot"]["m2m"]["localServiceIds"] = [TARGET, BINDING]
+                target = next(item for item in value["snapshot"]["tenants"][0]["services"] if item["id"] == TARGET)
+                value["snapshot"]["tenants"][0]["services"].append({**target, "id": BINDING})
+                app(value)["fragments"]["nav"][0]["serviceId"] = BINDING
+                value["routes"][0]["operations"][0]["declaration"]["auth"]["permissions"] = []
+                value["routes"][0]["operations"][0]["renderers"][0]["text"] = json.dumps({"caller": "delegated" if delegated else "service", "user": "user-1" if delegated else None})
+                app(value)["auth"]["roles"][0]["permissions"][0]["serviceId"] = BINDING
+                if correct:
+                    value["snapshot"]["m2m"]["bindings"][0]["targetServiceId"] = BINDING
+                    value["request"]["headers"]["x-bp-service-authorization" if delegated else "authorization"] = "Bearer " + fragment_machine
+            auth_case("machine-fragment-wrong-target", machine_fragment, 403, native=True)
+            auth_case("machine-fragment-target-granted", lambda value: machine_fragment(value, True), caller="service", native=True)
+            auth_case("delegated-fragment-wrong-target", lambda value: machine_fragment(value, False, True), 403, native=True)
+            auth_case("delegated-fragment-target-granted", lambda value: machine_fragment(value, True, True), caller="delegated", native=True)
             auth_case("machine", service, caller="service", native=True)
             auth_case("delegated", lambda body: service(body, True), caller="delegated", native=True)
             auth_case("delegated-user-revoked", lambda body: (service(body, True), app(body)["auth"].update(roles=[])), 403, native=True)

@@ -131,7 +131,7 @@ test("missing root skips auth and identity handlers in menus and page fallbacks"
       tenantRoutePath: (path: string) => path.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/",
       configuredRouteFor: (path: string) => scenario.routes.find(route => route.href === path),
       configuredRoutes: () => scenario.routes,
-      shellRoot: () => ({ getAttribute: (name: string) => name === "data-bp-auth-service" ? scenario.auth ?? "provider-123" : scenario.loginUrl ?? null }),
+      shellRoot: () => ({ hasAttribute: () => false, getAttribute: (name: string) => name === "data-bp-auth-service" ? scenario.auth ?? "provider-123" : scenario.loginUrl ?? null }),
       routeLinks: () => scenario.menu.map(route => ({
         closest: () => null,
         hasAttribute: (name: string) => name === "data-bp-route-request",

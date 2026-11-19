@@ -393,7 +393,7 @@ App routes persist selected `operationId` values. HTTP methods are derived from 
 
 An app route is an operation allowlist, not a second copy of the service contract. Config Manager normally creates one managed Service/API mount per non-page operation and one administrator-owned Visual Route for a selected renderable GET operation. Existing multi-method mounts migrate to an `operations` set without flattening their contracts.
 
-Role grants deliberately remain `serviceId + viewId + action`. Each operation's own `auth.permissions` declares which CRUD actions it requires, so methods sharing a view can require different grants: a GET can require `read`, while POST requires `create`. `operationId` is the routing, dependency, telemetry, and generated-client identity; titles are labels only.
+Role grants deliberately remain `serviceId + viewId + action`. Protected operations automatically require their own baseline CRUD grant (GET/OPTIONS read, POST create, PUT/PATCH update, DELETE delete). `auth.permissions` declares additional requirements; an empty list retains the baseline. Methods sharing a view still require their own actions. `operationId` is the routing, dependency, telemetry, and generated-client identity; titles are labels only.
 
 ### Protocol 2 migration
 

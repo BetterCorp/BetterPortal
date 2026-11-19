@@ -38,6 +38,7 @@ export interface EmbeddedHostPageContext {
   initialRouteUrl?: string;
   initialServiceId?: string;
   initialRouteError?: string;
+  navigationUrl?: string;
   routeLinks: EmbeddedRouteLink[];
   serviceOrigins?: Record<string, string>;
   authServiceId?: string;
@@ -166,6 +167,7 @@ function EmbeddedBody(context: EmbeddedHostPageContext): HtmlRenderable {
       data-bp-embedded-root=""
       data-bp-services={JSON.stringify(serviceMap)}
       data-bp-routes={JSON.stringify(context.routeLinks)}
+      data-bp-navigation-url={context.navigationUrl}
       data-bp-auth-service={context.authServiceId}
       data-bp-initial-service={context.initialServiceId}
       data-bp-menu-health="false"

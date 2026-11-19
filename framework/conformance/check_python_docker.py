@@ -131,7 +131,7 @@ def registry():
                 app = config['apps'][0]
                 app['routes'][0].update(path='/hello', viewId='hello.index', operations=['hello.get'], resolvedServicePath='/hello')
                 app['routes'].append({**deepcopy(app['routes'][0]), 'id': SOURCE, 'path': '/publish', 'viewId': 'publish', 'operations': ['publish.post'], 'resolvedServicePath': '/publish'})
-                app['auth'] = {'serviceId': TARGET, 'expectedIssuer': fixtures()['access']['iss'], 'expectedAudience': fixtures()['access']['aud'], 'jwksUri': key_url + '/auth-keys', 'roles': [{'id': 'reader', 'title': 'Reader', 'permissions': []}]}
+                app['auth'] = {'serviceId': TARGET, 'expectedIssuer': fixtures()['access']['iss'], 'expectedAudience': fixtures()['access']['aud'], 'jwksUri': key_url + '/auth-keys', 'roles': [{'id': 'reader', 'title': 'Reader', 'permissions': [{'serviceId': TARGET, 'viewId': 'hello.index', 'permissions': ['read']}, {'serviceId': TARGET, 'viewId': 'publish', 'permissions': ['create']}]}]}
                 app['shell'] = {'serviceId': SOURCE}
                 config['manifestCache'] = [{'serviceId': SOURCE, 'manifestVersion': '1.0.0', 'fetchedAt': '2026-09-01T00:00:00Z', 'shell': {'service': 'bootstrap1', 'renderer': 'bootstrap5', 'fragments': []}}]
                 config['webhooks'] = {'targets': [{'id': SOURCE, 'tenantId': TENANT, 'appId': APP, 'serviceId': TARGET, 'eventId': 'changed', 'url': f'http://127.0.0.1:{receiver.server_port}/events', 'secret': secrets.token_hex(32), 'createdAt': '2026-09-25T00:00:00Z'}]}

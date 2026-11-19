@@ -187,7 +187,7 @@ Config-management app indexes do not become runtime app lookups.
 
 `AppAccess(scope, snapshot.LocalServiceIds)` checks operation IDs against enabled
 inbound app mounts, with GET-only fragment and slot support. Pass the matched
-registered path to `Allows` when a view has path variants. `PermissionAliases()`
+registered path to `Allows` when a view has path variants. Baseline ownership stays separate from `AdditionalPermissionAliases()`, which retains other enabled app-mounted services for authored requirements. Machine and delegated audiences must match the owning normal route or fragment. `PermissionAliases()`
 includes only enabled local service instances referenced by this app; pass the
 route and method to restrict aliases to its mounted operation. `Service` always
 applies this restriction. Cross-service
@@ -409,13 +409,17 @@ using BetterPortal;
 var key = KeyPair.Generate();
 var tenant = Guid.CreateVersion7().ToString();
 var app = Guid.CreateVersion7().ToString();
+var service = Guid.CreateVersion7().ToString();
+var grant = new Dictionary<string, object?> { ["serviceId"] = service, ["viewId"] = "hello", ["permissions"] = new[] { "read" } };
+var role = new Dictionary<string, object?> { ["id"] = "reader", ["title"] = "Reader", ["permissions"] = new[] { grant } };
 var pair = new TokenIssuer(key, "https://auth.example", "app").IssuePair(new Dictionary<string, object?>()
-    { ["sub"] = "user-1", ["tenantId"] = tenant, ["appId"] = app, ["roles"] = Array.Empty<object>() }, includeRefresh: false);
+    { ["sub"] = "user-1", ["tenantId"] = tenant, ["appId"] = app, ["roles"] = new[] { "reader" } }, includeRefresh: false);
 var context = new AuthContext(tenant, app, new() { ["serviceId"] = Guid.CreateVersion7().ToString(),
-    ["expectedIssuer"] = "https://auth.example", ["expectedAudience"] = "app", ["jwksUri"] = "https://auth.example/jwks" },
-    (kid, _) => Task.FromResult(kid == key.Kid ? key.PublicKeyPem : throw new TokenException("Unknown key")));
+    ["expectedIssuer"] = "https://auth.example", ["expectedAudience"] = "app", ["jwksUri"] = "https://auth.example/jwks", ["roles"] = new[] { role } },
+    (kid, _) => Task.FromResult(kid == key.Kid ? key.PublicKeyPem : throw new TokenException("Unknown key")),
+    ServiceAliases: new Dictionary<string, string> { [service] = "org.example.hello" });
 var caller = await RequestAuthorization.AuthorizeAsync(new Dictionary<string, string> { ["authorization"] = "Bearer " + pair["accessToken"] },
-    new() { ["required"] = true }, context, "hello", "GET");
+    new() { ["required"] = true }, context, "hello", "GET", serviceId: "org.example.hello");
 if (caller.User?["sub"] is not "user-1") throw new Exception("Expected an authenticated user");
 ```
 
@@ -1049,3 +1053,7 @@ After building the Conformance project, run the dedicated health checks:
 ```sh
 dotnet framework/dotnet/Conformance/bin/Debug/net10.0/Conformance.dll --health
 ```
+
+Protected operations require their own service/view/action grant (GET/OPTIONS read, POST create, PUT/PATCH update, DELETE delete). The `permissions` array adds requirements; an empty array retains the baseline. Existing login-only protected routes need explicit role grants. Hosts resolve the concrete installation before evaluating the baseline and reject ambiguous ownership.
+
+The public `RequestAuthorization.AuthorizeAsync` helper applies the resolved route owner to service and delegated token audiences as well as user grants. Only a trusted host selecting a registered well-known protocol endpoint may set `wellKnown` to retain independently approved machine bindings; ordinary callers leave it false.

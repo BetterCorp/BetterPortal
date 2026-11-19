@@ -238,7 +238,7 @@ test("HTML renderers receive limited tenant and app presentation context", async
     realm: "runtime",
     tenantId: tenant.id,
     appId: app.id,
-    roles: [],
+    roles: ["reader"],
     tokenType: "access"
   };
 
@@ -273,6 +273,7 @@ test("HTML renderers receive limited tenant and app presentation context", async
     router: {
       resolveAuth: () => ({
         verifier: { verify: async () => claims },
+        appAuthConfig: { ...app.auth!, roles: [{ id: "reader", title: "Reader", permissions: [{ serviceId, viewId: "page.index", permissions: ["read"] }] }] },
         tenantId: tenant.id,
         appId: app.id
       })
@@ -818,7 +819,7 @@ test("route caller modes default to user and delegated calls verify both credent
     realm: "runtime",
     tenantId: tenant.id,
     appId: app.id,
-    roles: [],
+    roles: ["reader"],
     tokenType: "access"
   };
   const serviceToken = `${Buffer.from(JSON.stringify({ alg: "RS256", typ: "BP-S2S-JWT", kid: "test" })).toString("base64url")}.${Buffer.from("{}").toString("base64url")}.signature`;
@@ -867,7 +868,10 @@ test("route caller modes default to user and delegated calls verify both credent
           };
         } },
         tenantId: tenant.id,
-        appId: app.id
+        appId: app.id,
+        appAuthConfig: { serviceId, expectedIssuer: "https://auth.local", expectedAudience: "caller-modes", jwksUri: "https://auth.local/jwks", roleClaimPath: "roles", roles: [{ id: "reader", title: "Reader", permissions: [
+          { serviceId, viewId: "delegated.action", permissions: ["read"] }, { serviceId, viewId: "user.action", permissions: ["read"] }
+        ] }] }
       })
     }
   });
@@ -894,7 +898,7 @@ test("elevation is enforced before effects; root and conditional handlers cannot
     claims = { ...claims, elevation: { assurance: "mfa", verifiedAt: claims.iat, expiresAt: claims.exp } };
     for (const path of ["/secure", "/conditional"]) assert.equal((await fetch(baseUrl + path, { headers: { Authorization: "Bearer valid", Accept: "application/json" } })).status, 200);
     assert.equal(effects, 2);
-  }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, managementScope: { tenantId: tenant.id, appId: app.id } }) } });
+  }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, platformRoot: { tenantId: tenant.id, appId: app.id } }) } });
 });
 
 test("renderer destinations encode queries and expose both service and mounted UI paths", async () => {

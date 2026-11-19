@@ -8,22 +8,58 @@ public sealed class AppAccess
 {
     private readonly Node app;
     private readonly Dictionary<string, Node> services;
+    private readonly Dictionary<string, Node> aliasServices;
     private static IEnumerable<Node> Items(Node node, string key) => ((List<object?>)node[key]!).Cast<Node>();
     private IEnumerable<Node> Fragments => ((Node)app["fragments"]!).Values.SelectMany(value => ((List<object?>)value!).Cast<Node>());
     public AppAccess(ScopedContext scope, IEnumerable<string> localServiceIds)
     {
         app = scope.App;
         var local = localServiceIds.ToHashSet(StringComparer.Ordinal);
-        services = Items(scope.Tenant, "services").Where(service => scope.Tenant["active"] is true && service["enabled"] is true && local.Contains((string)service["id"]!))
+        aliasServices = Items(scope.Tenant, "services").Where(service => scope.Tenant["active"] is true && service["enabled"] is true)
             .ToDictionary(service => (string)service["id"]!, StringComparer.Ordinal);
+        services = aliasServices.Where(pair => local.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
     }
     public IReadOnlyDictionary<string, string> PermissionAliases(Route? route = null, string method = "GET", string? path = null, string? fragment = null)
     {
         var references = Items(app, "routes").Concat(Items(app, "slots")).Concat(Fragments)
             .Concat(new[] { "shell", "auth" }.Where(app.ContainsKey).Select(key => (Node)app[key]!));
         var mounted = references.Where(item => item.GetValueOrDefault("enabled", true) is true).Select(item => (string)item["serviceId"]!).ToHashSet(StringComparer.Ordinal);
-        return services.Where(pair => mounted.Contains(pair.Key) && pair.Value.ContainsKey("serviceId") && (route is null || Allows(route, method, path, fragment, pair.Key)))
+        var owners = route is null ? null : PermissionOwners(route, method, path, fragment);
+        return services.Where(pair => (owners is null || owners.Contains(pair.Key)) && mounted.Contains(pair.Key) && pair.Value.ContainsKey("serviceId") && (route is null || Allows(route, method, path, fragment, pair.Key)))
             .ToFrozenDictionary(pair => pair.Key, pair => (string)pair.Value["serviceId"]!, StringComparer.Ordinal);
+    }
+    /// <summary>Trusted app-mounted aliases for authored requirements, separately from the inbound owner.</summary>
+    public IReadOnlyDictionary<string, string> AdditionalPermissionAliases()
+    {
+        var references = Items(app, "routes").Concat(Items(app, "slots")).Concat(Fragments)
+            .Concat(new[] { "shell", "auth" }.Where(app.ContainsKey).Select(key => (Node)app[key]!));
+        var mounted = references.Where(item => item.GetValueOrDefault("enabled", true) is true).Select(item => (string)item["serviceId"]!).ToHashSet(StringComparer.Ordinal);
+        return aliasServices.Where(pair => mounted.Contains(pair.Key) && pair.Value.ContainsKey("serviceId"))
+            .ToFrozenDictionary(pair => pair.Key, pair => (string)pair.Value["serviceId"]!, StringComparer.Ordinal);
+    }
+    private HashSet<string>? PermissionOwners(Route route, string method, string? path, string? fragment)
+    {
+        path ??= route.Paths[0];
+        if (!route.Paths.Contains(path)) throw new ArgumentException("The matched path is not registered on this view");
+        if (path.StartsWith("/.well-known/", StringComparison.Ordinal)) return null;
+        var operation = route.Operations.FirstOrDefault(item => item.Method == method);
+        if (operation is null) return [];
+        if (method == "GET" && !string.IsNullOrEmpty(fragment))
+        {
+            var dot = fragment.IndexOf('.'); var location = dot > 0 ? fragment[..dot] : ""; var identifier = dot > 0 ? fragment[(dot + 1)..] : fragment;
+            var candidates = location.Length > 0 ? ((List<object?>)((Node)app["fragments"]!).GetValueOrDefault(location, new List<object?>())!).Cast<Node>() : Fragments;
+            var fragments = candidates.Where(item => Equals(item["fragmentId"], identifier) && FragmentAllowed(item, path))
+                .Select(item => (string)item["serviceId"]!).ToHashSet(StringComparer.Ordinal);
+            if (fragments.Count > 0) return fragments;
+        }
+        var owners = Items(app, "routes").Where(mount => mount["enabled"] is true && services.ContainsKey((string)mount["serviceId"]!)
+            && Equals(mount["viewId"], route.ViewId) && (((List<object?>)mount["operations"]!).Contains(operation.Id) || ((List<object?>)mount["operations"]!).Contains($"legacy:{route.ViewId}:{method}"))
+            && Route.PathMatches((string)mount.GetValueOrDefault("resolvedServicePath", mount.GetValueOrDefault("servicePathVariant", mount.GetValueOrDefault("targetPath", path)))!, path))
+            .Select(mount => (string)mount["serviceId"]!).ToHashSet(StringComparer.Ordinal);
+        if (owners.Count == 0 && method == "GET")
+            owners = Items(app, "slots").Where(item => item["enabled"] is true && Equals(item["viewId"], route.ViewId) && services.ContainsKey((string)item["serviceId"]!))
+                .Select(item => (string)item["serviceId"]!).ToHashSet(StringComparer.Ordinal);
+        return owners;
     }
     public bool Allows(Route route, string method, string? path = null, string? fragment = null, string? serviceId = null)
     {

@@ -42,7 +42,8 @@ export function menuItemVisible(
   route: BetterPortalRouteMount | undefined,
   auth: ThemeAuthContext,
   aliases: Readonly<Record<string, string>> = {},
-  platformRoot = false
+  platformRoot = false,
+  canAccess?: (route: BetterPortalRouteMount) => boolean
 ): boolean {
   if (route?.menu === false) return false;
   if (!route && item.rolesAnyOf?.length && (!auth.user || !item.rolesAnyOf.some(role => auth.user!.roles.includes(role)))) return false;
@@ -50,6 +51,7 @@ export function menuItemVisible(
   if (item.authStatus === "hide-unauthenticated") return auth.status === "authenticated";
   const automatic = !item.authStatus || item.authStatus === "auto";
   if (automatic && !route) return true;
+  if (route && canAccess && (automatic || item.authStatus === "hide-unauthorized")) return canAccess(route);
   if (automatic && route?.authRequired === false) return true;
   if (automatic && (route?.authRequired === undefined || route?.menuPermissions === undefined)) return false;
   if (!automatic && item.authStatus !== "hide-unauthorized") return true;
@@ -59,7 +61,7 @@ export function menuItemVisible(
   if (route && route.menuPermissions === undefined) return false;
   return (route?.menuPermissions ?? []).every(requirement => requirement.permissions.every(action =>
     auth.permissions.some(grant => (grant.serviceId === requirement.serviceId
-      || aliases[grant.serviceId] === requirement.serviceId || aliases[requirement.serviceId] === grant.serviceId)
+      || aliases[grant.serviceId] === requirement.serviceId)
       && grant.viewId === requirement.viewId && grant.permissions.includes(action))));
 }
 
@@ -68,12 +70,13 @@ export function filterThemeMenu(
   app: Pick<BetterPortalApp, "menu" | "routes">,
   auth: ThemeAuthContext,
   aliases: Readonly<Record<string, string>> = {},
-  platformRoot = false
+  platformRoot = false,
+  canAccess?: (route: BetterPortalRouteMount) => boolean
 ): BetterPortalMenuItem[] {
   const routes = new Map(app.routes.map(route => [route.id, route]));
   const visit = (items: BetterPortalMenuItem[]): BetterPortalMenuItem[] => items.flatMap(item => {
     const route = item.routeId ? routes.get(item.routeId) : undefined;
-    if (!item.enabled || !menuItemVisible(item, route, auth, aliases, platformRoot)) return [];
+    if (!item.enabled || !menuItemVisible(item, route, auth, aliases, platformRoot, canAccess)) return [];
     const children = visit(item.children ?? []);
     if (item.type === "group" && !children.length) return [];
     return [{ ...item, children }];

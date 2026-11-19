@@ -240,9 +240,9 @@ Use `apiPath`/`absoluteApiPath` for API requests and `absoluteUiPath` for public
 
 The selected shell receives the app's role grants and manifest-derived route
 `menu`, `authRequired`, and `menuPermissions` through normal scoped config sync.
-Bootstrap1/2 use the shared `resolveThemeAuth` and `filterThemeMenu` helpers to
-verify access tokens against cached keys and render menus without contacting
-content services. Missing auth/permission metadata stays unresolved rather than
+Bootstrap1/2 use verified navigation access and the shared `filterThemeMenu`
+helper to render menus without contacting content services. Missing auth/permission
+metadata stays unresolved rather than
 exposing protected entries. Initial full-page loads without an auth header defer
 personalized entries until the browser refreshes the menu with its stored auth.
 
@@ -267,6 +267,16 @@ from the service's registered origin. Apply the shared visibility filter on both
 initial rendering and menu refreshes.
 
 Plain service anchors are upgraded to main-panel HTMX only when their complete enabled page mount resolves. Preload markers alone do not indicate routing success. Encoded service template placeholders from older shell metadata are recognized when declared in the UI mount. Custom themes must rebuild/redeploy their bundled shared runtime to receive fixes; see [11.0.0 routing notes](https://github.com/BetterCorp/BetterPortal/blob/master/docs/releases/11.0.0.md).
+
+### Verified navigation projection
+
+Bootstrap1, Bootstrap2 and Embedded fetch `/.well-known/bp/theme/navigation` from the public shell origin to replace their permitted route metadata and menus together. The endpoint verifies the app/tenant access token and evaluates current role grants against the selected operation policies from Config Manager (`resolvedAuth`). It does not trust browser role hints or forward refresh credentials. Personalised responses use `no-store`; older responses cannot restore routes after login/logout or an auth change. Include a stable `principal` for the verified issuer, tenant, app and user subject (or `null` anonymously), so switching accounts reloads personalized content while renewing a token for the same user preserves it. Projections without this field conservatively reload content when credentials change. Requests time out after five seconds and expose Retry.
+
+Fragment-only bindings receive their own manifest-derived GET `resolvedPolicy`; use `NavigationAccess.canAccessFragment` without requiring a duplicate page mount. Omit this server-only policy from browser payloads.
+
+Keep `filterThemeMenu` for recursive menu conditions, empty groups, explicit visibility overrides and manifest `menu` flags. Supply the same `NavigationAccess` evaluator for initial rendering and refresh. A visible menu item never grants API authority, and client route metadata contains only permitted operations, including permitted routes absent from the menu. Retain the trusted service-origin map for credentials and fragments; do not send `resolvedAuth`, verifier keys or role definitions to the browser.
+
+Set `data-bp-navigation-url="/.well-known/bp/theme/navigation"` on the shell root when using this projection. Omit both `hx-get` and `hx-trigger` from navigation containers in that mode; removing only the trigger leaves HTMX click requests enabled. Preserve complete service path templates, bases, fixed parameters and permitted methods in each projected route. Config Manager must resync manifests after upgrade to populate operation policies; missing policy fails closed. The automatic own-route grant and all additional requirements apply before handlers run.
 
 ### Breadcrumb navigation
 

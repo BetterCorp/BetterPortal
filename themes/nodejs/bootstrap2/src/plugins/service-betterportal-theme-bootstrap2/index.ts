@@ -1,4 +1,5 @@
-import { resolveThemeAuth, filterThemeMenu } from "@betterportal/framework";
+import { type NavigationAccess, type BetterPortalRouteMount } from "@betterportal/framework";
+import { filterThemeMenu } from "@betterportal/framework";
 import {
   type BSBServiceConstructor,
   createConfigSchema,
@@ -331,6 +332,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.get("/.well-known/bp/theme/style", (event) => this.handleThemeStyle(event));
     this.app.get("/.well-known/bp/theme/brand", (event) => this.handleThemeBrand(event));
     this.app.get("/.well-known/bp/theme/nav", (event) => this.handleThemeNav(event));
+    this.app.get("/.well-known/bp/theme/navigation", (event) => this.handleThemeNavigation(event));
 
     this.app.get("/**", (event) => this.handleIndex(event));
   }
@@ -480,14 +482,44 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       ? new URL(event.req.headers.get("hx-current-url")!).pathname
       : requestContext.app.defaultRoute;
 
-    const auth = await resolveThemeAuth(requestContext.app, event.req.headers);
-    const aliases = Object.fromEntries(requestContext.tenant.services.map(service => [service.id, service.serviceId ?? service.id]));
-    const menu = filterThemeMenu(requestContext.app, auth, aliases,
-      portalConfig.configManagement?.managementAppId === requestContext.app.id && portalConfig.configManagement?.adminTenantId === requestContext.tenant.id);
-    const navItems = this.buildAppNavItems(portalConfig, { ...requestContext, app: { ...requestContext.app, menu } }, currentPath, url.origin);
+    const access = await this.navigationAccess(event, requestContext.app);
+    const navItems = this.buildAppNavItems(portalConfig, requestContext, currentPath, url.origin, access);
     const rendered = renderNavItems(navItems, mobile);
     const html = Array.isArray(rendered) ? rendered.map((r) => toHtmlString(r as any)).join("") : toHtmlString(rendered as any);
     return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
+  }
+
+  private buildRouteLinks(portalConfig: any, context: any, currentPath: string, origin: string, access: NavigationAccess) {
+    return context.app.routes.filter((route: BetterPortalRouteMount) => route.enabled &&
+      (route.kind === "api" ? (route.resolvedMethods ?? []).some(method => access.canAccess(route, method)) : access.canAccess(route)))
+      .flatMap((route: BetterPortalRouteMount) => {
+        const binding = resolveServiceForTenant(portalConfig, route.serviceId, context);
+        if (!binding) return [];
+        const target = resolveSafeServiceViewTarget(binding.service, route, route.path, origin);
+        return [{ id: route.id, kind: route.kind, title: route.title ?? resolveServiceViewTitle(portalConfig, route.serviceId, route.viewId, context) ?? route.viewId, href: route.path,
+          servicePath: routeMountServicePath(route), serviceBaseUrl: safeServiceBaseUrl(binding.service), fixedParams: route.fixedParams,
+          requestUrl: target.ok ? target.url : undefined, serviceId: route.serviceId, active: route.path === currentPath,
+          methods: (route.resolvedMethods ?? []).filter(method => access.canAccess(route, method)) }];
+      });
+  }
+
+  private async handleThemeNavigation(event: BetterPortalEvent): Promise<Response> {
+    const portalConfig = this.requirePortalConfig();
+    const context = resolveThemeRequestContext(portalConfig, eventHeaders(event),
+      resolveThemeHostname(eventHeaders(event), this.headerTrustOptions()) ?? undefined, this.headerTrustOptions());
+    if (!context) return jsonResponse({ error: "Portal not found" }, 404);
+    this.tagRequestContext(event, context.tenant.id, context.app.id);
+    const currentPath = new URL(event.req.headers.get("hx-current-url") ?? event.url.href, event.url.origin).pathname;
+    const access = await this.navigationAccess(event, context.app);
+    if (access.status === "unknown") return jsonResponse({ error: "Navigation configuration changed. Retry the request." }, 503, { "cache-control": "no-store" });
+    const nav = this.buildAppNavItems(portalConfig, context, currentPath, event.url.origin, access);
+    const html = (mobile: boolean) => {
+      const rendered = renderNavItems(nav, mobile);
+      return Array.isArray(rendered) ? rendered.map(item => toHtmlString(item as any)).join("") : toHtmlString(rendered as any);
+    };
+    return jsonResponse({ routes: this.buildRouteLinks(portalConfig, context, currentPath, event.url.origin, access),
+      desktop: html(false), mobile: html(true), authenticated: Boolean(access.user), principal: access.user ? JSON.stringify([access.user.iss, access.user.tenantId, access.user.appId, access.user.sub]) : null } as JsonValue,
+      200, { "cache-control": "no-store", vary: "Authorization, Origin, HX-Current-URL" });
   }
 
   private logThemeContextResolutionFailure(event: BetterPortalEvent, error?: unknown): void {
@@ -634,7 +666,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     portalConfig: any,
     requestContext: any,
     currentPath: string,
-    themeOrigin: string
+    themeOrigin: string,
+    access: NavigationAccess
   ): Bootstrap2NavItem[] {
     const routesById = new Map(requestContext.app.routes.map((r: any) => [r.id, r])) as Map<string, any>;
 
@@ -667,12 +700,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         serviceStatus?: "show" | "hide"; authStatus?: "auto" | "show" | "hide-unauthenticated" | "hide-unauthorized" | "show-unauthenticated";
       enabled?: boolean; defaultExpanded?: boolean; children?: MenuItem[];
     };
-    const menu = ((requestContext.app as any).menu ?? []) as MenuItem[];
+    const menu = filterThemeMenu(requestContext.app, access, {}, false, route => access.canAccess(route)) as MenuItem[];
 
     const buildLeaf = (m: MenuItem): any => {
       if (m.type !== "link" || !m.routeId) return null;
       const r = routesById.get(m.routeId);
       if (!r || !r.enabled || r.menu === false || !isUserFacingRoute({ kind: r.kind, href: r.path })) return null;
+      if (m.authStatus === "hide-unauthenticated" && !access.user) return null;
+      if (m.authStatus === "hide-unauthorized" && !access.canAccess(r)) return null;
       const link = buildLinkFromRoute(r, m.title);
       if (!link) return null;
         (link as any).serviceStatus = m.serviceStatus ?? "show";
@@ -1029,48 +1064,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const currentRoute = resolveAppRoute(requestContext.app, activeEvent.url.pathname);
       const routeNotFound = !currentRoute;
 
-      const enabledRoutes = requestContext.app.routes.filter((r) => r.enabled);
+      const access = await this.navigationAccess(activeEvent, requestContext.app);
+      const navItems = this.buildAppNavItems(portalConfig, requestContext,
+        activeEvent.url.pathname, themeOrigin, access);
+      const routeLinks = this.buildRouteLinks(portalConfig, requestContext,
+        activeEvent.url.pathname, themeOrigin, access);
+      const initialAllowed = currentRoute && access.canAccess(currentRoute);
 
-      const buildLinkFromRoute = (route: typeof enabledRoutes[number], displayTitle?: string) => {
-        const routeBinding = resolveServiceForTenant(portalConfig, route.serviceId, requestContext);
-        if (!routeBinding) return null;
-        const safeTarget = resolveSafeServiceViewTarget(
-          routeBinding.service,
-          route,
-          route.path,
-          themeOrigin
-        );
-        const viewTitle = resolveServiceViewTitle(portalConfig, route.serviceId, route.viewId, requestContext);
-        return {
-          id: route.id,
-          kind: route.kind,
-          viewTitle,
-          title: displayTitle ?? route.title ?? viewTitle ?? route.id,
-          href: route.path,
-          servicePath: routeMountServicePath(route),
-          serviceBaseUrl: safeServiceBaseUrl(routeBinding.service),
-          methods: route.resolvedMethods,
-          fixedParams: route.fixedParams,
-          requestUrl: safeTarget.ok ? safeTarget.url : undefined,
-          serviceId: route.serviceId,
-          active: route.path === (currentRoute?.path ?? requestContext.app.defaultRoute),
-          error: safeTarget.ok ? undefined : safeTarget.error
-        };
-      };
-
-      const auth = await resolveThemeAuth(requestContext.app, activeEvent.req.headers);
-      const aliases = Object.fromEntries(requestContext.tenant.services.map(service => [service.id, service.serviceId ?? service.id]));
-      const menu = filterThemeMenu(requestContext.app, auth, aliases,
-        portalConfig.configManagement?.managementAppId === requestContext.app.id && portalConfig.configManagement?.adminTenantId === requestContext.tenant.id);
-      const navItems = this.buildAppNavItems(portalConfig, { ...requestContext, app: { ...requestContext.app, menu } },
-        currentRoute?.path ?? requestContext.app.defaultRoute, themeOrigin);
-
-      // Client route lookup also needs enabled routes absent from the menu.
-      const routeLinks = enabledRoutes
-        .map((r) => buildLinkFromRoute(r))
-        .filter((x): x is NonNullable<ReturnType<typeof buildLinkFromRoute>> => x !== null);
-
-      const initialRouteBinding = currentRoute
+      const initialRouteBinding = currentRoute && initialAllowed
         ? resolveServiceForTenant(portalConfig, currentRoute.serviceId, requestContext)
         : null;
       const initialSafeTarget = currentRoute && initialRouteBinding
@@ -1131,7 +1132,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
       return new Response(
         renderBootstrap2HostPage({
-          auth,
+          auth: { status: access.status, user: access.user, permissions: access.permissions },
           title: typeof baseTheme.documentTitle === "string" && baseTheme.documentTitle.trim() !== ""
             ? baseTheme.documentTitle
             : requestContext.app.title,
@@ -1145,10 +1146,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           assetBaseUrl: BOOTSTRAP2_ASSET_BASE_URL,
           assetVersion: BOOTSTRAP2_VERSION,
           currentPath: activeEvent.url.pathname,
+          navigationUrl: "/.well-known/bp/theme/navigation",
           initialRouteUrl,
           initialRouteError,
           initialRouteStatus: routeNotFound ? 404 : undefined,
-          initialServiceId: currentRoute?.serviceId,
+          initialServiceId: initialAllowed ? currentRoute?.serviceId : undefined,
           routeLinks,
           serviceOrigins: resolveAppServiceOrigins(portalConfig, requestContext),
           navItems: navItems as any,
@@ -1157,7 +1159,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           shellServiceId: requestContext.app.shell?.serviceId,
           tenantId: requestContext.tenant.id,
           appId: requestContext.app.id,
-          chrome: currentRoute?.chrome,
+          chrome: initialAllowed ? currentRoute?.chrome : undefined,
           aiManifestUrl: "/.well-known/bp/ai.json",
           automationCatalogUrl: discoveryUrls?.catalogUrl,
           managementDiscoveryUrl: discoveryUrls?.management.discoveryUrl,

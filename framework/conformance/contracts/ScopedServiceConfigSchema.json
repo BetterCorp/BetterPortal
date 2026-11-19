@@ -1126,6 +1126,139 @@
                                 }
                               }
                             },
+                            "resolvedAuth": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "operationId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "method": {
+                                        "kind": "enum",
+                                        "values": [
+                                          "GET",
+                                          "POST",
+                                          "PUT",
+                                          "PATCH",
+                                          "DELETE",
+                                          "OPTIONS"
+                                        ]
+                                      },
+                                      "auth": {
+                                        "kind": "object",
+                                        "properties": {
+                                          "required": {
+                                            "kind": "bool",
+                                            "default": false
+                                          },
+                                          "elevation": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "optional",
+                                              "inner": {
+                                                "kind": "object",
+                                                "properties": {
+                                                  "minimum": {
+                                                    "kind": "enum",
+                                                    "values": [
+                                                      "confirm",
+                                                      "mfa"
+                                                    ]
+                                                  },
+                                                  "maxAgeSeconds": {
+                                                    "kind": "optional",
+                                                    "inner": {
+                                                      "kind": "optional",
+                                                      "inner": {
+                                                        "kind": "int",
+                                                        "min": 1
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "minimum"
+                                                ],
+                                                "unknownKeys": "strip"
+                                              }
+                                            }
+                                          },
+                                          "callers": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "enum",
+                                              "values": [
+                                                "user",
+                                                "service",
+                                                "delegated"
+                                              ]
+                                            },
+                                            "minItems": 1,
+                                            "default": [
+                                              "user"
+                                            ]
+                                          },
+                                          "permissions": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "object",
+                                              "properties": {
+                                                "serviceId": {
+                                                  "kind": "string",
+                                                  "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                                },
+                                                "viewId": {
+                                                  "kind": "string",
+                                                  "minLength": 1
+                                                },
+                                                "permissions": {
+                                                  "kind": "array",
+                                                  "items": {
+                                                    "kind": "enum",
+                                                    "values": [
+                                                      "read",
+                                                      "create",
+                                                      "update",
+                                                      "delete"
+                                                    ]
+                                                  },
+                                                  "minItems": 1
+                                                }
+                                              },
+                                              "required": [
+                                                "serviceId",
+                                                "viewId",
+                                                "permissions"
+                                              ],
+                                              "unknownKeys": "strip"
+                                            },
+                                            "default": []
+                                          }
+                                        },
+                                        "required": [
+                                          "required",
+                                          "callers",
+                                          "permissions"
+                                        ],
+                                        "unknownKeys": "strip"
+                                      }
+                                    },
+                                    "required": [
+                                      "operationId",
+                                      "method",
+                                      "auth"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  }
+                                }
+                              }
+                            },
                             "authRequired": {
                               "kind": "optional",
                               "inner": {
@@ -5297,6 +5430,129 @@
                           "items": {
                             "kind": "object",
                             "properties": {
+                              "resolvedPolicy": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "viewId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "operationId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "auth": {
+                                        "kind": "object",
+                                        "properties": {
+                                          "required": {
+                                            "kind": "bool",
+                                            "default": false
+                                          },
+                                          "elevation": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "optional",
+                                              "inner": {
+                                                "kind": "object",
+                                                "properties": {
+                                                  "minimum": {
+                                                    "kind": "enum",
+                                                    "values": [
+                                                      "confirm",
+                                                      "mfa"
+                                                    ]
+                                                  },
+                                                  "maxAgeSeconds": {
+                                                    "kind": "optional",
+                                                    "inner": {
+                                                      "kind": "optional",
+                                                      "inner": {
+                                                        "kind": "int",
+                                                        "min": 1
+                                                      }
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "minimum"
+                                                ],
+                                                "unknownKeys": "strip"
+                                              }
+                                            }
+                                          },
+                                          "callers": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "enum",
+                                              "values": [
+                                                "user",
+                                                "service",
+                                                "delegated"
+                                              ]
+                                            },
+                                            "minItems": 1,
+                                            "default": [
+                                              "user"
+                                            ]
+                                          },
+                                          "permissions": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "object",
+                                              "properties": {
+                                                "serviceId": {
+                                                  "kind": "string",
+                                                  "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                                },
+                                                "viewId": {
+                                                  "kind": "string",
+                                                  "minLength": 1
+                                                },
+                                                "permissions": {
+                                                  "kind": "array",
+                                                  "items": {
+                                                    "kind": "enum",
+                                                    "values": [
+                                                      "read",
+                                                      "create",
+                                                      "update",
+                                                      "delete"
+                                                    ]
+                                                  },
+                                                  "minItems": 1
+                                                }
+                                              },
+                                              "required": [
+                                                "serviceId",
+                                                "viewId",
+                                                "permissions"
+                                              ],
+                                              "unknownKeys": "strip"
+                                            },
+                                            "default": []
+                                          }
+                                        },
+                                        "required": [
+                                          "required",
+                                          "callers",
+                                          "permissions"
+                                        ],
+                                        "unknownKeys": "strip"
+                                      }
+                                    },
+                                    "required": [
+                                      "viewId",
+                                      "operationId",
+                                      "auth"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  }
+                                }
+                              },
                               "serviceId": {
                                 "kind": "string",
                                 "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -5911,6 +6167,130 @@
                                   }
                                 }
                               },
+                              "resolvedAuth": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "operationId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "method": {
+                                        "kind": "enum",
+                                        "values": [
+                                          "GET",
+                                          "POST",
+                                          "PUT",
+                                          "PATCH",
+                                          "DELETE",
+                                          "OPTIONS"
+                                        ]
+                                      },
+                                      "auth": {
+                                        "kind": "object",
+                                        "properties": {
+                                          "required": {
+                                            "kind": "bool",
+                                            "default": false
+                                          },
+                                          "elevation": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "object",
+                                              "properties": {
+                                                "minimum": {
+                                                  "kind": "enum",
+                                                  "values": [
+                                                    "confirm",
+                                                    "mfa"
+                                                  ]
+                                                },
+                                                "maxAgeSeconds": {
+                                                  "kind": "optional",
+                                                  "inner": {
+                                                    "kind": "int",
+                                                    "min": 1
+                                                  }
+                                                }
+                                              },
+                                              "required": [
+                                                "minimum"
+                                              ],
+                                              "unknownKeys": "strip"
+                                            }
+                                          },
+                                          "callers": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "enum",
+                                              "values": [
+                                                "user",
+                                                "service",
+                                                "delegated"
+                                              ]
+                                            },
+                                            "minItems": 1,
+                                            "default": [
+                                              "user"
+                                            ]
+                                          },
+                                          "permissions": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "object",
+                                              "properties": {
+                                                "serviceId": {
+                                                  "kind": "string",
+                                                  "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                                },
+                                                "viewId": {
+                                                  "kind": "string",
+                                                  "minLength": 1
+                                                },
+                                                "permissions": {
+                                                  "kind": "array",
+                                                  "items": {
+                                                    "kind": "enum",
+                                                    "values": [
+                                                      "read",
+                                                      "create",
+                                                      "update",
+                                                      "delete"
+                                                    ]
+                                                  },
+                                                  "minItems": 1
+                                                }
+                                              },
+                                              "required": [
+                                                "serviceId",
+                                                "viewId",
+                                                "permissions"
+                                              ],
+                                              "unknownKeys": "strip"
+                                            },
+                                            "default": []
+                                          }
+                                        },
+                                        "required": [
+                                          "required",
+                                          "callers",
+                                          "permissions"
+                                        ],
+                                        "unknownKeys": "strip"
+                                      }
+                                    },
+                                    "required": [
+                                      "operationId",
+                                      "method",
+                                      "auth"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  }
+                                }
+                              },
                               "authRequired": {
                                 "kind": "optional",
                                 "inner": {
@@ -6222,6 +6602,120 @@
                             "items": {
                               "kind": "object",
                               "properties": {
+                                "resolvedPolicy": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "viewId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "operationId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "auth": {
+                                        "kind": "object",
+                                        "properties": {
+                                          "required": {
+                                            "kind": "bool",
+                                            "default": false
+                                          },
+                                          "elevation": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "object",
+                                              "properties": {
+                                                "minimum": {
+                                                  "kind": "enum",
+                                                  "values": [
+                                                    "confirm",
+                                                    "mfa"
+                                                  ]
+                                                },
+                                                "maxAgeSeconds": {
+                                                  "kind": "optional",
+                                                  "inner": {
+                                                    "kind": "int",
+                                                    "min": 1
+                                                  }
+                                                }
+                                              },
+                                              "required": [
+                                                "minimum"
+                                              ],
+                                              "unknownKeys": "strip"
+                                            }
+                                          },
+                                          "callers": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "enum",
+                                              "values": [
+                                                "user",
+                                                "service",
+                                                "delegated"
+                                              ]
+                                            },
+                                            "minItems": 1,
+                                            "default": [
+                                              "user"
+                                            ]
+                                          },
+                                          "permissions": {
+                                            "kind": "array",
+                                            "items": {
+                                              "kind": "object",
+                                              "properties": {
+                                                "serviceId": {
+                                                  "kind": "string",
+                                                  "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                                },
+                                                "viewId": {
+                                                  "kind": "string",
+                                                  "minLength": 1
+                                                },
+                                                "permissions": {
+                                                  "kind": "array",
+                                                  "items": {
+                                                    "kind": "enum",
+                                                    "values": [
+                                                      "read",
+                                                      "create",
+                                                      "update",
+                                                      "delete"
+                                                    ]
+                                                  },
+                                                  "minItems": 1
+                                                }
+                                              },
+                                              "required": [
+                                                "serviceId",
+                                                "viewId",
+                                                "permissions"
+                                              ],
+                                              "unknownKeys": "strip"
+                                            },
+                                            "default": []
+                                          }
+                                        },
+                                        "required": [
+                                          "required",
+                                          "callers",
+                                          "permissions"
+                                        ],
+                                        "unknownKeys": "strip"
+                                      }
+                                    },
+                                    "required": [
+                                      "viewId",
+                                      "operationId",
+                                      "auth"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  }
+                                },
                                 "serviceId": {
                                   "kind": "string",
                                   "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -7151,6 +7645,139 @@
                           "kind": "string",
                           "minLength": 1,
                           "maxLength": 100
+                        }
+                      }
+                    }
+                  },
+                  "resolvedAuth": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "properties": {
+                            "operationId": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "method": {
+                              "kind": "enum",
+                              "values": [
+                                "GET",
+                                "POST",
+                                "PUT",
+                                "PATCH",
+                                "DELETE",
+                                "OPTIONS"
+                              ]
+                            },
+                            "auth": {
+                              "kind": "object",
+                              "properties": {
+                                "required": {
+                                  "kind": "bool",
+                                  "default": false
+                                },
+                                "elevation": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "optional",
+                                    "inner": {
+                                      "kind": "object",
+                                      "properties": {
+                                        "minimum": {
+                                          "kind": "enum",
+                                          "values": [
+                                            "confirm",
+                                            "mfa"
+                                          ]
+                                        },
+                                        "maxAgeSeconds": {
+                                          "kind": "optional",
+                                          "inner": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "int",
+                                              "min": 1
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "minimum"
+                                      ],
+                                      "unknownKeys": "strip"
+                                    }
+                                  }
+                                },
+                                "callers": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "enum",
+                                    "values": [
+                                      "user",
+                                      "service",
+                                      "delegated"
+                                    ]
+                                  },
+                                  "minItems": 1,
+                                  "default": [
+                                    "user"
+                                  ]
+                                },
+                                "permissions": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "serviceId": {
+                                        "kind": "string",
+                                        "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                      },
+                                      "viewId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "permissions": {
+                                        "kind": "array",
+                                        "items": {
+                                          "kind": "enum",
+                                          "values": [
+                                            "read",
+                                            "create",
+                                            "update",
+                                            "delete"
+                                          ]
+                                        },
+                                        "minItems": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "serviceId",
+                                      "viewId",
+                                      "permissions"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  },
+                                  "default": []
+                                }
+                              },
+                              "required": [
+                                "required",
+                                "callers",
+                                "permissions"
+                              ],
+                              "unknownKeys": "strip"
+                            }
+                          },
+                          "required": [
+                            "operationId",
+                            "method",
+                            "auth"
+                          ],
+                          "unknownKeys": "strip"
                         }
                       }
                     }
@@ -11326,6 +11953,129 @@
                 "items": {
                   "kind": "object",
                   "properties": {
+                    "resolvedPolicy": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "object",
+                          "properties": {
+                            "viewId": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "operationId": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "auth": {
+                              "kind": "object",
+                              "properties": {
+                                "required": {
+                                  "kind": "bool",
+                                  "default": false
+                                },
+                                "elevation": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "optional",
+                                    "inner": {
+                                      "kind": "object",
+                                      "properties": {
+                                        "minimum": {
+                                          "kind": "enum",
+                                          "values": [
+                                            "confirm",
+                                            "mfa"
+                                          ]
+                                        },
+                                        "maxAgeSeconds": {
+                                          "kind": "optional",
+                                          "inner": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "int",
+                                              "min": 1
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "minimum"
+                                      ],
+                                      "unknownKeys": "strip"
+                                    }
+                                  }
+                                },
+                                "callers": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "enum",
+                                    "values": [
+                                      "user",
+                                      "service",
+                                      "delegated"
+                                    ]
+                                  },
+                                  "minItems": 1,
+                                  "default": [
+                                    "user"
+                                  ]
+                                },
+                                "permissions": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "serviceId": {
+                                        "kind": "string",
+                                        "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                      },
+                                      "viewId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "permissions": {
+                                        "kind": "array",
+                                        "items": {
+                                          "kind": "enum",
+                                          "values": [
+                                            "read",
+                                            "create",
+                                            "update",
+                                            "delete"
+                                          ]
+                                        },
+                                        "minItems": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "serviceId",
+                                      "viewId",
+                                      "permissions"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  },
+                                  "default": []
+                                }
+                              },
+                              "required": [
+                                "required",
+                                "callers",
+                                "permissions"
+                              ],
+                              "unknownKeys": "strip"
+                            }
+                          },
+                          "required": [
+                            "viewId",
+                            "operationId",
+                            "auth"
+                          ],
+                          "unknownKeys": "strip"
+                        }
+                      }
+                    },
                     "serviceId": {
                       "kind": "string",
                       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -11940,6 +12690,130 @@
                         }
                       }
                     },
+                    "resolvedAuth": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "properties": {
+                            "operationId": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "method": {
+                              "kind": "enum",
+                              "values": [
+                                "GET",
+                                "POST",
+                                "PUT",
+                                "PATCH",
+                                "DELETE",
+                                "OPTIONS"
+                              ]
+                            },
+                            "auth": {
+                              "kind": "object",
+                              "properties": {
+                                "required": {
+                                  "kind": "bool",
+                                  "default": false
+                                },
+                                "elevation": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "minimum": {
+                                        "kind": "enum",
+                                        "values": [
+                                          "confirm",
+                                          "mfa"
+                                        ]
+                                      },
+                                      "maxAgeSeconds": {
+                                        "kind": "optional",
+                                        "inner": {
+                                          "kind": "int",
+                                          "min": 1
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "minimum"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  }
+                                },
+                                "callers": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "enum",
+                                    "values": [
+                                      "user",
+                                      "service",
+                                      "delegated"
+                                    ]
+                                  },
+                                  "minItems": 1,
+                                  "default": [
+                                    "user"
+                                  ]
+                                },
+                                "permissions": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "serviceId": {
+                                        "kind": "string",
+                                        "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                      },
+                                      "viewId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "permissions": {
+                                        "kind": "array",
+                                        "items": {
+                                          "kind": "enum",
+                                          "values": [
+                                            "read",
+                                            "create",
+                                            "update",
+                                            "delete"
+                                          ]
+                                        },
+                                        "minItems": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "serviceId",
+                                      "viewId",
+                                      "permissions"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  },
+                                  "default": []
+                                }
+                              },
+                              "required": [
+                                "required",
+                                "callers",
+                                "permissions"
+                              ],
+                              "unknownKeys": "strip"
+                            }
+                          },
+                          "required": [
+                            "operationId",
+                            "method",
+                            "auth"
+                          ],
+                          "unknownKeys": "strip"
+                        }
+                      }
+                    },
                     "authRequired": {
                       "kind": "optional",
                       "inner": {
@@ -12251,6 +13125,120 @@
                   "items": {
                     "kind": "object",
                     "properties": {
+                      "resolvedPolicy": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "object",
+                          "properties": {
+                            "viewId": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "operationId": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "auth": {
+                              "kind": "object",
+                              "properties": {
+                                "required": {
+                                  "kind": "bool",
+                                  "default": false
+                                },
+                                "elevation": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "minimum": {
+                                        "kind": "enum",
+                                        "values": [
+                                          "confirm",
+                                          "mfa"
+                                        ]
+                                      },
+                                      "maxAgeSeconds": {
+                                        "kind": "optional",
+                                        "inner": {
+                                          "kind": "int",
+                                          "min": 1
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "minimum"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  }
+                                },
+                                "callers": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "enum",
+                                    "values": [
+                                      "user",
+                                      "service",
+                                      "delegated"
+                                    ]
+                                  },
+                                  "minItems": 1,
+                                  "default": [
+                                    "user"
+                                  ]
+                                },
+                                "permissions": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "serviceId": {
+                                        "kind": "string",
+                                        "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                      },
+                                      "viewId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "permissions": {
+                                        "kind": "array",
+                                        "items": {
+                                          "kind": "enum",
+                                          "values": [
+                                            "read",
+                                            "create",
+                                            "update",
+                                            "delete"
+                                          ]
+                                        },
+                                        "minItems": 1
+                                      }
+                                    },
+                                    "required": [
+                                      "serviceId",
+                                      "viewId",
+                                      "permissions"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  },
+                                  "default": []
+                                }
+                              },
+                              "required": [
+                                "required",
+                                "callers",
+                                "permissions"
+                              ],
+                              "unknownKeys": "strip"
+                            }
+                          },
+                          "required": [
+                            "viewId",
+                            "operationId",
+                            "auth"
+                          ],
+                          "unknownKeys": "strip"
+                        }
+                      },
                       "serviceId": {
                         "kind": "string",
                         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"

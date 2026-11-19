@@ -92,12 +92,22 @@ test("scoped config carries authoritative menu requirements and updates them on 
     const projected = injectResolvedServicePaths(scoped).apps[0].routes[0];
     assert.equal(projected.menu, false);
     assert.equal(projected.authRequired, true);
-    assert.deepEqual(projected.menuPermissions, [{ serviceId, viewId: "accounts", permissions: ["read"] }]);
+    assert.deepEqual(projected.menuPermissions, [
+      { serviceId, viewId: "login", permissions: ["read"] },
+      { serviceId, viewId: "accounts", permissions: ["read"] }
+    ]);
     manifest.viewIndex.login.operations[0].menu = true;
     manifest.viewIndex.login.operations[0].permissions = [];
     const updated = injectResolvedServicePaths(scoped).apps[0].routes[0];
     assert.equal(updated.menu, true);
-    assert.deepEqual(updated.menuPermissions, []);
+    const aliases = { [serviceId]: "org.example.auth" };
+    assert.equal(menuItemVisible({ authStatus: "auto" }, updated, { status: "authenticated", permissions: [
+      { serviceId: "org.example.auth", viewId: "login", permissions: ["read"] }
+    ] }, aliases), false, "a legacy plugin-wide grant cannot advertise access to an instance baseline");
+    assert.equal(menuItemVisible({ authStatus: "auto" }, updated, { status: "authenticated", permissions: [
+      { serviceId, viewId: "login", permissions: ["read"] }
+    ] }, aliases), true);
+    assert.deepEqual(updated.menuPermissions, [{ serviceId, viewId: "login", permissions: ["read"] }]);
   } finally { getManifestCache().delete(serviceId); }
 });
 
@@ -171,4 +181,43 @@ test("saving a group audience cascades through all descendants and enforces rout
       assert.equal(allowed[0].children[0].children.length, 1);
     }
   }
+});
+
+test("fragment-only bindings receive one trusted GET policy without adding page routes", () => {
+  const tenantId = uuidv7(), appId = uuidv7();
+  const config = BetterPortalConfigSchema.parse({ tenants: [{ id: tenantId, slug: "t", title: "Tenant", services: [
+    { id: serviceId, serviceId: "org.example.auth", hostname: "https://service.test", createdAt: new Date().toISOString() }
+  ] }], apps: [{ id: appId, tenantId, slug: "a", title: "App", hostnames: ["app.test"], fragments: { embedded: [
+    { serviceId, fragmentId: "card", targetPath: "/widgets/42", resolvedPolicy: { viewId: "spoofed", operationId: "spoofed", auth: { required: false } } }
+  ] } }] });
+  const scoped = ScopedServiceConfigSchema.parse({ managementOrigins: [], tenants: config.tenants, apps: config.apps });
+  const manifest = structuredClone(cached);
+  manifest.viewIndex = { widget: { ...manifest.viewIndex.login, viewId: "widget", path: "/widgets/:id", pathVariants: [],
+    fragments: [{ fragmentId: "embedded.card", targetPath: "/widgets/:id", method: "GET", operationId: "widget.read" }],
+    operations: [{ ...manifest.viewIndex.login.operations[0], operationId: "widget.read", method: "GET", authRequired: true,
+      auth: { required: true, permissions: [], callers: ["user"] } }]
+  } };
+  getManifestCache().set(serviceId, manifest);
+  try {
+    const project = () => injectResolvedServicePaths(scoped).apps[0];
+    assert.equal(project().routes.length, 0);
+    assert.deepEqual(project().fragments.embedded[0].resolvedPolicy, {
+      viewId: "widget", operationId: "widget.read", auth: { required: true, permissions: [], callers: ["user"] }
+    });
+    const operation = manifest.viewIndex.widget.operations[0];
+    delete operation.auth;
+    assert.equal(project().fragments.embedded[0].resolvedPolicy, undefined, "legacy summaries cannot fabricate a policy");
+    operation.auth = { required: true, permissions: [], callers: ["user"] };
+    manifest.viewIndex.postOnly = { ...manifest.viewIndex.widget, viewId: "post-only", path: "/widgets/42",
+      operations: manifest.viewIndex.widget.operations.map(operation => ({ ...operation, method: "POST" as const })) };
+    assert.equal(project().fragments.embedded[0].resolvedPolicy?.viewId, "widget", "a POST-only literal path does not override GET routing");
+    delete manifest.viewIndex.postOnly;
+    manifest.viewIndex.literal = { ...manifest.viewIndex.widget, viewId: "literal", path: "/widgets/42" };
+    assert.equal(project().fragments.embedded[0].resolvedPolicy?.viewId, "literal", "literal registered paths outrank parameter patterns");
+    delete manifest.viewIndex.literal;
+    manifest.viewIndex.other = { ...manifest.viewIndex.widget, viewId: "other", path: "/widgets/:id/" };
+    assert.equal(project().fragments.embedded[0].resolvedPolicy, undefined, "ambiguous matching views fail closed");
+    getManifestCache().delete(serviceId);
+    assert.equal(project().fragments.embedded[0].resolvedPolicy, undefined, "persisted policy is never trusted without a manifest");
+  } finally { getManifestCache().delete(serviceId); }
 });

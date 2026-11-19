@@ -83,13 +83,27 @@ public sealed partial class Service : IAsyncDisposable
         var management = (Node)config.GetValueOrDefault("configManagement", new Node())!;
         (string, string)? root = management.ContainsKey("adminTenantId") && management.ContainsKey("managementAppId")
             ? ((string)management["adminTenantId"]!, (string)management["managementAppId"]!) : null;
+        var permissionAliases = access.PermissionAliases(route, method, matchedPath, fragment);
+        var owner = (string?)((Node)config.GetValueOrDefault("serviceIdentity", new Node())!).GetValueOrDefault("id");
+        var wellKnown = (matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal);
+        if (owner is not null && !wellKnown && !permissionAliases.ContainsKey(owner))
+        {
+            var activations = ((List<object?>)scope.Tenant["services"]!).Cast<Node>()
+                .Where(service => Equals(service.GetValueOrDefault("sharedServiceId"), owner) && permissionAliases.ContainsKey((string)service["id"]!))
+                .Select(service => (string)service["id"]!).ToArray();
+            if (activations.Length != 1) throw new RequestException(404, "Route not found", responseHeaders, scope);
+            owner = activations[0];
+        }
+        if (owner is null && wellKnown && current.Snapshot.LocalServiceIds.Count == 1)
+            owner = current.Snapshot.LocalServiceIds.Single();
+        if (owner is null && !wellKnown && permissionAliases.Count == 1) owner = permissionAliases.Keys.Single();
         var auth = new AuthContext(scope.TenantId, scope.AppId, appAuth, client is null ? null : client.ResolveAsync,
-            (Node?)config.GetValueOrDefault("m2m"), access.PermissionAliases(route, method, matchedPath, fragment), root);
+            (Node?)config.GetValueOrDefault("m2m"), access.AdditionalPermissionAliases(), root);
         try
         {
-            var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken);
+            var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken, owner ?? "", wellKnown);
             if (!ReferenceEquals(state, current) || !Ready) throw new RequestException(503, "Configuration changed during authentication");
-            if (caller.Service is not null && !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!)) throw new RequestException(403, "Access denied", responseHeaders, scope);
+            if (caller.Service is not null && (!(matchedPath ?? route.Paths[0]).StartsWith("/.well-known/", StringComparison.Ordinal) && !Equals(caller.Service["aud"], owner) || !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!))) throw new RequestException(403, "Access denied", responseHeaders, scope);
             var values = current.PreviewScope == (scope.TenantId, scope.AppId) ? (Node)Json.Read(Json.Write(current.Preview))! : new Node();
             if (configApi.Settings is { } settings)
             {

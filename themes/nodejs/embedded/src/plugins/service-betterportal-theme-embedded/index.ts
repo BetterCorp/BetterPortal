@@ -1,3 +1,4 @@
+import { type NavigationAccess, type BetterPortalRouteMount } from "@betterportal/framework";
 import {
   type BSBServiceConstructor,
   createConfigSchema,
@@ -227,6 +228,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.get("/llms-ui.txt", (event) => this.handleLlmsUi(event));
     this.app.get("/.well-known/bp/manifest", (event) => this.handleManifest(event));
     this.app.get("/.well-known/bp/public", (event) => this.handlePublicDiscovery(event));
+    this.app.get("/.well-known/bp/theme/navigation", (event) => this.handleThemeNavigation(event));
     this.app.get("/**", (event) => this.handleIndex(event));
   }
 
@@ -339,6 +341,42 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     (event as unknown as { __bpTenantId?: string; __bpAppId?: string }).__bpAppId = appId;
   }
 
+  private buildRouteLinks(portalConfig: any, context: any, currentPath: string, origin: string, access: NavigationAccess): EmbeddedRouteLink[] {
+    const links: EmbeddedRouteLink[] = context.app.routes.filter((route: BetterPortalRouteMount) => route.enabled &&
+      (route.kind === "api" ? (route.resolvedMethods ?? []).some(method => access.canAccess(route, method)) : access.canAccess(route)))
+      .flatMap((route: BetterPortalRouteMount) => {
+        const binding = resolveServiceForTenant(portalConfig, route.serviceId, context);
+        if (!binding) return [];
+        const target = resolveSafeServiceViewTarget(binding.service, route, route.path, origin);
+        return [{ id: route.id, kind: route.kind, href: route.path, requestUrl: target.ok ? target.url : undefined,
+          servicePath: routeMountServicePath(route), serviceBaseUrl: safeServiceBaseUrl(binding.service),
+          methods: (route.resolvedMethods ?? []).filter(method => access.canAccess(route, method)), fixedParams: route.fixedParams,
+          serviceId: route.serviceId, active: route.path === currentPath }];
+      });
+    for (const fragment of context.app.fragments.embedded ?? []) {
+      if (!access.canAccessFragment(fragment)) continue;
+      const binding = resolveServiceForTenant(portalConfig, fragment.serviceId, context);
+      if (!binding) continue;
+      const target = resolveSafeServiceTarget(binding.service, fragment.targetPath, origin);
+      if (target.ok) links.push({ id: `fragment:${fragment.fragmentId}`, href: fragment.targetPath,
+        requestUrl: target.url, serviceId: fragment.serviceId, active: false });
+    }
+    return links;
+  }
+
+  private async handleThemeNavigation(event: BetterPortalEvent): Promise<Response> {
+    const config = this.requirePortalConfig();
+    const context = resolveThemeRequestContext(config, eventHeaders(event),
+      resolveThemeHostname(eventHeaders(event), this.headerTrustOptions()) ?? undefined, this.headerTrustOptions());
+    if (!context) return jsonResponse({ error: "Portal not found" }, 404);
+    const access = await this.navigationAccess(event, context.app);
+    if (access.status === "unknown") return jsonResponse({ error: "Navigation configuration changed. Retry the request." }, 503, { "cache-control": "no-store" });
+    const currentPath = new URL(event.req.headers.get("hx-current-url") ?? event.url.href, event.url.origin).pathname;
+    return jsonResponse({ routes: this.buildRouteLinks(config, context, currentPath, event.url.origin, access),
+      authenticated: Boolean(access.user), principal: access.user ? JSON.stringify([access.user.iss, access.user.tenantId, access.user.appId, access.user.sub]) : null } as unknown as JsonValue, 200,
+      { "cache-control": "no-store", vary: "Authorization, Origin, HX-Current-URL" });
+  }
+
   private async handleIndex(event: BetterPortalEvent): Promise<Response> {
     return withObservedEvent(event, this.observability, "theme.embedded.index", async (activeEvent) => {
       const sourceHostname = resolveThemeHostname(eventHeaders(activeEvent), this.headerTrustOptions());
@@ -371,32 +409,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const currentRoute = resolveAppRoute(requestContext.app, activeEvent.url.pathname) ??
         resolveAppRoute(requestContext.app, requestContext.app.defaultRoute);
 
-      const enabledRoutes = requestContext.app.routes.filter((route) => route.enabled);
-      const routeLinks: EmbeddedRouteLink[] = enabledRoutes
-        .map((route): EmbeddedRouteLink | null => {
-          const routeBinding = resolveServiceForTenant(portalConfig, route.serviceId, requestContext);
-          if (!routeBinding) return null;
-          const safeTarget = resolveSafeServiceViewTarget(
-            routeBinding.service,
-            route,
-            route.path,
-            themeOrigin
-          );
-          return {
-            id: route.id,
-            href: route.path,
-          servicePath: routeMountServicePath(route),
-          serviceBaseUrl: safeServiceBaseUrl(routeBinding.service),
-          methods: route.resolvedMethods,
-          fixedParams: route.fixedParams,
-            requestUrl: safeTarget.ok ? safeTarget.url : undefined,
-            serviceId: route.serviceId,
-            active: route.path === (currentRoute?.path ?? requestContext.app.defaultRoute),
-            error: safeTarget.ok ? undefined : safeTarget.error
-          };
-        })
-        .filter((route): route is EmbeddedRouteLink => route !== null);
-      const initialRouteBinding = currentRoute
+      const access = await this.navigationAccess(activeEvent, requestContext.app);
+      const routeLinks = this.buildRouteLinks(portalConfig, requestContext, activeEvent.url.pathname, themeOrigin, access);
+      const initialAllowed = currentRoute && access.canAccess(currentRoute);
+      const initialRouteBinding = currentRoute && initialAllowed
         ? resolveServiceForTenant(portalConfig, currentRoute.serviceId, requestContext)
         : null;
       const initialSafeTarget = currentRoute && initialRouteBinding
@@ -414,22 +430,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         ? initialSafeTarget.error
         : undefined;
 
-      const appFragments = (requestContext.app as any).fragments as Record<string, Array<{ serviceId: string; fragmentId: string; targetPath: string; enabled: boolean }>> | undefined;
-      const embeddedFragments = appFragments?.embedded ?? [];
-      for (const fragment of embeddedFragments.filter((entry) => entry.enabled)) {
-        const binding = resolveServiceForTenant(portalConfig, fragment.serviceId, requestContext);
-        if (!binding) continue;
-        const safeTarget = resolveSafeServiceTarget(binding.service, fragment.targetPath, themeOrigin);
-        if (!safeTarget.ok) continue;
-        routeLinks.push({
-          id: `fragment:${fragment.fragmentId}`,
-          href: fragment.targetPath,
-          requestUrl: safeTarget.url,
-          serviceId: fragment.serviceId,
-          active: false
-        });
-      }
-
       const originPolicy = buildOriginPolicy(requestContext);
       const discoveryUrls = this.resolveThemeAiContext(activeEvent);
 
@@ -440,11 +440,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           assetVersion: EMBEDDED_VERSION,
           initialRouteUrl,
           initialRouteError,
-          initialServiceId: currentRoute?.serviceId,
+          initialServiceId: initialAllowed ? currentRoute?.serviceId : undefined,
+          navigationUrl: "/.well-known/bp/theme/navigation",
           routeLinks,
           serviceOrigins: resolveAppServiceOrigins(portalConfig, requestContext),
           authServiceId: requestContext.app.auth?.serviceId,
-          chrome: currentRoute?.chrome,
+          chrome: initialAllowed ? currentRoute?.chrome : undefined,
           aiManifestUrl: "/.well-known/bp/ai.json",
           automationCatalogUrl: discoveryUrls?.catalogUrl,
           managementDiscoveryUrl: discoveryUrls?.management.discoveryUrl,

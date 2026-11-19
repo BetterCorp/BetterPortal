@@ -15,7 +15,7 @@ def authorization(body):
                           context.get("servicePolicy"), context.get("serviceAliases", {}),
                           (management["tenantId"], management["appId"]) if management else None)
     try:
-        caller = asyncio.run(authorize_request(body["headers"], body["requirement"], trusted, view_id=body["viewId"], method=body["method"]))
+        caller = asyncio.run(authorize_request(body["headers"], body["requirement"], trusted, view_id=body["viewId"], method=body["method"], service_id=context.get("permissionServiceId")))
         return {"status": 200, "output": {"mode": caller.mode, "user": caller.user["sub"] if caller.user else None, "service": caller.service["iss"] if caller.service else None}}
     except TokenError as error:
         return {"status": error.status}

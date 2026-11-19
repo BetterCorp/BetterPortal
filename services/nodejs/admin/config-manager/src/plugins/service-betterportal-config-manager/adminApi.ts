@@ -1,3 +1,4 @@
+import { effectiveRouteAuth } from "@betterportal/framework";
 import { isPageOperation } from "./routeMounts.js";
 import { eventObservability } from "@betterportal/framework";
 import { editAppRows, readApp, readRequestConfig, type AppDatabase, type AppEditorData } from "./appQueries.js";
@@ -385,7 +386,7 @@ function automationServiceCatalog(config: AppEditorData, appDef: BetterPortalApp
           method: operation.method,
           title: operation.title,
           renderable: operation.renderable,
-          permissions: operation.permissions,
+          permissions: effectiveRouteAuth(operation.auth ?? { required: operation.authRequired, permissions: operation.permissions }, service.id, view.viewId, operation.method).permissions,
           role: operation.role,
           chrome: operation.chrome,
           dependencies: operation.dependencies,

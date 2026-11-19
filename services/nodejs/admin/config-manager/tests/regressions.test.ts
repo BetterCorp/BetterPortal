@@ -5,7 +5,7 @@ import { registerWebhookRoutes } from "../src/plugins/service-betterportal-confi
 import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
 import { test } from "node:test";
 import * as av from "anyvali";
-import { BetterPortalConfigSchema, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
+import { BetterPortalConfigSchema, createBetterPortalApp, ScopedAppSchema, ScopedServiceConfigSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
 const managementViewContext = {
   route: (input: { path?: string; query?: Record<string, string>; component?: string }) => {
     const url = new URL(input.path ?? "/", "https://config.example");
@@ -18,7 +18,7 @@ const managementViewContext = {
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin, registerSetupEndpoints, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
-import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, injectResolvedServicePaths, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, getServicePluginId, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
@@ -584,8 +584,8 @@ test("duplicate route keys follow runtime route matching", () => {
   assert.notEqual(appRoutePatternKey("/users/new"), appRoutePatternKey("/users/:id"));
 });
 
-test("role permissions derive exact operation dependencies without mutating explicit grants", () => {
-  const { sourceId, targetId } = s2sConfig();
+test("baseline permissions derive exact dependencies with empty additional requirements", () => {
+  const { config, sourceId, targetId } = s2sConfig();
   const operation = (operationId: string, dependencies: CachedManifest["viewIndex"][string]["operations"][number]["dependencies"], permissions: CachedManifest["viewIndex"][string]["operations"][number]["permissions"]) => ({
     operationId,
     method: "GET" as const,
@@ -614,8 +614,8 @@ test("role permissions derive exact operation dependencies without mutating expl
     fetchedAt: Date.now()
   });
   const manifests = new Map([
-    [sourceId, manifest("org.example.source", "source.view", operation("source.read", [{ serviceId: "org.example.target", operationId: "target.read", method: "GET" }], [{ serviceId: "org.example.source", viewId: "source.view", permissions: ["read"] }]))],
-    [targetId, manifest("org.example.target", "target.view", operation("target.read", [], [{ serviceId: "org.example.target", viewId: "target.view", permissions: ["read"] }]))]
+    [sourceId, manifest("org.example.source", "source.view", operation("source.read", [{ serviceId: "org.example.target", operationId: "target.read", method: "GET" }], []))],
+    [targetId, manifest("org.example.target", "target.view", operation("target.read", [], []))]
   ]);
   const routes = [
     { id: uuidv7(), kind: "page" as const, path: "/source", serviceId: sourceId, viewId: "source.view", enabled: true, operations: ["source.read"] },
@@ -636,6 +636,27 @@ test("role permissions derive exact operation dependencies without mutating expl
   assert.equal(auth.roles[0].permissions.length, 1);
   assert.deepEqual(result.auth.roles[0].permissions[1], { serviceId: targetId, viewId: "target.view", permissions: ["read"] });
   assert.equal(result.auth.roles[1].permissions.length, 1);
+  config.manifestCache = BetterPortalConfigSchema.parse({ manifestCache: [...manifests].map(([id, item]) => ({
+    ...item, serviceId: id, fetchedAt: new Date(item.fetchedAt).toISOString()
+  })) }).manifestCache;
+  hydrateManifestCache(config);
+  try {
+    const hydrated = deriveRolePermissions(auth, routes, id => getCachedManifestForService(config, id));
+    const cold = deriveRolePermissions(auth, routes, id => getCachedManifestForService(config, id, new Map()));
+    assert.deepEqual(hydrated, result, "restart hydration retains authored plugin dependencies");
+    assert.deepEqual(cold, result, "cold persisted-cache reads retain plugin identity");
+    const live = new Map([...manifests].map(([id, item]) => [id, { ...item, serviceId: id }]));
+    assert.deepEqual(deriveRolePermissions(auth, routes, id => getCachedManifestForService(config, id, live)), result, "live instance-keyed cache retains plugin dependencies");
+    getManifestCache().clear();
+    for (const [id, item] of live) getManifestCache().set(id, item);
+    const scoped = ScopedServiceConfigSchema.parse({ managementOrigins: [], tenants: config.tenants, apps: [{ ...config.apps[0], routes, auth }] });
+    assert.deepEqual(injectResolvedServicePaths(scoped).apps[0].auth, result.auth, "delivered role grants use the trusted scoped service registration");
+
+    assert.deepEqual(config.manifestCache.map(item => item.serviceId), [sourceId, targetId], "persisted cache keys remain instance IDs");
+  } finally { getManifestCache().clear(); }
+
+  manifests.get(sourceId)!.viewIndex["source.view"].operations[0].authRequired = false;
+  assert.deepEqual(deriveRolePermissions(auth, routes, id => manifests.get(id)).derived, [], "a public route must not grant protected dependencies to every role");
   assert.deepEqual(result.derived[0]?.requiredBy, [{ serviceId: sourceId, operationId: "source.read", method: "GET" }]);
 });
 
@@ -1070,6 +1091,50 @@ test("fragment editor only offers fragments for the selected shell location", as
     })
   });
   assert.equal(response.status, 400);
+});
+
+test("sync delivers selected operation policies and drops untrusted policy without a manifest", async () => {
+  const handlers = new Map<string, (event: unknown) => Response | Promise<Response>>();
+  const serviceId = uuidv7();
+  const route = { id: uuidv7(), serviceId, viewId: "batches", path: "/batches", enabled: true, operations: ["batches.read"],
+    resolvedAuth: [{ operationId: "batches.read", method: "GET", auth: { required: false, permissions: [] } }] };
+  const cache = getManifestCache();
+  const operation: CachedManifest["viewIndex"][string]["operations"][number] = { operationId: "batches.read", method: "GET" as const, title: "Batches", description: "Batches",
+    renderers: ["bootstrap5"], renderModes: ["page" as const], authRequired: true, robots: [], dependencies: [],
+    permissions: [{ serviceId: "org.example.batches", viewId: "approval", permissions: ["update" as const] }],
+    renderable: true, apiContracts: [], demoScenarios: [] };
+  cache.set(serviceId, { serviceId: "org.example.batches", manifestVersion: "1", fetchedAt: Date.now(), capabilities: [],
+    apiContracts: [], m2mRequests: [], developerResources: [], configSchemas: [], webhooks: [],
+    viewIndex: { batches: { viewId: "batches", title: "Batches", description: "Batches", path: "/batches", pathVariants: [], fragments: [],
+      operations: [operation, { ...operation, operationId: "batches.delete", method: "DELETE" }] } } });
+  let invalidate = () => {};
+  const service = { id: serviceId, enabled: true, hostname: "https://service.test", lastSeenAt: new Date().toISOString(), lastSyncAt: new Date().toISOString() };
+  registerSyncEndpoint({
+    get: (path: string, handler: (event: unknown) => Response | Promise<Response>) => handlers.set(`GET ${path}`, handler),
+    post: (path: string, handler: (event: unknown) => Response | Promise<Response>) => handlers.set(`POST ${path}`, handler)
+  } as never, {
+    loadConfig: async () => ({ tenants: [{ id: "tenant", services: [service] }], platformServices: [], sharedServiceActivations: [], sharedServiceCatalog: [] }),
+    saveConfig: async () => {},
+    validateApiKey: async () => ({ scope: "tenant", tenantId: "tenant", serviceId, service }),
+    getScopedConfig: async () => ({ managementOrigins: [], tenants: [], apps: [{ routes: [route] }] }),
+    onChange: (callback: () => void) => { invalidate = callback; return () => {}; }
+  } as never);
+  const poll = handlers.get("GET /.well-known/bp/sync/poll")!;
+  const request = () => poll({ req: new Request("https://config.test/.well-known/bp/sync/poll", { headers: { authorization: "Bearer test" } }) });
+  operation.auth = { required: true, callers: ["user"], permissions: operation.permissions };
+  const delivered = await (await request()).json();
+  assert.deepEqual(delivered.apps[0].routes[0].resolvedAuth, [{ operationId: "batches.read", method: "GET", auth: {
+    required: true, callers: ["user"], permissions: operation.permissions
+  } }]);
+  assert.equal(route.resolvedAuth[0].auth.required, false, "projection must not mutate persisted configuration");
+  delete operation.auth;
+  invalidate();
+  const legacy = await (await request()).json();
+  assert.deepEqual(legacy.apps[0].routes[0].resolvedAuth, [], "legacy summary fields do not claim a complete operation policy");
+  cache.delete(serviceId);
+  invalidate();
+  const missing = await (await request()).json();
+  assert.equal(missing.apps[0].routes[0].resolvedAuth, undefined);
 });
 
 test("poll sync records service presence and config delivery", async () => {
@@ -2291,4 +2356,35 @@ test("page configuration is shared only within a request and failed reads can re
   await assert.rejects(plugin.loadRequestConfig(failed), /read failed/);
   plugin.postgresStorage.loadConfig = async () => ({ revision: 3 });
   assert.deepEqual(await plugin.loadRequestConfig(failed), { revision: 3 });
+});
+
+test("permission catalogs publish instance baselines and preserve authored plugin requirements", async t => {
+  const tenantId = uuidv7(), appId = uuidv7(), instanceId = uuidv7();
+  const pluginId = "org.example.catalog";
+  const additional = { serviceId: "org.example.reports", viewId: "reports", permissions: ["update"] };
+  const config = BetterPortalConfigSchema.parse({
+    tenants: [{ id: tenantId, slug: "catalog", title: "Catalog", services: [{ id: instanceId, serviceId: pluginId,
+      hostname: "https://service.test", createdAt: new Date().toISOString() }] }],
+    apps: [{ id: appId, tenantId, slug: "app", title: "App", hostnames: ["app.test"] }],
+    manifestCache: [{ serviceId: pluginId, manifestVersion: "1", fetchedAt: new Date().toISOString(), viewIndex: {
+      catalog: { viewId: "catalog", title: "Catalog", description: "Catalog", path: "/catalog", operations: [{ operationId: "catalog.read", method: "GET",
+        title: "Read", description: "Read catalog", authRequired: true, renderable: true, permissions: [additional],
+        auth: { required: true, permissions: [additional] } }] }
+    } }]
+  });
+  hydrateManifestCache(config);
+  t.after(() => getManifestCache().clear());
+  const expected = [{ serviceId: instanceId, viewId: "catalog", permissions: ["read"] }, additional];
+  const server = createBetterPortalApp();
+  registerAdminApiRoutes(server, new MemoryStorage(config), { issuer: "https://config.test" } as never);
+  const response = await server.request("/.well-known/bp/automation/catalog?appId=" + appId);
+  assert.equal(response.status, 200);
+  const catalog = await response.json();
+  assert.deepEqual(catalog.services[0].actions[0].permissions, expected);
+  const plugin = Object.create(ConfigManagerPlugin.prototype) as any;
+  plugin.loadEditorPage = async () => ({ ...config, appChoices: config.apps });
+  plugin.cpState = { issuer: "https://config.test" };
+  const event = { req: new Request("https://config.test/auth?appId=" + appId) } as any;
+  await plugin.populateAdminAuthContext(event);
+  assert.deepEqual(event.__bpResponseModel.servicePermissions[0].views[0].operations[0].requiredPermissions, expected);
 });

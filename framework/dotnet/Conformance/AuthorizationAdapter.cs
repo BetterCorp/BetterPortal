@@ -17,7 +17,7 @@ internal static class AuthorizationAdapter
         try
         {
             var caller = await RequestAuthorization.AuthorizeAsync(((Node)body["headers"]!).ToDictionary(pair => pair.Key, pair => (string)pair.Value!),
-                (Node)body["requirement"]!, trusted, (string)body["viewId"]!, (string)body["method"]!);
+                (Node)body["requirement"]!, trusted, (string)body["viewId"]!, (string)body["method"]!, serviceId: (string?)context.GetValueOrDefault("permissionServiceId"));
             return new { status = 200, output = new { mode = caller.Mode, user = caller.User?.GetValueOrDefault("sub"), service = caller.Service?.GetValueOrDefault("iss") } };
         }
         catch (TokenException error) { return new { status = error.Status }; }

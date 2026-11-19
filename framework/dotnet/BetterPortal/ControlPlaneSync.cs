@@ -61,6 +61,7 @@ public sealed class ControlPlaneSync : IAsyncDisposable
                 var item = new[] { "operationId", "method", "title", "description", "robots", "dependencies", "renderable", "apiContracts", "demoScenarios" }.ToDictionary(key => key, key => operation[key]);
                 item["renderers"] = renderers.Keys.ToArray();
                 item["renderModes"] = renderers.Values.Cast<Node>().SelectMany(theme => ((List<object?>)theme["renderModes"]!).Cast<string>()).Distinct().ToArray();
+                item["auth"] = operation["auth"];
                 item["authRequired"] = ((Node)operation["auth"]!)["required"]; item["permissions"] = ((Node)operation["auth"]!)["permissions"];
                 item["schemas"] = new[] { ("query", "querySchema"), ("headers", "headersSchema"), ("request", "bodySchema"), ("response", "jsonResponseSchema"), ("metadataResponse", "metadataResponseSchema") }
                     .ToDictionary(pair => pair.Item1, pair => operation[pair.Item2]);

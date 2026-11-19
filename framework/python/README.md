@@ -187,9 +187,8 @@ are separate from runtime app lookup.
 the registered operation against enabled inbound app mounts. Pass the matched
 registered path to `allows` for a view with path variants. GET fragment selectors
 and slot mounts are supported; `appRoutes`/`appFragments` are catalogs, not inbound
-allowlists. `permission_aliases()` restricts role aliases to enabled local service
-instances referenced by this app; pass the route and method to restrict aliases
-to its mounted operation. `Service` always applies this restriction. Hosts must still run caller authorization and
+allowlists. `permission_aliases()` identifies enabled local service
+instances referenced by this app; pass the route and method to resolve its local owning operation. `Service` keeps that baseline owner separate from `additional_permission_aliases()`, which includes other enabled app-mounted services for authored requirements. Machine and delegated audiences must match the owning normal route or fragment. Hosts must still run caller authorization and
 representation selection. Well-known routes use their own declared auth policy.
 
 Raw proxy and HTMX context headers are ignored. `resolve(..., trusted_addresses=...)`
@@ -402,7 +401,7 @@ service authorization against current scoped bindings and grants, static JWKS
 imports and a cancellable remote JWKS cache. Cryptography
 uses PyJWT/OpenSSL; validation uses AnyVali exclusively.
 
-`betterportal.authorization.authorize_request` accepts a trusted `AuthContext`
+`betterportal.authorization.authorize_request` adds the protected operation's own service/view/HTTP-action grant before checking additional `permissions`. Empty additional requirements retain that baseline. It accepts a trusted `AuthContext`
 from one scoped snapshot and enforces user/service/delegated caller policy.
 User role IDs expand through current app grants, with trusted service aliases.
 Root elevation requires the configured management tenant/app. Delegated requests
@@ -417,14 +416,17 @@ from betterportal.authorization import AuthContext, authorize_request
 from betterportal.security import KeyPair, TokenIssuer, uuid7
 
 async def example():
-    key, tenant, app = KeyPair.generate(), uuid7(), uuid7()
+    key, tenant, app, service = KeyPair.generate(), uuid7(), uuid7(), uuid7()
     trusted_keys = {key.kid: key.public_key_pem}
     pair = TokenIssuer(key, "https://auth.example", "app").issue_pair(
-        {"sub": "user-1", "tenantId": tenant, "appId": app, "roles": []}, include_refresh=False)
+        {"sub": "user-1", "tenantId": tenant, "appId": app, "roles": ["reader"]}, include_refresh=False)
     context = AuthContext(tenant, app, {"serviceId": uuid7(), "expectedIssuer": "https://auth.example",
-        "expectedAudience": "app", "jwksUri": "https://auth.example/jwks", "roles": []}, trusted_keys.__getitem__)
+        "expectedAudience": "app", "jwksUri": "https://auth.example/jwks", "roles": [
+            {"id": "reader", "title": "Reader", "permissions": [
+                {"serviceId": service, "viewId": "hello", "permissions": ["read"]}]}]},
+        trusted_keys.__getitem__, service_aliases={service: "org.example.hello"})
     caller = await authorize_request({"authorization": "Bearer " + pair["accessToken"]}, {"required": True},
-        context, view_id="hello", method="GET")
+        context, view_id="hello", method="GET", service_id="org.example.hello")
     assert caller.user is not None and caller.user["sub"] == "user-1"
 asyncio.run(example())
 ```
@@ -1122,3 +1124,7 @@ rejected consumer typing examples.
 
 See [PUBLISHING.md](PUBLISHING.md) for trusted-publisher setup, release versioning
 and the signed-tag publishing workflow.
+
+Protected operations require their own service/view/action grant (GET/OPTIONS read, POST create, PUT/PATCH update, DELETE delete). The `permissions` array adds requirements; an empty array retains the baseline. Existing login-only protected routes need explicit role grants. Hosts resolve the concrete installation before evaluating the baseline and reject ambiguous ownership.
+
+The public `authorize_request` helper applies the resolved route owner to service and delegated token audiences as well as user grants. Only a trusted host selecting a registered well-known protocol endpoint may set `well_known` to retain independently approved machine bindings; ordinary callers leave it false.

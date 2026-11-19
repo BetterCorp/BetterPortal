@@ -1,3 +1,4 @@
+import { effectiveRouteAuth, ApiAuthRequirementSchema } from "@betterportal/framework";
 import type { ServiceRegistryContext } from "./storage/core.js";
 import { createEventStream } from "h3";
 import type {
@@ -93,6 +94,7 @@ export interface CachedManifestOperation {
   renderModes: RenderMode[];
   role?: string;
   authRequired: boolean;
+  auth?: NonNullable<BetterPortalRouteMount["resolvedAuth"]>[number]["auth"];
   sitemap?: {
     kind: "default" | "exclude" | "metadata" | "provider";
     lastModified?: string;
@@ -174,9 +176,13 @@ export function deriveRolePermissions(
   };
   const derived: DerivedRolePermission[] = [];
 
+  const requirementsFor = (candidate: typeof mounted[number]) => effectiveRouteAuth(
+    candidate.operation.auth ?? { required: candidate.operation.authRequired, permissions: candidate.operation.permissions },
+    candidate.manifest.serviceId, candidate.route.viewId, candidate.operation.method).permissions;
+
   const roles = auth.roles.map((role) => {
     const permissions = role.permissions.map((grant) => ({ ...grant, permissions: [...grant.permissions] }));
-    const queued = mounted.filter((candidate) => candidate.operation.permissions.every((required) => {
+    const queued = mounted.filter((candidate) => requirementsFor(candidate).length > 0 && requirementsFor(candidate).every((required) => {
       const serviceId = required.serviceId === candidate.manifest.serviceId
         ? candidate.route.serviceId
         : instanceId(required.serviceId);
@@ -194,7 +200,7 @@ export function deriveRolePermissions(
         const target = resolveDependency(source, requirement);
         if (!target) continue;
         queued.push(target);
-        for (const required of target.operation.permissions) {
+        for (const required of requirementsFor(target)) {
           const serviceId = required.serviceId === target.manifest.serviceId
             ? target.route.serviceId
             : instanceId(required.serviceId);
@@ -243,7 +249,7 @@ export function getManifestCache(): ReadonlyMap<string, CachedManifest> {
 export function hydrateManifestCache(config: ServiceRegistryContext & Pick<BetterPortalConfig, "manifestCache">): void {
   manifestCache.clear();
   for (const stored of config.manifestCache ?? []) {
-    const manifest = normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0]);
+    const manifest = normalizeManifest({ ...stored, serviceId: getServicePluginId(config, stored.serviceId) ?? stored.serviceId } as unknown as Parameters<typeof normalizeManifest>[0]);
     cacheManifest(stored.serviceId, manifest);
     for (const tenant of config.tenants) {
       for (const service of tenant.services.filter((candidate) =>
@@ -274,9 +280,12 @@ export function getCachedManifestForService(
     const stored = config.manifestCache?.find((entry) => entry.serviceId === key);
     const hot = cache.get(key);
     // Keep the fast path only when it describes this committed snapshot.
-    if (hot && (!stored || (hot.fetchedAt === Date.parse(stored.fetchedAt) && hot.manifestVersion === stored.manifestVersion))) return hot;
+    if (hot && (!stored || (hot.fetchedAt === Date.parse(stored.fetchedAt) && hot.manifestVersion === stored.manifestVersion))) {
+      const pluginId = getServicePluginId(config, key) ?? hot.serviceId;
+      return pluginId === hot.serviceId ? hot : { ...hot, serviceId: pluginId };
+    }
     return stored
-      ? normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0])
+      ? normalizeManifest({ ...stored, serviceId: getServicePluginId(config, stored.serviceId) ?? stored.serviceId } as unknown as Parameters<typeof normalizeManifest>[0])
       : cache.get(key);
   };
   const keys = [serviceInstanceId];
@@ -467,7 +476,8 @@ export async function reconcileServiceRegistry(
           renderers,
           renderModes,
           ...(operation.role ? { role: operation.role } : {}),
-          authRequired: operation.auth.required,
+          authRequired: operation.auth.required || Boolean(operation.auth.elevation),
+          auth: ApiAuthRequirementSchema.parse(operation.auth),
           sitemap: sitemapMetadata(operation.sitemap),
           robots: [...(operation.robots ?? [])],
           ...(operation.menu !== undefined ? { menu: operation.menu } : {}),
@@ -541,14 +551,16 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
   }
 
   const resolveRoutes = (routes: ScopedServiceConfig["apps"][number]["routes"]) => routes.map((route) => {
+    // Never trust persisted/client-supplied derived policy when a manifest is unavailable.
+    const unresolved = { ...route, resolvedAuth: undefined };
     const cached = manifestCache.get(route.serviceId)
       ?? manifestCache.get(serviceManifestKeys.get(route.serviceId) ?? "");
-    if (!cached) return route;
+    if (!cached) return unresolved;
     const view = cached.viewIndex[route.viewId];
-    if (!view) return route;
+    if (!view) return unresolved;
     const operation = view.operations.find((candidate) => route.operations.includes(candidate.operationId) && isPageOperation(candidate))
       ?? view.operations.find((candidate) => route.operations.includes(candidate.operationId));
-    if (!operation) return route;
+    if (!operation) return unresolved;
     const resolvedMethods = view.operations
       .filter((candidate) => route.operations.includes(candidate.operationId))
       .map((candidate) => candidate.method);
@@ -561,9 +573,13 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
         ? route.servicePathVariant
         : view.path,
       resolvedMethods,
-      authRequired: operation.authRequired,
+      resolvedAuth: view.operations.filter(candidate => route.operations.includes(candidate.operationId) && candidate.auth).map(candidate => ({
+        operationId: candidate.operationId, method: candidate.method,
+        auth: ApiAuthRequirementSchema.parse(candidate.auth)
+      })),
+      authRequired: (operation.auth?.required ?? operation.authRequired) || Boolean(operation.auth?.elevation),
       menu: operation.menu !== false,
-      menuPermissions: operation.permissions.map(requirement => ({
+      menuPermissions: effectiveRouteAuth(operation.auth ?? { required: operation.authRequired, permissions: operation.permissions }, route.serviceId, route.viewId, operation.method).permissions.map(requirement => ({
         ...requirement,
         serviceId: [...serviceManifestKeys].find(([id, plugin]) => plugin === requirement.serviceId && id === route.serviceId)?.[0]
           ?? requirement.serviceId
@@ -574,17 +590,65 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
     };
   });
 
+  const resolveFragments = (locations: ScopedServiceConfig["apps"][number]["fragments"]) => Object.fromEntries(
+    Object.entries(locations ?? {}).map(([location, fragments]) => [location, fragments.map(fragment => {
+      const unresolved = { ...fragment, resolvedPolicy: undefined };
+      const cached = manifestCache.get(fragment.serviceId) ?? manifestCache.get(serviceManifestKeys.get(fragment.serviceId) ?? "");
+      if (!fragment.enabled || !cached) return unresolved;
+      const keys = new Set([fragment.fragmentId, `${location}.${fragment.fragmentId}`]);
+      const parts = (value: string) => {
+        const segments = value.split(/[?#]/, 1)[0].split("/");
+        while (segments.length > 1 && segments[segments.length - 1] === "") segments.pop();
+        return segments;
+      };
+      const matches = (template: string): boolean => {
+        const pattern = parts(template), actual = parts(fragment.targetPath);
+        return pattern.length === actual.length && pattern.every((part, index) => {
+          if (part.startsWith(":") || /^\{[^}]+\}$/.test(part)) return Boolean(actual[index]);
+          try { return decodeURIComponent(part) === decodeURIComponent(actual[index]); } catch { return false; }
+        });
+      };
+      const specificity = (template: string) => parts(template)
+        .map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 0 : 1);
+      const compare = (left: number[], right: number[]) => {
+        for (let index = 0; index < Math.max(left.length, right.length); index++) {
+          const difference = (left[index] ?? 0) - (right[index] ?? 0);
+          if (difference) return difference;
+        }
+        return 0;
+      };
+      const views = Object.values(cached.viewIndex).filter(view => view.operations.some(operation => operation.method === "GET"))
+        .flatMap(view => [view.path, ...(view.pathVariants ?? [])]
+        .filter(matches).map(path => ({ view, rank: specificity(path) })));
+      views.sort((left, right) => compare(right.rank, left.rank));
+      const best = views[0]?.rank;
+      const candidates = views.filter(candidate => best && compare(candidate.rank, best) === 0).flatMap(({ view }) => {
+        return (view.fragments ?? []).filter(item => item.method === "GET" && keys.has(item.fragmentId)).flatMap(item => {
+          const operation = view.operations.find(candidate => candidate.operationId === item.operationId && candidate.method === "GET");
+          return operation?.auth ? [{ viewId: view.viewId, operationId: operation.operationId, auth: ApiAuthRequirementSchema.parse(operation.auth) }] : [];
+        });
+      });
+      const unique = [...new Map(candidates.map(policy => [JSON.stringify([policy.viewId, policy.operationId]), policy])).values()];
+      return unique.length === 1 ? { ...fragment, resolvedPolicy: unique[0] } : unresolved;
+    })])
+  );
+
   const apps = scoped.apps.map((app) => {
     const routes = resolveRoutes(app.routes);
     return {
       ...app,
       routes,
+      fragments: resolveFragments(app.fragments),
+      ...(app.appFragments ? { appFragments: resolveFragments(app.appFragments) } : {}),
       ...(app.appRoutes ? { appRoutes: resolveRoutes(app.appRoutes) } : {}),
       ...(app.auth ? {
         auth: deriveRolePermissions(
           app.auth,
           routes,
-          (serviceId) => manifestCache.get(serviceId) ?? manifestCache.get(serviceManifestKeys.get(serviceId) ?? "")
+          (serviceId) => {
+            const manifest = manifestCache.get(serviceId) ?? manifestCache.get(serviceManifestKeys.get(serviceId) ?? "");
+            return manifest ? { ...manifest, serviceId: serviceManifestKeys.get(serviceId) ?? manifest.serviceId } : undefined;
+          }
         ).auth
       } : {})
     };

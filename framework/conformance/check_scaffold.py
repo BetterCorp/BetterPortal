@@ -162,12 +162,13 @@ with tempfile.TemporaryDirectory(prefix="bp-scaffold-", dir=root / ".tmp-run") a
             signer = post(peer, {"action": "jwt-key"})["jwk"]
             keys["/auth-keys"] = [{"body": {"keys": [signer]}}]
             token = post(peer, {"action": "jwt-sign", "purpose": "access", "claims": fixtures()["access"]})["token"]
+            ungranted = post(peer, {"action": "jwt-sign", "purpose": "access", "claims": {**fixtures()["access"], "roles": []}})["token"]
             authenticated = {"origin": "https://app.test", "accept": "application/json", "authorization": "Bearer " + token}
             config = {name: fixture()["snapshot"][name] for name in ("tenants", "apps")}
             config["tenants"][0]["services"][1].update(serviceId="com.example.theme", hostname="https://theme.test")
             config["apps"][0]["routes"][0].update(path="/hello", viewId="hello.index", operations=["hello.get"], resolvedServicePath="/hello")
             config["apps"][0]["auth"] = {"serviceId": TARGET, "expectedIssuer": fixtures()["access"]["iss"], "expectedAudience": fixtures()["access"]["aud"],
-                "jwksUri": key_url + "/auth-keys", "roles": [{"id": "reader", "title": "Reader", "permissions": []}]}
+                "jwksUri": key_url + "/auth-keys", "roles": [{"id": "reader", "title": "Reader", "permissions": [{"serviceId": TARGET, "viewId": "hello.index", "permissions": ["read"]}]}]}
             config["apps"][0]["shell"] = {"serviceId": SOURCE}
             # Platform app config stores only the shell instance; the real CP resolves
             # its renderer from cached shell metadata before submitting the snapshot.
@@ -191,6 +192,7 @@ with tempfile.TemporaryDirectory(prefix="bp-scaffold-", dir=root / ".tmp-run") a
                     assert result["ok"] and "apiKey" not in result
                     assert request(address, "/.well-known/bp/health", 200) == {"ok": True}
                     request(address, "/hello", 401, headers={"origin": "https://app.test", "accept": "application/json"})
+                    request(address, "/hello", 403, headers={**authenticated, "authorization": "Bearer " + ungranted})
                     assert request(address, "/hello", 200, headers=authenticated) == "Hello"
                     assert "<p>Hello</p>" in request(address, "/hello", 200, headers={**authenticated, "accept": "text/html"})
                 stored = (project / ".bp-state/bootstrap.json").read_text()
@@ -199,6 +201,7 @@ with tempfile.TemporaryDirectory(prefix="bp-scaffold-", dir=root / ".tmp-run") a
                     # Managed startup synchronizes persisted credentials before accepting requests.
                     assert request(address, "/.well-known/bp/health", 200) == {"ok": True}
                     request(address, "/hello", 401, headers={"origin": "https://app.test", "accept": "application/json"})
+                    request(address, "/hello", 403, headers={**authenticated, "authorization": "Bearer " + ungranted})
                     assert request(address, "/hello", 200, headers=authenticated) == "Hello"
                 state = post(peer, {"action": "sync-peer", "command": "state", "id": control["id"]})
                 assert sum(call["path"] == "/.well-known/bp/services/redeem" for call in state["calls"]) == 1
