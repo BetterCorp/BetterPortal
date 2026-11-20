@@ -10,8 +10,14 @@ export async function checkSessionAndMailPages(storage: AuthStorage, scope: Scop
   const policy: IdentityPolicy = { isolation: "app", registration: "public", requireMfa: false, defaultRoleIds: [], allowedRoleIds: [] };
   const user = await identity.createUser(scope, policy, { username: "history-owner", verified: true });
   const issuer = createBpTokenIssuer({ keyPair: generateKeyPair(), issuer: "https://auth.test", audience: "test", accessTokenSeconds: 900, refreshTokenSeconds: 3600 });
-  const expired = await identity.issueSession(scope, policy, user, issuer, -1);
+  const expired = await identity.issueSession(scope, policy, user, issuer, 3600);
   const expiredClaims = await issuer.verifyRefreshToken({ ...scope, refreshToken: expired.refreshToken! });
+  await storage.transaction(scope, async tx => {
+    const sessionId = String(expiredClaims.refreshContext?.sessionId ?? "");
+    const session = await tx.get("session", sessionId, scope);
+    assert.ok(session);
+    await tx.put("session", scope, { ...session, expiresAt: 0 });
+  });
   const revoked = await identity.issueSession(scope, policy, user, issuer, 3600);
   const revokedClaims = await issuer.verifyRefreshToken({ ...scope, refreshToken: revoked.refreshToken! });
   await identity.revokeSession(scope, revokedClaims);
