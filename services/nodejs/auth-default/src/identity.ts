@@ -178,7 +178,7 @@ export class IdentityService {
       const id = uuidv7();
       const roles = await this.roles(tx, scope, current, policy, true);
       const issued = issuer.issueTokenPair({ sub: user.id, ...scope, roles, sessionId: id, sessionVersion: user.refreshVersion, name: current.name ?? current.username, email: current.email, picture: current.picture, authProvider: "betterportal.default", refreshContext: { sessionId: id, version: user.refreshVersion } });
-      const refreshLifetime = issued.refreshTokenExpiresInSeconds ?? refreshSeconds;
+      const refreshLifetime = Math.min(refreshSeconds, issued.refreshTokenExpiresInSeconds ?? refreshSeconds);
       await tx.put("session", scope, { id, userId: user.id, userAppId: dir.appId, version: user.refreshVersion, jti: issued.tokenId, previousJtis: [], expiresAt: Date.now() + refreshLifetime * 1000, createdAt: Date.now(), revoked: false });
       await this.audit(tx, scope, user.id, "login.success");
       return issued;
@@ -258,12 +258,3 @@ export class IdentityService {
       await tx.put("limit", scope, { id, reset, count }); return count <= max;
     });
     if (!allowed) throw new AuthError("Too many attempts. Try again later.", 429);
-  }
-  async audit(tx: AuthTransaction, scope: Scope, actor: string, event: string, data: Record<string, unknown> = {}): Promise<void> {
-    await tx.put("audit", scope, { id: uuidv7(), actor, event, data, at: Date.now() });
-    if (this.storage.mode === "simple") {
-      const entries = await tx.list("audit", scope);
-      for (const row of entries.slice(0, Math.max(0, entries.length - 1000))) await tx.remove("audit", row.id, scope);
-    }
-  }
-}
