@@ -178,7 +178,8 @@ export class IdentityService {
       const id = uuidv7();
       const roles = await this.roles(tx, scope, current, policy, true);
       const issued = issuer.issueTokenPair({ sub: user.id, ...scope, roles, sessionId: id, sessionVersion: user.refreshVersion, name: current.name ?? current.username, email: current.email, picture: current.picture, authProvider: "betterportal.default", refreshContext: { sessionId: id, version: user.refreshVersion } });
-      await tx.put("session", scope, { id, userId: user.id, userAppId: dir.appId, version: user.refreshVersion, jti: issued.tokenId, previousJtis: [], expiresAt: Date.now() + refreshSeconds * 1000, createdAt: Date.now(), revoked: false });
+      const refreshLifetime = Math.min(refreshSeconds, issued.refreshTokenExpiresInSeconds ?? refreshSeconds);
+      await tx.put("session", scope, { id, userId: user.id, userAppId: dir.appId, version: user.refreshVersion, jti: issued.tokenId, previousJtis: [], expiresAt: Date.now() + refreshLifetime * 1000, createdAt: Date.now(), revoked: false });
       await this.audit(tx, scope, user.id, "login.success");
       return issued;
     });
@@ -193,7 +194,9 @@ export class IdentityService {
       if (session.jti !== claims.jti) { session.revoked = true; await tx.put("session", scope, session); await this.audit(tx, scope, user.id, "refresh.replay"); return undefined; }
       const roles = await this.roles(tx, scope, user, policy);
       const issued = issuer.issueTokenPair({ sub: user.id, ...scope, roles, sessionId: id, sessionVersion: user.refreshVersion, name: user.name ?? user.username, email: user.email, picture: user.picture, authProvider: "betterportal.default", refreshContext: { sessionId: id, version: user.refreshVersion } });
+      if (!issued.refreshToken || !issued.refreshTokenExpiresInSeconds) return undefined;
       session.previousJtis = [...session.previousJtis.slice(-4), session.jti]; session.jti = issued.tokenId;
+      session.expiresAt = Date.now() + issued.refreshTokenExpiresInSeconds * 1000;
       await tx.put("session", scope, session); return issued;
     });
   }

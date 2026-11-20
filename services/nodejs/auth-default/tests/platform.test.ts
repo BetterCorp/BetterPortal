@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "no
 import { tmpdir, hostname } from "node:os";
 import { join } from "node:path";
 import { createBpTokenIssuer, generateKeyPair, uuidv7 } from "@betterportal/framework";
-import { AuthError, IdentityService, SecretCipher, secretHash, verifyPassword, type IdentityPolicy, type User } from "../src/identity.js";
+import { AuthError, IdentityService, SecretCipher, secretHash, verifyPassword, type IdentityPolicy, type Session, type User } from "../src/identity.js";
 import { JsonAuthStorage, openAuthStorage } from "../src/storage.js";
 import { UserStore } from "../src/userStore.js";
 import { Factors } from "../src/factors.js";
@@ -230,6 +230,25 @@ test("session issuance and refresh preserve the current profile picture", async 
   const claims = await issuer.verifyRefreshToken({ ...scope, refreshToken: pair.refreshToken! });
   const refreshed = await identity.refresh(scope, policy, claims, issuer);
   assert.equal((await issuer.verifier().verify(refreshed!.accessToken, scope)).picture, "https://images.test/avatar.png");
+});
+
+test("refresh advances the persisted sliding session expiry with the rotated token", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const base = Date.now(); let elapsed = 0;
+  const realNow = Date.now; Date.now = () => base + elapsed;
+  t.after(() => { Date.now = realNow; });
+  const slidingIssuer = createBpTokenIssuer({ keyPair: generateKeyPair(), issuer: "https://auth.test", audience: "test", accessTokenSeconds: 15, refreshTokenSeconds: 60 });
+  const user = await identity.createUser(scope, policy, { username: "sliding", verified: true });
+  const first = await identity.issueSession(scope, policy, user, slidingIssuer, 60);
+  const firstClaims = await slidingIssuer.verifyRefreshToken({ ...scope, refreshToken: first.refreshToken! });
+  elapsed = 30_000;
+  const rotated = await identity.refresh(scope, policy, firstClaims, slidingIssuer);
+  assert.ok(rotated?.refreshToken);
+  const session = await storage.transaction(scope, tx => tx.get<Session>("session", String(firstClaims.refreshContext?.sessionId), scope));
+  assert.equal(session?.expiresAt, base + 90_000);
+  elapsed = 61_000;
+  const rotatedClaims = await slidingIssuer.verifyRefreshToken({ ...scope, refreshToken: rotated.refreshToken! });
+  assert.ok(await identity.refresh(scope, policy, rotatedClaims, slidingIssuer));
 });
 
 test("Advanced startup refuses a replica-local generated bootstrap secret", async () => {
