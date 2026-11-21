@@ -34,7 +34,7 @@ jobs:
 
           node <<'NODE'
           const { GH_TOKEN, REPOSITORY, RELEASE_SHA } = process.env;
-          const url = new URL(`https://api.github.com/repos/${REPOSITORY}/actions/workflows/build.yml/runs`);
+          const url = new URL(`https://api.github.com/repos/${REPOSITORY}/actions/workflows/ci.yml/runs`);
           url.searchParams.set("head_sha", RELEASE_SHA);
           url.searchParams.set("branch", "master");
           url.searchParams.set("event", "push");
