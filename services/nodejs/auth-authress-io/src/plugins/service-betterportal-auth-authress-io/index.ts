@@ -76,7 +76,7 @@ export interface AuthressAppConfig {
   authressApiUrl: string;
   applicationId: string;
   expectedIssuer: string;
-  expectedAudience?: string;
+  expectedAudience: string;
   jwksUri: string;
   scopes?: string;
   loginUI?: "default" | "clean" | "redirect";
@@ -120,7 +120,7 @@ export function resolveAuthressAppConfig(raw: Record<string, unknown> | undefine
     ...browser,
     authressApiUrl,
     expectedIssuer: nonEmptyString(raw?.expectedIssuer) ?? authressApiUrl,
-    ...(nonEmptyString(raw?.expectedAudience) ? { expectedAudience: nonEmptyString(raw?.expectedAudience) } : {}),
+    expectedAudience: nonEmptyString(raw?.expectedAudience) ?? browser.applicationId,
     jwksUri: nonEmptyString(raw?.jwksUri) ?? `${authressApiUrl}/.well-known/openid-configuration/jwks`,
     ...(raw?.loginUI === "clean" || raw?.loginUI === "redirect" ? { loginUI: raw.loginUI } : {}),
     ...(nonEmptyString(raw?.roleClaimPath) ? { roleClaimPath: nonEmptyString(raw?.roleClaimPath) } : {}),
@@ -166,7 +166,7 @@ export const AuthressConfigSchemas: ConfigSchemaDescriptor[] = [
       { key: "authressApiUrl", title: "Authress API URL", description: "Authress account API URL used by the browser SDK.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "connection", order: 10, required: true },
       { key: "applicationId", title: "Application ID", description: "Authress application ID for this BP app.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "connection", order: 20, required: true },
       { key: "expectedIssuer", title: "Expected Issuer", description: "Optional JWT issuer override. Blank uses the Authress API URL.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "jwt", order: 10, required: false },
-      { key: "expectedAudience", title: "Expected Audience", description: "Optional JWT audience override. Blank disables audience validation.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "jwt", order: 20, required: false },
+      { key: "expectedAudience", title: "Expected Audience", description: "Optional JWT audience override. Blank uses the Authress application ID.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "jwt", order: 20, required: false },
       { key: "jwksUri", title: "JWKS URI", description: "Optional JWKS endpoint override. Blank uses Authress API URL + /.well-known/openid-configuration/jwks.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "jwt", order: 30, required: false },
       { key: "scopes", title: "Scopes", description: "Space-separated scopes requested by the browser login flow.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 10, required: false },
       { key: "loginUI", title: "Login UI", description: "Default provider UI, clean button UI, or clean UI with automatic redirect.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 20, defaultValue: "default", ui: { control: "select", options: [{ value: "default", label: "Default" }, { value: "clean", label: "Clean" }, { value: "redirect", label: "Redirect" }] }, required: false },
@@ -450,7 +450,7 @@ function verifyJwtWithJsonwebtoken(token: string, publicKeyPem: string, appConfi
   const verified = jwt.verify(token, publicKeyPem, {
     algorithms: STRONG_JWT_ALGORITHMS,
     issuer: appConfig.expectedIssuer,
-    ...(appConfig.expectedAudience ? { audience: appConfig.expectedAudience } : {}),
+    audience: appConfig.expectedAudience,
     complete: false
   });
   if (!verified || typeof verified !== "object") throw new Error("Library returned non-object claims");
