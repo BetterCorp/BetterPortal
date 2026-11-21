@@ -16,10 +16,10 @@ services:
     environment:
       BSB_PLUGIN_DIRS: /mnt/plugins
       BSB_PLUGIN_WATCHER: "true"
-      BSB_PLUGIN_UPDATE: ${BSB_PLUGIN_UPDATE:-true}
+      BSB_PLUGIN_UPDATE: ${BSB_PLUGIN_UPDATE:-false}
       BSB_PLUGIN_WATCH_INTERVAL_SECONDS: ${BSB_PLUGIN_WATCH_INTERVAL_SECONDS:-3600}
       BSB_SHOW_PACKAGES: ${BSB_SHOW_PACKAGES:-false}
-      BSB_PLUGINS: "@bsb/config-vault@9.7.4,@betterportal/config-manager@10.7,@betterportal/theme-bootstrap1@10.7,@betterportal/theme-embedded@10.7,@betterportal/auth-default@10.7,@betterportal/auth-authress-io@10.7,@betterportal/auth-workos@10.7,@betterportal/hello-view@10.7,@bsb/observable-opentelemetry@9.7.4,@bsb/observable-axiom@9.7.4"
+      BSB_PLUGINS: "@bsb/config-vault@9.7.4,@betterportal/config-manager@11.0.14,@betterportal/theme-bootstrap1@11.0.14,@betterportal/theme-embedded@11.0.14,@betterportal/auth-default@11.0.14,@betterportal/auth-authress-io@11.0.14,@betterportal/auth-workos@11.0.14,@betterportal/hello-view@11.0.14,@bsb/observable-opentelemetry@9.7.4,@bsb/observable-axiom@9.7.4"
     volumes:
       - bp-plugins:/mnt/plugins
 
