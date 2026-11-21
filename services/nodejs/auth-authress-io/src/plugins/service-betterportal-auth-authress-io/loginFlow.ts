@@ -77,10 +77,6 @@ function splitScopes(value?: string): string[] {
     .filter((entry) => entry.length > 0);
 }
 
-function profileValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-}
-
 export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema, headers: HeadersSchema },
   async (ctx) => {
@@ -168,9 +164,9 @@ export const handlePost = createHandler(
       authProvider: "authress.io",
       providerSubject: user.sub,
       provider: user.provider,
-      name: profileValue(request.name) || user.name,
-      email: profileValue(request.email) || user.email,
-      picture: profileValue(request.picture) || user.picture
+      name: user.name,
+      email: user.email,
+      picture: user.picture
     });
     if (!issued.refreshToken) throw new Error('Auth token issuer did not return a refresh token');
     ctx.bpHeaders?.set("Authorization", `Bearer ${issued.accessToken}`, {
@@ -198,9 +194,9 @@ export const handlePost = createHandler(
       expiresInSeconds: issued.accessTokenExpiresInSeconds,
       user: {
         id: user.sub,
-        name: profileValue(request.name) ?? user.name,
-        email: profileValue(request.email) ?? user.email,
-        picture: profileValue(request.picture) ?? user.picture
+        name: user.name,
+        email: user.email,
+        picture: user.picture
       }
     };
   }

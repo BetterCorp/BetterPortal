@@ -6,16 +6,62 @@ import { join } from "node:path";
 import { AUTHRESS_GROUP_CACHE_TTL_MS, AuthressGroupCache } from "../src/groupCache.js";
 import { resolveAuthressAppConfig } from "../src/plugins/service-betterportal-auth-authress-io/index.js";
 import handleRefresh from "../src/plugins/service-betterportal-auth-authress-io/bp-routes/refresh/POST.js";
+import handleLogin from "../src/plugins/service-betterportal-auth-authress-io/bp-routes/login/POST.js";
 
-test("Authress audience validation is opt-in", () => {
+test("Authress audience validation defaults to the application ID", () => {
   const config = resolveAuthressAppConfig({
     authressApiUrl: "https://auth.example.com/",
     applicationId: "app_123"
   });
 
   assert.equal(config?.expectedIssuer, "https://auth.example.com");
-  assert.equal(config?.expectedAudience, undefined);
+  assert.equal(config?.expectedAudience, "app_123");
   assert.equal(config?.jwksUri, "https://auth.example.com/.well-known/openid-configuration/jwks");
+});
+
+test("Authress login ignores browser-supplied profile claims", async () => {
+  let issuedInput: { name?: string; email?: string; picture?: string } | undefined;
+  const response = await handleLogin({
+    config: { authressApiUrl: "https://auth.example.com", applicationId: "app_123" },
+    request: {
+      accessToken: "provider-token",
+      userId: "user-1",
+      name: "Attacker Name",
+      email: "attacker@example.com",
+      picture: "https://attacker.example/avatar.png"
+    },
+    query: {},
+    tenant: { id: "tenant-1" },
+    app: { id: "app-1" },
+    plugin: {
+      verifyAuthressToken: async () => ({
+        sub: "user-1",
+        roles: [],
+        name: "Verified User",
+        email: "verified@example.com",
+        picture: "https://auth.example.com/avatar.png"
+      }),
+      resolveAuthressRoles: async () => ["Admin"],
+      issueTokenPair: (input: typeof issuedInput) => {
+        issuedInput = input;
+        return {
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          accessTokenExpiresInSeconds: 900,
+          refreshTokenExpiresInSeconds: 3600
+        };
+      }
+    },
+    bpHeaders: { set() {}, remove() {} },
+    responseHeaders: { set() {} }
+  } as any);
+
+  assert.equal(issuedInput?.name, "Verified User");
+  assert.equal(issuedInput?.email, "verified@example.com");
+  assert.equal(issuedInput?.picture, "https://auth.example.com/avatar.png");
+  assert.equal(response.user?.name, "Verified User");
+  assert.equal(response.user?.email, "verified@example.com");
+  assert.equal(response.user?.picture, "https://auth.example.com/avatar.png");
 });
 
 test("Authress URL normalization stays fast for long interior slash runs", () => {
