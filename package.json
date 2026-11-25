@@ -1,6 +1,6 @@
 {
   "name": "betterportal",
-  "version": "11.0.14",
+  "version": "11.0.15",
   "description": "BetterPortal v10 workspace",
   "private": true,
   "scripts": {
