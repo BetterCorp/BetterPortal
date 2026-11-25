@@ -1,5 +1,9 @@
 # Unreleased
 
+## Form errors preserve pending edits
+
+A `BPRoute` form with a configured local mutation error outlet now retains its controls and entered values after an HTTP or network failure. The form clears its busy state and supports a corrected retry without navigating away. Forms without a local outlet retain their existing route error states.
+
 ## Route grants and verified navigation
 
 Protected operations now require a role grant for their own installed service, view and HTTP action, even when `auth.permissions` is empty. GET/HEAD/SSE and explicit OPTIONS require `read`, POST requires `create`, PUT/PATCH require `update`, and DELETE requires `delete`. Authored permissions remain additional requirements. Optional/public auth keeps its existing behavior; CORS preflight is handled separately.

@@ -14,6 +14,8 @@ import { createHash } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
+import { BPRoute } from "../../../../framework/nodejs/src/runtime/element.js";
+import type { ViewRenderContext } from "../../../../framework/nodejs/src/contracts/registry.js";
 
 async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false, extraRoutes: Array<Record<string, unknown>> = [], menuHref = "/tools/dashboard", menuRequestUrl = "https://service.test/dashboard") {
   const browser = await chromium.launch({ headless: true });
@@ -1790,5 +1792,35 @@ for (const mode of ["success", "enrollment", "cancel"] as const) test(`auth API 
   const outcome = await result;
   if (mode === 'success') { assert.deepEqual(outcome, { body: { status: 'ok' } }); assert.equal(mutations, 2); }
   else { assert.match(outcome.error || '', mode === 'cancel' ? /cancelled/ : /Open Account and enroll/); assert.equal(mutations, 1); }
+  assert.deepEqual(errors, []);
+});
+
+
+for (const failure of ["http", "network"] as const) test(`BPRoute forms preserve entered values after ${failure} errors and support a corrected retry`, async t => {
+  let attempts = 0;
+  const submitted: Array<string | null> = [];
+  const ctx = { route: () => ({ absoluteViewPath: "https://service.test/save", viewPath: "/save", uiPath: "/tools/save" }) } as unknown as ViewRenderContext;
+  const form = String(BPRoute({ ctx, viewId: "save", as: "form", method: "POST", target: "#record", swap: "outerHTML",
+    children: '<bp-ok><label>Amount<input name="amount" required></label><button type="submit">Save</button><div data-bp-mutation-error role="alert" hidden></div></bp-ok><bp-error as="p">Action unavailable</bp-error>' }));
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname !== "/save") return html(route, `<section id="record" data-bp-mutation-scope>${form}</section>`);
+    attempts++;
+    submitted.push(new URLSearchParams(route.request().postData() ?? "").get("amount"));
+    if (attempts === 1) return failure === "network" ? route.abort("failed") : html(route, "Current facts changed. Review and retry.", 409);
+    return html(route, '<section id="record"><p id="saved">Saved</p></section>');
+  });
+  await page.getByRole("textbox", { name: "Amount" }).fill("123.4500");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const error = page.locator("[data-bp-mutation-error]");
+  await error.waitFor({ state: "visible" });
+  assert.match(await error.innerText(), failure === "http" ? /Current facts changed/ : /network policy/);
+  assert.equal(await page.getByRole("textbox", { name: "Amount" }).inputValue(), "123.4500");
+  assert.equal(await page.locator("bp-route").getAttribute("aria-busy"), "false");
+  await page.getByRole("textbox", { name: "Amount" }).fill("125.0000");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.locator("#saved").waitFor();
+  assert.equal(attempts, 2);
+  assert.deepEqual(submitted, ["123.4500", "125.0000"]);
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
   assert.deepEqual(errors, []);
 });

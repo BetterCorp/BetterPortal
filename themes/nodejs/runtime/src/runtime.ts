@@ -2066,6 +2066,20 @@ export function betterPortalShellRuntimeSource(): string {
         ctx.__bpPartialErrorHandled = true;
       };
 
+      const preserveMutationError = (ctx: any, status: number): boolean => {
+        const source = ctx?.sourceElement instanceof Element ? ctx.sourceElement : null;
+        const element = requestBpElement(ctx?.__bpRoute || source);
+        if (element?.getAttribute("data-bp-mode") !== "action" || !mutationErrorOutlet(source)
+          || isMainTarget(ctx?.__bpRequestTarget ?? ctx?.target)) return false;
+        if (!isCurrentFragmentRequest(ctx)) return true;
+        renderPartialError(ctx, status);
+        if (!ctx.__bpPartialErrorHandled) return false;
+        // The original controls remain mounted so a corrected retry keeps values.
+        element.setAttribute("aria-busy", "false");
+        element.setAttribute("data-bp-state", "ok");
+        return true;
+      };
+
       const rewriteSseUrl = (el: Element, serviceId: string): boolean => {
         const attr = el.hasAttribute("hx-sse:connect") ? "hx-sse:connect" : el.hasAttribute("sse-connect") ? "sse-connect" : null;
         if (!attr) return false;
@@ -3196,6 +3210,7 @@ export function betterPortalShellRuntimeSource(): string {
             }
           }
           scheduleBootstrapOverlaySync();
+          if (ctx?.response?.status >= 400 && preserveMutationError(ctx, ctx.response.status)) return false;
           const bpElement = requestBpElement(detail.ctx?.__bpRoute || detail.ctx?.sourceElement);
           if (bpElement
             && bpElement.getAttribute("data-bp-state") === "loading"
@@ -3343,6 +3358,7 @@ export function betterPortalShellRuntimeSource(): string {
 
         htmx_response_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;
+          if (preserveMutationError(ctx, ctx?.response?.status || 0)) return;
           const bpElement = requestBpElement(ctx?.__bpRoute || ctx?.sourceElement);
           if (bpElement && bpElement.getAttribute("data-bp-state") === "loading") {
             renderBpElementState(bpElement, ctx?.response?.status || 0, ctx?.text || "");
@@ -3379,6 +3395,7 @@ export function betterPortalShellRuntimeSource(): string {
             setLoading(false);
             return;
           }
+          if (preserveMutationError(ctx, 0)) return;
           const target = ctx?.target;
           const bpElement = requestBpElement(ctx?.__bpRoute || ctx?.sourceElement);
           if (bpElement) renderBpElementState(bpElement, 0);
