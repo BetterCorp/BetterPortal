@@ -633,7 +633,17 @@ export function betterPortalShellRuntimeSource(): string {
         swapBpElementContent(element, matched?.content ?? states[state] ?? states.error ?? "");
       };
 
-      const pendingFormRequests = new WeakMap<Element, unknown>();
+      const pendingFormRequests = new WeakMap<Element, { sourceElement: Element }>();
+      // HTMX queues repeated submits before its request hooks run.
+      document.addEventListener("submit", event => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        const route = requestBpElement(form);
+        if (route && pendingFormRequests.get(route)?.sourceElement === form) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
       const showBpElementLoading = (element: Element, ctx: any) => {
         initializeBpElement(element);
         element.setAttribute("data-bp-state", "loading");

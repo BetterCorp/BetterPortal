@@ -1820,6 +1820,8 @@ for (const loading of [false, true]) for (const failure of ["http", "network"] a
   await page.waitForFunction(() => document.querySelector("bp-route")?.getAttribute("aria-busy") === "true");
   assert.equal(await page.getByRole("textbox", { name: "Amount" }).inputValue(), "123.4500");
   assert.equal(await page.locator("#saving").count(), 0, "The busy state must retain the original form controls");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("textbox", { name: "Amount" }).press("Enter");
   releaseFailure();
   const error = page.locator("[data-bp-mutation-error]");
   await error.waitFor({ state: "visible" });
