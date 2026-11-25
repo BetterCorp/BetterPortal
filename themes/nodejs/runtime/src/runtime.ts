@@ -638,6 +638,9 @@ export function betterPortalShellRuntimeSource(): string {
         element.setAttribute("data-bp-state", "loading");
         element.setAttribute("aria-busy", "true");
         element.removeAttribute("data-bp-status");
+        const form = element.querySelector("form");
+        // Local mutation errors and retries need the original form and its values.
+        if (element.getAttribute("data-bp-mode") === "action" && form && mutationErrorOutlet(form)) return;
         const loading = bpElementStates.get(element)?.loading;
         // Preserve an actionable source until its request completes when no loading branch exists.
         if (loading !== undefined) swapBpElementContent(element, loading);

@@ -1796,21 +1796,31 @@ for (const mode of ["success", "enrollment", "cancel"] as const) test(`auth API 
 });
 
 
-for (const failure of ["http", "network"] as const) test(`BPRoute forms preserve entered values after ${failure} errors and support a corrected retry`, async t => {
+for (const loading of [false, true]) for (const failure of ["http", "network"] as const) test(`BPRoute forms preserve entered values after ${failure} errors (${loading ? "with" : "without"} loading branch) and support a corrected retry`, async t => {
   let attempts = 0;
+  let releaseFailure!: () => void;
+  const pendingFailure = new Promise<void>(resolve => { releaseFailure = resolve; });
+  t.after(() => releaseFailure());
   const submitted: Array<string | null> = [];
   const ctx = { route: () => ({ absoluteViewPath: "https://service.test/save", viewPath: "/save", uiPath: "/tools/save" }) } as unknown as ViewRenderContext;
   const form = String(BPRoute({ ctx, viewId: "save", as: "form", method: "POST", target: "#record", swap: "outerHTML",
-    children: '<bp-ok><label>Amount<input name="amount" required></label><button type="submit">Save</button><div data-bp-mutation-error role="alert" hidden></div></bp-ok><bp-error as="p">Action unavailable</bp-error>' }));
-  const { page, errors } = await shell(t, route => {
+    children: '<bp-ok><label>Amount<input name="amount" required></label><button type="submit">Save</button><div data-bp-mutation-error role="alert" hidden></div></bp-ok><bp-error as="p">Action unavailable</bp-error>' + (loading ? '<bp-loading as="p" id="saving">Saving…</bp-loading>' : '') }));
+  const { page, errors } = await shell(t, async route => {
     if (new URL(route.request().url()).pathname !== "/save") return html(route, `<section id="record" data-bp-mutation-scope>${form}</section>`);
     attempts++;
     submitted.push(new URLSearchParams(route.request().postData() ?? "").get("amount"));
-    if (attempts === 1) return failure === "network" ? route.abort("failed") : html(route, "Current facts changed. Review and retry.", 409);
+    if (attempts === 1) {
+      await pendingFailure;
+      return failure === "network" ? route.abort("failed") : html(route, "Current facts changed. Review and retry.", 409);
+    }
     return html(route, '<section id="record"><p id="saved">Saved</p></section>');
   });
   await page.getByRole("textbox", { name: "Amount" }).fill("123.4500");
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("bp-route")?.getAttribute("aria-busy") === "true");
+  assert.equal(await page.getByRole("textbox", { name: "Amount" }).inputValue(), "123.4500");
+  assert.equal(await page.locator("#saving").count(), 0, "The busy state must retain the original form controls");
+  releaseFailure();
   const error = page.locator("[data-bp-mutation-error]");
   await error.waitFor({ state: "visible" });
   assert.match(await error.innerText(), failure === "http" ? /Current facts changed/ : /network policy/);
