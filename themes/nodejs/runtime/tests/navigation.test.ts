@@ -1834,3 +1834,38 @@ for (const loading of [false, true]) for (const failure of ["http", "network"] a
   assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
   assert.deepEqual(errors, []);
 });
+
+test("Superseded forms sharing a target finish independently and scoped buttons keep route errors", async t => {
+  const ctx = { route: () => ({ absoluteViewPath: "https://service.test/save", viewPath: "/save", uiPath: "/tools/save" }) } as unknown as ViewRenderContext;
+  const control = (label: string, as: "button" | "form") => String(BPRoute({ ctx, viewId: "save", as, method: "POST", target: "#result",
+    children: '<bp-ok>' + (as === "form" ? '<button>' + label + '</button>' : label) + '</bp-ok><bp-error as="p">Action unavailable</bp-error>' }));
+  const pending = Array.from({ length: 3 }, () => ({ started: Promise.withResolvers<void>(), release: Promise.withResolvers<void>() }));
+  let attempts = 0;
+  t.after(() => pending.forEach(request => request.release.resolve()));
+  const { page } = await shell(t, async route => {
+    if (new URL(route.request().url()).pathname !== "/save") return html(route,
+      '<section data-bp-mutation-scope>' + control("First", "form") + control("Second", "form") + control("Standalone", "button")
+      + '<div hidden data-bp-mutation-error></div><div id="result"></div></section>');
+    const request = pending[attempts++];
+    request.started.resolve();
+    await request.release.promise;
+    return html(route, "Conflict", 409);
+  });
+  const routes = page.locator("bp-route");
+  for (const name of ["First", "Second"]) {
+    const request = page.waitForRequest(request => new URL(request.url()).pathname === "/save");
+    await page.getByRole("button", { name }).click();
+    await request;
+  }
+  await pending[1].started.promise;
+  pending[0].release.resolve();
+  await page.waitForFunction(() => document.querySelector("bp-route")?.getAttribute("aria-busy") === "false");
+  assert.equal(await routes.nth(1).getAttribute("aria-busy"), "true");
+  assert.equal(await page.locator("[data-bp-mutation-error]").isVisible(), false);
+  pending[1].release.resolve();
+  await page.locator("[data-bp-mutation-error]").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Standalone" }).click();
+  await pending[2].started.promise;
+  pending[2].release.resolve();
+  await page.getByText("Action unavailable", { exact: true }).waitFor();
+});

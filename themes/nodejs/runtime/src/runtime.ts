@@ -633,14 +633,20 @@ export function betterPortalShellRuntimeSource(): string {
         swapBpElementContent(element, matched?.content ?? states[state] ?? states.error ?? "");
       };
 
-      const showBpElementLoading = (element: Element) => {
+      const pendingFormRequests = new WeakMap<Element, unknown>();
+      const showBpElementLoading = (element: Element, ctx: any) => {
         initializeBpElement(element);
         element.setAttribute("data-bp-state", "loading");
         element.setAttribute("aria-busy", "true");
         element.removeAttribute("data-bp-status");
-        const form = element.querySelector("form");
+        const form = ctx.sourceElement;
         // Local mutation errors and retries need the original form and its values.
-        if (element.getAttribute("data-bp-mode") === "action" && form && mutationErrorOutlet(form)) return;
+        if (element.getAttribute("data-bp-mode") === "action" && form instanceof HTMLFormElement
+          && form.hasAttribute("data-bp-route-control") && mutationErrorOutlet(form) && !isMainTarget(ctx.target)) {
+          pendingFormRequests.set(element, ctx);
+          ctx.__bpPreservedForm = true;
+          return;
+        }
         const loading = bpElementStates.get(element)?.loading;
         // Preserve an actionable source until its request completes when no loading branch exists.
         if (loading !== undefined) swapBpElementContent(element, loading);
@@ -2072,9 +2078,9 @@ export function betterPortalShellRuntimeSource(): string {
       const preserveMutationError = (ctx: any, status: number): boolean => {
         const source = ctx?.sourceElement instanceof Element ? ctx.sourceElement : null;
         const element = requestBpElement(ctx?.__bpRoute || source);
-        if (element?.getAttribute("data-bp-mode") !== "action" || !mutationErrorOutlet(source)
+        if (!ctx?.__bpPreservedForm || !element || !mutationErrorOutlet(source)
           || isMainTarget(ctx?.__bpRequestTarget ?? ctx?.target)) return false;
-        if (!isCurrentFragmentRequest(ctx)) return true;
+        if (pendingFormRequests.get(element) !== ctx || !isCurrentFragmentRequest(ctx)) return true;
         renderPartialError(ctx, status);
         if (!ctx.__bpPartialErrorHandled) return false;
         // The original controls remain mounted so a corrected retry keeps values.
@@ -2980,7 +2986,7 @@ export function betterPortalShellRuntimeSource(): string {
           if (source instanceof Element && source.closest("[data-bp-route-error]")) return false;
           if (source instanceof Element && isDisabledControl(source)) return false;
           const bpElement = requestBpElement(detail.ctx?.__bpRoute || source);
-          if (bpElement) { detail.ctx.__bpRoute = bpElement; showBpElementLoading(bpElement); }
+          if (bpElement) { detail.ctx.__bpRoute = bpElement; showBpElementLoading(bpElement, detail.ctx); }
           const preload = (source as any)?._htmx?.preload;
           if (preload && preload.action === new URL(detail.ctx.request.action, window.location.href).href.replace(/#.*$/, "")
             && preload.headerState === JSON.stringify(liveBpHeaders()) && Date.now() < preload.expiresAt) {
@@ -3333,6 +3339,14 @@ export function betterPortalShellRuntimeSource(): string {
         // request's loading state, leaving a newer request on the same target busy.
         htmx_finally_request(_elt: any, detail: any) {
           const ctx = detail.ctx;
+          const route = ctx?.__bpRoute;
+          if (route && pendingFormRequests.get(route) === ctx) {
+            pendingFormRequests.delete(route);
+            if (route.getAttribute("data-bp-state") === "loading") {
+              route.setAttribute("aria-busy", "false");
+              route.setAttribute("data-bp-state", "ok");
+            }
+          }
           if (ctx?.__bpMainGeneration === mainPendingGeneration) {
             mainPendingGeneration = undefined;
             if (!hasLoaded() && ctx.__bpAuthGeneration !== undefined && ctx.__bpAuthGeneration !== authGeneration) {
