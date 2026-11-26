@@ -7,6 +7,15 @@ import { resolveThemeHostname, type BetterPortalHeaderTrustOptions, type HeaderM
 
 const CONFIG_MANAGER_PLUGIN_ID = "org.betterportal.config-manager";
 
+/** Canonical public AI document paths shared by shell discovery, mounts and ingress policy. */
+export const ThemeLlmsDocumentPaths = Object.freeze({
+  overview: "/llms.txt",
+  api: "/llms-api.txt",
+  development: "/llms-dev.txt",
+  ui: "/llms-ui.txt",
+  drop: "/llms-drop.txt"
+} as const);
+
 export interface ThemeLlmsContext {
   tenant: { id: string; title: string };
   app: { id: string; title: string; url: string; routes: ReadonlyArray<BetterPortalRouteMount> };
@@ -102,20 +111,20 @@ export function buildThemeAiManifest(
     app: { id: context.app.id, title: context.app.title, url: context.app.url },
     configManagerUrl: context.configManagerUrl,
     documents: {
-      overview: absolute(context.app.url, "/llms.txt"),
-      api: absolute(context.app.url, "/llms-api.txt"),
-      development: absolute(context.app.url, "/llms-dev.txt"),
-      ui: absolute(context.app.url, "/llms-ui.txt"),
-      drop: absolute(context.app.url, "/llms-drop.txt")
+      overview: absolute(context.app.url, ThemeLlmsDocumentPaths.overview),
+      api: absolute(context.app.url, ThemeLlmsDocumentPaths.api),
+      development: absolute(context.app.url, ThemeLlmsDocumentPaths.development),
+      ui: absolute(context.app.url, ThemeLlmsDocumentPaths.ui),
+      drop: absolute(context.app.url, ThemeLlmsDocumentPaths.drop)
     },
     resourcesUrl: absolute(context.app.url, "/.well-known/bp/resources"),
     resources: resourceLinks(context, resources).map(({ content: _content, ...resource }) => resource),
     automation: { catalogUrl: context.catalogUrl, apiGuideUrl: context.apiGuideUrl },
     development: {
-      guideUrl: absolute(context.app.url, "/llms-dev.txt"),
+      guideUrl: absolute(context.app.url, ThemeLlmsDocumentPaths.development),
       languages: [
-        { id: "protocol", guideUrl: absolute(context.app.url, "/llms-dev.txt") },
-        { id: "typescript", guideUrl: absolute(context.app.url, "/llms-dev.txt") }
+        { id: "protocol", guideUrl: absolute(context.app.url, ThemeLlmsDocumentPaths.development) },
+        { id: "typescript", guideUrl: absolute(context.app.url, ThemeLlmsDocumentPaths.development) }
       ]
     },
     management: {
@@ -150,10 +159,10 @@ export function renderThemeLlmsIndex(context: ThemeLlmsContext): string {
     "",
     "## Task guides",
     "",
-    `- [Use this app and its APIs](${absolute(context.app.url, "/llms-api.txt")}): Services, actions, schemas, authentication and BP headers.`,
-    `- [Develop for BetterPortal](${absolute(context.app.url, "/llms-dev.txt")}): Protocol, registry and language-specific starting points.`,
-    `- [Build UI for this theme](${absolute(context.app.url, "/llms-ui.txt")}): Active-theme layout rules, templates and skills.`,
-    `- [Full LLM drop](${absolute(context.app.url, "/llms-drop.txt")}): One export of all local guides, theme resources and theme schemas when separate or partial requests to individual paths are unsuitable. Includes source URLs, versions and expiry.`,
+    `- [Use this app and its APIs](${absolute(context.app.url, ThemeLlmsDocumentPaths.api)}): Services, actions, schemas, authentication and BP headers.`,
+    `- [Develop for BetterPortal](${absolute(context.app.url, ThemeLlmsDocumentPaths.development)}): Protocol, registry and language-specific starting points.`,
+    `- [Build UI for this theme](${absolute(context.app.url, ThemeLlmsDocumentPaths.ui)}): Active-theme layout rules, templates and skills.`,
+    `- [Full LLM drop](${absolute(context.app.url, ThemeLlmsDocumentPaths.drop)}): One export of all local guides, theme resources and theme schemas when separate or partial requests to individual paths are unsuitable. Includes source URLs, versions and expiry.`,
     `- [Machine-readable AI manifest](${absolute(context.app.url, "/.well-known/bp/ai.json")}): Structured discovery URLs and resources.`,
     "- [BetterPortal documentation](https://github.com/BetterCorp/BetterPortal/tree/master/docs): Platform architecture, service/view authoring, themes and operations.",
     ...(optional.length > 0 ? ["", "## Optional", "", ...optional] : []),
@@ -212,10 +221,10 @@ export function renderThemeLlmsDrop(
   const themeVersion = `${manifest.pluginId}@${manifest.version}`;
   const origin = context.app.url;
   const documents = [
-    { title: "Overview", path: "/llms.txt", content: renderThemeLlmsIndex(context), version: frameworkVersion },
-    { title: "API guide", path: "/llms-api.txt", content: renderThemeLlmsApi(context), version: frameworkVersion },
-    { title: "Development guide", path: "/llms-dev.txt", content: renderThemeLlmsDev(context), version: frameworkVersion },
-    { title: "UI guide", path: "/llms-ui.txt", content: renderThemeLlmsUi(context, resources), version: frameworkVersion },
+    { title: "Overview", path: ThemeLlmsDocumentPaths.overview, content: renderThemeLlmsIndex(context), version: frameworkVersion },
+    { title: "API guide", path: ThemeLlmsDocumentPaths.api, content: renderThemeLlmsApi(context), version: frameworkVersion },
+    { title: "Development guide", path: ThemeLlmsDocumentPaths.development, content: renderThemeLlmsDev(context), version: frameworkVersion },
+    { title: "UI guide", path: ThemeLlmsDocumentPaths.ui, content: renderThemeLlmsUi(context, resources), version: frameworkVersion },
     { title: "AI manifest", path: "/.well-known/bp/ai.json", content: JSON.stringify(buildThemeAiManifest(context, resources), null, 2), version: frameworkVersion },
     {
       title: "Theme resource index",
@@ -235,7 +244,7 @@ export function renderThemeLlmsDrop(
   const lines = [
     `# ${context.app.title} — full LLM drop`,
     "",
-    `Source URL: ${absolute(origin, "/llms-drop.txt")}`,
+    `Source URL: ${absolute(origin, ThemeLlmsDocumentPaths.drop)}`,
     "Export format: betterportal-llms-drop.v1",
     `Exported at: ${exportedAt.toISOString()}`,
     `Expires at: ${expiresAt.toISOString()}`,
@@ -281,14 +290,14 @@ export function renderThemeLlmsDev(context: ThemeLlmsContext): string {
     "- [BetterPortal protocol](https://github.com/BetterCorp/BetterPortal/tree/master/spec): Language-neutral HTTP, manifests, schemas, auth and rendering rules.",
     "- [BetterPortal registry](https://io.betterportal.org): Published service contracts and typed-client inputs.",
     "- [Node framework](https://www.npmjs.com/package/@betterportal/framework): TypeScript runtime and `bp` client/contract CLI.",
-    `- [Current app API guide](${absolute(context.app.url, "/llms-api.txt")}): Installed services and live schemas.`,
+    `- [Current app API guide](${absolute(context.app.url, ThemeLlmsDocumentPaths.api)}): Installed services and live schemas.`,
     "",
     "For TypeScript, use `bp client install <registry-ref-or-plugin-id>` and `bp client sync`. For another language, consume `/.well-known/bp/schema.json` or a registry schema directly.",
     "A Node service's `BPServiceDefinition` is `{ manifest }`. Do not import or return `.bp-generated/registry`; codegen creates it and BetterPortal loads it automatically.",
     "Export `PluginFeature` from the service plugin index, usually as `Pick<Plugin, ...>`, to expose only the plugin methods route handlers need. If omitted, generated handlers intentionally receive `Record<never, never>`.",
     "API handlers and renderers use the identical `ctx.route(input?)` resolver. It returns apiPath, viewPath, uiPath, absoluteApiPath, absoluteViewPath and absoluteUiPath. API/view fields target the service; UI fields target mounted GET pages on the theme. API code normally targets path; either context can use viewId, including public URLs for emails/callbacks. Pass a declared dependency alias as serviceId for another service.",
     "HTML renderers receive `ViewRenderContext` as their second argument. Its limited `tenant` and `app` projections are presentation-only; authorization and business data remain in the route handler.",
-    `Before writing a view, read the [UI guide](${absolute(context.app.url, "/llms-ui.txt")}) for renderer boundaries, HTMX lifecycle, draft restoration and defect reporting.`,
+    `Before writing a view, read the [UI guide](${absolute(context.app.url, ThemeLlmsDocumentPaths.ui)}) for renderer boundaries, HTMX lifecycle, draft restoration and defect reporting.`,
     "App auth login/logout references are view IDs, not paths. Use BPRoute in service JSX; explicit redirect/history values may select uiPath. Return domain state and cursors; never add renderer-only internal URLs to JSON responses.",
     "Before returning a service-specific response outside HTTP 200-399, call `ctx.diagnostic({ code, reason, attributes? })`. Use stable lowercase dotted codes and never put secrets or tokens in diagnostic data.",
     "Route dependencies are explicit `{ operationId, method }` objects; for another service add `serviceId` with the installed dependency alias. URL resolution never infers dependencies. Config Manager derives transitive least-privilege role grants from exact mounted dependencies and shows them read-only. A fragment-only GET is a normal API operation, a stream is a finite frame sequence, and SSE is an open-ended GET transport; streamed HTML and SSE inherit the GET operation's auth and permissions.",

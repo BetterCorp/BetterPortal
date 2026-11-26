@@ -24,6 +24,7 @@ import {
   assertManifestOnlyDefinition,
   authorizeServiceToken,
   isServiceToken,
+  isStreamHandler,
   createJwksVerifier,
   createStaticJwksVerifier,
   describeEmbeddedContextResolution,
@@ -82,6 +83,7 @@ import {
 import { createH3Router, isBpManagementAuthPath, isBpManagementAuthRoute, type H3AuthContext } from "@betterportal/framework/lib/adapters/h3.js";
 import { BootstrapStateStore } from "./bootstrapState.js";
 import { ScopedConfigCache } from "./scopedConfigCache.js";
+import { ProtocolEndpointRegistry, type BetterPortalProtocolEndpoint } from "./protocolEndpoints.js";
 import {
   createBetterPortalApp,
   createBetterPortalNodeHandler,
@@ -399,6 +401,18 @@ export abstract class BPService<
   protected abstract definition(): BPServiceDefinition;
 
   protected onRegistered?(registry: BetterPortalRegistry, obs: Observable): void | Promise<void>;
+
+  private protocolEndpoints?: ProtocolEndpointRegistry;
+
+  /** Register an independently authenticated native protocol and its narrow CORS policy.
+   * Call in onRegistered. This never creates a BP caller context or bypasses a generated BP route.
+   * The handler owns protocol authorization, resource validation, readiness and request limits.
+   */
+  protected registerProtocolEndpoint(endpoint: BetterPortalProtocolEndpoint): void {
+    this.protocolEndpoints ??= new ProtocolEndpointRegistry();
+    this.protocolEndpoints.register(endpoint, this.registeredRoutes.flatMap(route => [route.path,
+      ...(route.sse || isStreamHandler(route.handlers.GET) ? [`${route.path}/__sse`] : [])]));
+  }
 
   private registerShellFragmentRoutes(registry: BetterPortalRegistry): void {
     if (!registry.shellFragments?.length) return;
@@ -1603,7 +1617,9 @@ export abstract class BPService<
     }) || undefined;
   }
 
-  private async handleWithCors(event: BetterPortalEvent): Promise<Response | undefined> {
+  private async handleWithCors(event: BetterPortalEvent): Promise<unknown> {
+    const protocol = await this.protocolEndpoints?.handle(event);
+    if (protocol) return protocol.response;
     const requestedHeaders = event.req.headers.get("access-control-request-headers");
     const allowHeaders = requestedHeaders?.trim().length
       ? requestedHeaders.split(",").map((v) => v.trim())

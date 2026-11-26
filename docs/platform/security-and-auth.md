@@ -181,3 +181,9 @@ Genuine browser preflight requests are handled by the shared `BPService` CORS mi
 Request spans include the Origin, requested method/headers, candidate hosts, configured app hosts, and allowed origins where applicable. These values explain why CORS failed without treating client-supplied tenant/app headers as trusted context. Do not move authentication ahead of this middleware or add a route-level OPTIONS handler merely to bypass a CORS failure.
 
 When adding a service, make sure its `sec-config.yaml` points to the correct repo-level `bp-config.yaml`.
+
+### Separate native protocol policies
+
+Node BSB services may register independently authenticated protocol handlers through `registerProtocolEndpoint` in `onRegistered`; see [the service guide](../building/services.md#independently-authenticated-protocol-endpoints). Its explicit path/method/origin policy applies only to those handlers. It cannot shadow generated BP routes or BP authentication/management endpoints and never constructs a BP user or service context. Public non-credentialed wildcard CORS is limited to literal well-known GET/HEAD metadata. Other protocol origins are explicit; denied origins and unsupported preflights fail before invoking the native handler. Protocol credential validation and grant checks remain the handler owner's responsibility.
+
+This is not a mechanism to allow an external assistant as a BP app origin, forward its token as a BP token, or weaken ordinary service CORS. Existing unregistered native callbacks retain the ordinary BP transport behavior; absence of a readable CORS response does not by itself prove that a simple cross-origin request was never handled. Protect native effects with their own authentication, resource and request checks.

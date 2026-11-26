@@ -2,6 +2,7 @@
 import { css } from "jsx-htmx";
 import {
   createPluginManifest,
+  ThemeLlmsDocumentPaths,
   type BetterPortalThemeConfig,
   type HtmlRenderable,
   type PluginManifest
@@ -2140,7 +2141,7 @@ function Bootstrap2Document(context: Bootstrap2ShellContext): HtmlRenderable {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":20,"mode":"cors","timeout":15000,"extensions":"bp-shell, sse"}' />
-        <link rel="llms" href="/llms.txt" />
+        <link rel="llms" href={ThemeLlmsDocumentPaths.overview} />
         <link rel="alternate" type="application/json" title="BetterPortal AI Manifest" href={context.aiManifestUrl ?? "/.well-known/bp/ai.json"} />
         <meta name="betterportal:ai-manifest" content={context.aiManifestUrl ?? "/.well-known/bp/ai.json"} />
         {context.automationCatalogUrl ? <meta name="betterportal:automation-catalog" content={context.automationCatalogUrl} /> : ""}

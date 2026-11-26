@@ -39,6 +39,36 @@ protected definition(): BPServiceDefinition {
 
 `bp-codegen` generates the route registry and BetterPortal loads it automatically. Service code must not import or return generated registry files.
 
+## Independently authenticated protocol endpoints
+
+Use generated BP routes for app APIs and views. A service that owns a separate standard protocol, such as an OAuth authorization server or an authenticated MCP resource, can register its native handler in `onRegistered`:
+
+```ts
+protected onRegistered(): void {
+  this.registerProtocolEndpoint({
+    path: "/mcp",
+    methods: ["POST"],
+    cors: {
+      origins: ["https://approved-client.example"],
+      allowHeaders: ["Authorization", "Content-Type", "MCP-Protocol-Version"],
+      exposeHeaders: ["WWW-Authenticate"],
+      credentials: false
+    },
+    handler: event => this.mcp.handleRequest(event.req)
+  });
+}
+```
+
+This Node BSB extension has its own transport policy. It does not assign tenant/app context, verify a BP bearer, grant service authority, or authenticate the native protocol. The handler must validate its own credential, issuer/resource, current grant, request bounds and readiness. A no-Origin server request can reach it; this does not make that request trusted. Callers cannot use a declared CORS origin as authorization.
+
+Paths are explicit literals with optional named single-segment parameters, for example `/oauth/resume/:uid`. Wildcards, ambiguous registrations, collisions with generated BP paths (including auxiliary SSE paths), and replacement of BP authentication, management, AI discovery or SEO endpoints are rejected. The existing public AI document paths share `ThemeLlmsDocumentPaths` with the framework and theme mounts. Register each protocol path once with all intended methods. A matching request never falls through into app routing, including an unsupported method or a handler that fails to return a response.
+
+Only literal `/.well-known/` metadata registered for GET/HEAD may use `origins: "*"`. All other browser origins are explicit HTTPS origins; HTTP is accepted only for loopback development. Credentialed cross-origin cookie access is not supported. Preflight checks the declared method and header list without invoking the handler. An unapproved Origin is rejected even for a simple request. Ordinary BP app CORS and route authentication remain unchanged.
+
+The handler can return a Web `Response` or the handled result of H3's public `fromNodeHandler`. The latter requires the normal Node server backend and allows a maintained OAuth library's standard Node callback to own its transaction cookies. The registry applies its transport CORS headers before the callback writes the Node response and preserves repeated `Set-Cookie` fields. The library must still verify the original signed transaction cookie when completing an interaction; an opaque interaction ID alone is not browser ownership. Do not synthesize cookie headers or reimplement the library's transaction validation.
+
+Applications consuming this extension must use a published BP release that includes it. Local owner build archives can verify compatibility but do not establish publication or authorize a production dependency override.
+
 ## Developer resources and AI discovery
 
 Services can publish public implementation guidance with the same manifest and registry contract as their routes:
