@@ -1540,7 +1540,10 @@ async function handleRouteRequest(
         "bp.view.kind": requestedKind,
         "bp.view.status": handlerStatus
       }, () => statusRenderer.render(data, renderContext)));
-      return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType("status", methodRoute.chrome));
+      // A declared service validation renderer can supply a local fragment.
+      // Framework-owned/auth error pages use their separate status response path.
+      const mode = representation.mode === "fragment" || requestedKind !== "page" ? "fragment" : "status";
+      return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(mode, methodRoute.chrome));
     }
     // No specific renderer found.
     if (!shouldFallThroughToDefaultRenderer(handlerStatus)) {

@@ -164,6 +164,13 @@ JSON framework errors contain a human-readable `error` string, with optional `de
 
 HTML errors use a matching status renderer when available. The existing adapter may return an empty body for an HTML error without a renderer. Status codes that forbid a body remain empty. SSE/NDJSON errors after streaming starts are in-band terminal frames. Do not replace these representations with JSON unconditionally or disclose exception internals to unauthenticated callers.
 
+An explicit service status renderer honours `Accept: text/html; mode=fragment`
+and the `_c`/`_f` selectors: its response keeps the handler status and uses
+`text/html; mode=fragment`. This lets a service return local form validation
+HTML without replacing the form. A full-page request to that renderer keeps
+`mode=status`. Framework-owned error and authentication pages keep their status
+representation and must not be inserted into a local mutation-error outlet.
+
 Status codes follow HTTP conventions:
 
 | Code | Use |
