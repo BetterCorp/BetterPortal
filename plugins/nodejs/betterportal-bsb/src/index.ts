@@ -234,3 +234,4 @@ export {
 } from "./service.js";
 
 export { BootstrapStateStore, type BootstrapStateFile, type BootstrapStateOptions } from "./bootstrapState.js";
+export type { BetterPortalProtocolEndpoint, ProtocolHttpMethod } from "./protocolEndpoints.js";
