@@ -117,22 +117,24 @@ export interface ScopedConfigApp {
 
 // -- Platform config store interface ----------------------------------
 
+export interface ConfigRequestBudget { signal: AbortSignal; deadline: number }
+
 export interface PlatformConfigStore {
-  loadConfig(): Promise<BetterPortalConfig>;
+  loadConfig(options?: { budget?: ConfigRequestBudget }): Promise<BetterPortalConfig>;
   /** Edit one app's roles, routes and menu against current database state in a transaction. Callback must not perform external effects. */
   mutateApp?<T>(appId: string, update: (config: BetterPortalConfig) => Promise<T>): Promise<T>;
-  saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void>;
+  saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; budget?: ConfigRequestBudget }): Promise<void>;
   /** Optional separate presence storage; must not advance the platform config revision. */
-  touchServiceActivity?(serviceId: string, field: "lastSeenAt" | "lastSyncAt"): Promise<void>;
+  touchServiceActivity?(serviceId: string, field: "lastSeenAt" | "lastSyncAt", budget?: ConfigRequestBudget): Promise<void>;
 
-  validateApiKey(apiKey: string): Promise<{
+  validateApiKey(apiKey: string, budget?: ConfigRequestBudget): Promise<{
     scope: "tenant" | "platform";
     serviceId: string | undefined;
     tenantId?: string;
     service: TenantServiceRegistration | PlatformService | SharedServiceDefinition;
   } | null>;
 
-  getScopedConfig(serviceId: string, scope: "tenant" | "platform", tenantId?: string): Promise<ScopedServiceConfig>;
+  getScopedConfig(serviceId: string, scope: "tenant" | "platform", tenantId?: string, budget?: ConfigRequestBudget): Promise<ScopedServiceConfig>;
 
   registerServicePublicKey(
     serviceId: string,

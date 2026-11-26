@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { ConfigRevisionConflictError } from "./storage/core.js";
-import { credentialDiagnostics } from "./credentialDiagnostics.js";
+import { configManagerInstance } from "./credentialDiagnostics.js";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import {
   jsonResponse,
@@ -146,12 +146,12 @@ function logPreviewCredentials(
     action, groupId, previewKey, credentialCount: credentials.length
   });
   for (const credential of credentials) {
-    logger?.info("BP PREVIEW: credential {action} group={groupId} preview={previewKey} service={serviceId} serviceInstance={serviceInstanceId} fingerprint={keyFingerprint} instance={configManagerInstance} controlPlane={controlPlaneUrl}", {
+    logger?.info("BP PREVIEW: credential {action} group={groupId} preview={previewKey} service={serviceId} serviceInstance={serviceInstanceId} instance={configManagerInstance} controlPlane={controlPlaneUrl}", {
       action, groupId, previewKey,
       serviceId: credential.serviceId,
       serviceInstanceId: credential.instanceId,
       controlPlaneUrl: credential.environment.BP_CONTROL_PLANE_URL,
-      ...credentialDiagnostics(credential.environment.BP_SERVICE_API_KEY)
+      configManagerInstance
     });
   }
 }

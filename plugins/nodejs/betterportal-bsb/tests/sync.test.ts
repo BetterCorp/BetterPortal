@@ -15,7 +15,7 @@ function serviceFixture() {
   });
   return service;
 }
-const obs = { log: { info() {}, warn() {} } };
+const obs = { log: { debug() {}, info() {}, warn() {} } };
 
 test("shared catalog service IDs pass client sanity checks and permit sync readiness", async t => {
   const service = serviceFixture();
@@ -241,4 +241,33 @@ test("invalid streamed configuration cancels the stream and repeats the registra
   assert.equal(posts, 2);
   assert.equal(streams.length, 2);
   assert.equal(service.manifestSync.state, "synced");
+});
+
+test("bootstrap honors Retry-After and exposes a sanitized correlated failure until recovery", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const service = serviceFixture();
+  t.after(() => service.dispose());
+  let attempts = 0;
+  const ids: string[] = [];
+  const records: unknown[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    if (init.method !== "POST") return new Response(new ReadableStream());
+    ids.push(new Headers(init.headers).get("x-bp-sync-id")!);
+    return ++attempts === 1 ? new Response("private-response-marker", { status: 503, headers: { "retry-after": "12" } })
+      : Response.json({ tenants: [], apps: [], managementOrigins: [] });
+  });
+  const logs = { log: { ...obs.log, warn: (...args: unknown[]) => records.push(args) } };
+  assert.equal(await service.connectToControlPlane(logs), false);
+  const failed = await service.renderHealth(true).json();
+  assert.equal(failed.manifestSync.outcome, "server_busy");
+  assert.equal(failed.manifestSync.correlationId, ids[0]);
+  assert.equal(failed.manifestSync.lastSuccessAgeMs, null);
+  assert.doesNotMatch(JSON.stringify(records), /private-response-marker|test-key/);
+  t.mock.timers.tick(11999);
+  await setImmediate();
+  assert.equal(attempts, 1);
+  t.mock.timers.tick(1001);
+  await setImmediate();
+  assert.equal(service.renderHealth().status, 200);
+  assert.notEqual(ids[0], ids[1]);
 });

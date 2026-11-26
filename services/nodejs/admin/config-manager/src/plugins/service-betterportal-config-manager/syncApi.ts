@@ -2,6 +2,7 @@ import { effectiveRouteAuth, ApiAuthRequirementSchema } from "@betterportal/fram
 import type { ServiceRegistryContext } from "./storage/core.js";
 import { createEventStream } from "h3";
 import type {
+  ConfigRequestBudget,
   ConfigSchemaDescriptor,
   ApiContractDescriptor,
   AppAuthConfig,
@@ -27,14 +28,16 @@ import type {
 } from "@betterportal/framework";
 import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ServiceManifestCacheEntrySchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, readBoundedJsonBody, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
 import { sitemapMetadata } from "@betterportal/framework";
-import { createPublicKey } from "node:crypto";
+import { hostname } from "node:os";
+import { createPublicKey, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 import { isPageOperation, apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { applyServicePublicKey, ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService, PreviewEnvironmentError } from "./previewEnvironments.js";
-import { credentialDiagnostics } from "./credentialDiagnostics.js";
+import { configManagerInstance } from "./credentialDiagnostics.js";
 
+const SYNC_DEADLINE_MS = 20_000;
 const SYNC_PATH = "/.well-known/bp/sync";
 const SERVICE_ACTIVITY_INTERVAL_MS = 60_000;
 const SYNC_HEARTBEAT_INTERVAL_MS = 15_000;
@@ -44,17 +47,19 @@ async function touchServiceActivity(
   serviceId: string,
   scope: "tenant" | "platform",
   tenantId: string | undefined,
-  field: "lastSeenAt" | "lastSyncAt"
+  field: "lastSeenAt" | "lastSyncAt",
+  budget?: ConfigRequestBudget
 ): Promise<void> {
   if (scope !== "tenant" || !tenantId) return;
-  if (store.touchServiceActivity) return store.touchServiceActivity(serviceId, field);
-  const config = await store.loadConfig();
+  if (store.touchServiceActivity) return store.touchServiceActivity(serviceId, field, budget);
+  const config = await store.loadConfig({ budget });
   const service = config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId);
   if (!service) return;
   const now = Date.now();
   if (field === "lastSeenAt" && service[field] && now - Date.parse(service[field]) < SERVICE_ACTIVITY_INTERVAL_MS) return;
   service[field] = new Date(now).toISOString();
-  await store.saveConfig(config, { notify: false });
+  budget?.signal.throwIfAborted();
+  await store.saveConfig(config, { notify: false, budget });
 }
 
 function validateServicePublicKey(publicKeyPem: string, keyId: string): { publicKeyPem: string; keyId: string } {
@@ -657,6 +662,7 @@ export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedS
 }
 
 export interface SyncEndpointOptions {
+  build?: string;
   /** Mutate the same snapshot before commit; may run again after a revision conflict. No external side effects. */
   onManifestUpdated?: (config: BetterPortalConfig, serviceIds: string[], manifest: CachedManifest) => void;
 }
@@ -670,22 +676,38 @@ export function registerSyncEndpoint(
   store: PlatformConfigStore,
   options: SyncEndpointOptions = {}
 ): void {
-  const inFlight = new Map<string, Promise<string>>();
+  type Projection = { result: Promise<string>; consumers: number; controller: AbortController };
+  const inFlight = new Map<string, Projection>();
   store.onChange(() => { inFlight.clear(); });
-  const projection = (serviceId: string, scope: "platform" | "tenant", tenantId?: string) => {
+  const projection = async (serviceId: string, scope: "platform" | "tenant", tenantId?: string, signal?: AbortSignal) => {
+    signal?.throwIfAborted();
     const key = JSON.stringify([scope, tenantId, serviceId]);
     let pending = inFlight.get(key);
     if (!pending) {
-      pending = store.getScopedConfig(serviceId, scope, tenantId)
-        .then((config) => JSON.stringify(injectResolvedServicePaths(config)));
+      const controller = new AbortController();
+      // One subscriber timing out must not cancel the same projection for another.
+      const budget = { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(SYNC_DEADLINE_MS)]),
+        deadline: Date.now() + SYNC_DEADLINE_MS };
+      const result = store.getScopedConfig(serviceId, scope, tenantId, budget)
+        .then(config => JSON.stringify(injectResolvedServicePaths(config)));
+      pending = { result, consumers: 0, controller };
       inFlight.set(key, pending);
-      void pending.then(() => {
-        if (inFlight.get(key) === pending) inFlight.delete(key);
-      }, () => {
-        if (inFlight.get(key) === pending) inFlight.delete(key);
-      });
     }
-    return pending;
+    pending.consumers++;
+    let abort: (() => void) | undefined;
+    try {
+      if (!signal) return await pending.result;
+      return await Promise.race([pending.result, new Promise<never>((_, reject) => {
+        abort = () => reject(signal.reason);
+        signal.addEventListener("abort", abort, { once: true });
+      })]);
+    } finally {
+      if (abort) signal?.removeEventListener("abort", abort);
+      if (--pending.consumers === 0) {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+        pending.controller.abort();
+      }
+    }
   };
   app.get(SYNC_PATH, async (event: BetterPortalEvent) => {
     const obs = eventObservability(event);
@@ -699,7 +721,7 @@ export function registerSyncEndpoint(
 
     const validated = await store.validateApiKey(apiKey);
     if (!validated) {
-      obs?.logger.warn("BP SYNC: rejected invalid API key fingerprint={keyFingerprint} instance={configManagerInstance}", credentialDiagnostics(apiKey));
+      obs?.logger.warn("BP SYNC: rejected invalid API key instance={configManagerInstance}", { configManagerInstance });
       return jsonResponse({ error: "Invalid API key" }, 403);
     }
 
@@ -810,41 +832,38 @@ export function registerSyncEndpoint(
     return response;
   });
 
-  const pollHandler = async (event: BetterPortalEvent) => {
-    const obs = eventObservability(event);
+  const poll = async (event: BetterPortalEvent, trace: SyncTrace, budget: ConfigRequestBudget) => {
+    const { signal } = budget;
+    signal.throwIfAborted();
+    trace.enter("authentication");
     const authHeader = event.req.headers.get("authorization");
     const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
     if (!apiKey) {
-      obs?.logger.warn("BP SYNC POLL: rejected missing bearer token");
       return jsonResponse({ error: "Bearer token required" }, 401);
     }
 
-    const validated = await store.validateApiKey(apiKey);
+    const validated = await store.validateApiKey(apiKey, budget);
+    signal.throwIfAborted();
     if (!validated) {
-      obs?.logger.warn("BP SYNC POLL: rejected invalid API key fingerprint={keyFingerprint} instance={configManagerInstance}", credentialDiagnostics(apiKey));
       return jsonResponse({ error: "Invalid API key" }, 403);
     }
 
     if (!validated.serviceId) {
-      obs?.logger.warn("BP SYNC POLL: rejected unlinked service scope={scope} tenant={tenantId}", {
-        scope: validated.scope,
-        tenantId: validated.tenantId ?? ""
-      });
       return jsonResponse({ error: "Service not yet linked" }, 412);
     }
 
     const serviceId = validated.serviceId;
-    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSeenAt").catch((error) => {
-      obs?.logger.warn("BP SYNC POLL: failed updating last seen service={serviceId}: {msg}", {
-        serviceId,
-        msg: error instanceof Error ? error.message : String(error)
-      });
-    });
+    trace.serviceId = serviceId;
+    trace.enter("activity");
+    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSeenAt", budget).catch(() => { trace.activityFailed = true; });
+    signal.throwIfAborted();
 
     // POST: extract manifest push if present and cache.
     if (event.req.method === "POST") {
-      const parsedBody = await readBoundedJsonBody(event.req, 4 * 1024 * 1024);
+      trace.enter("validation");
+      const parsedBody = await readBoundedJsonBody(event.req, 4 * 1024 * 1024, { signal, onBytes: bytes => { trace.payloadBytes = bytes; } });
+      signal.throwIfAborted();
       if (parsedBody instanceof Response) return parsedBody;
       const body = parsedBody as {
         publicKeyPem?: string;
@@ -891,10 +910,10 @@ export function registerSyncEndpoint(
       }
       if (identity || cachedManifest) {
         // Leave time for projection/delivery before the client's 30-second deadline.
-        const signal = AbortSignal.any([event.req.signal, AbortSignal.timeout(20_000)]);
+        trace.enter("queue");
         try {
           await updateServiceMetadata(store, serviceId, cachedManifest, options.onManifestUpdated, async (config) => {
-            const current = await store.validateApiKey(apiKey);
+            const current = await store.validateApiKey(apiKey, budget);
             if (!current || current.serviceId !== serviceId || current.tenantId !== validated.tenantId || current.scope !== validated.scope) {
               throw new SyncSubmissionError("Sync credentials changed during submission; reconnect required", 403);
             }
@@ -905,41 +924,59 @@ export function registerSyncEndpoint(
                 "The service already has a different S2S key. Use the explicit key recovery/rotation flow.", 409);
               if (registration === "not-found") throw new SyncSubmissionError("Service registration not found", 404);
             }
-          }, signal);
+          }, signal, trace);
         } catch (error) {
           if (error instanceof SyncSubmissionError || error instanceof PreviewEnvironmentError) return jsonResponse({ error: error.message }, error.status);
-          if (signal.aborted || error instanceof ConfigRevisionConflictError) {
-            const response = jsonResponse({ error: "Config sync is busy; retry submission" }, 503);
-            response.headers.set("retry-after", "5");
-            return response;
-          }
+          if (error instanceof ConfigRevisionConflictError) return trace.busy("revision_conflict_exhausted");
+          if (signal.aborted || (error instanceof Error && error.name === "TimeoutError")) return trace.timeout();
           throw error;
         }
       }
-      if (cachedManifest) {
-        obs?.logger.info("BP SYNC POLL: cached manifest service={serviceId} version={version} views={count} configSchemas={configSchemas}", {
-          serviceId,
-          version: cachedManifest.manifestVersion,
-          count: Object.keys(cachedManifest.viewIndex).length,
-          configSchemas: cachedManifest.configSchemas.length
-        });
-      }
     }
 
-    const data = await projection(serviceId, validated.scope, validated.tenantId);
-    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt").catch((error) => {
-      obs?.logger.warn("BP SYNC POLL: failed updating last sync service={serviceId}: {msg}", {
-        serviceId,
-        msg: error instanceof Error ? error.message : String(error)
-      });
-    });
-    obs?.logger.info("BP SYNC POLL: sending config service={serviceId} scope={scope} tenant={tenantId} bytes={bytes}", {
-      serviceId,
-      scope: validated.scope,
-      tenantId: validated.tenantId ?? "",
-      bytes: data.length
-    });
+    signal.throwIfAborted();
+    trace.enter("projection");
+    const data = await projection(serviceId, validated.scope, validated.tenantId, signal);
+    signal.throwIfAborted();
+    trace.enter("activity");
+    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt", budget).catch(() => { trace.activityFailed = true; });
+    signal.throwIfAborted();
+    trace.enter("delivery");
     return new Response(data, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  };
+
+  const pollHandler = async (event: BetterPortalEvent) => {
+    const trace = new SyncTrace(event.req);
+    const signal = AbortSignal.any([event.req.signal, AbortSignal.timeout(SYNC_DEADLINE_MS)]);
+    let abort!: () => void;
+    const expired = new Promise<Response>(resolve => {
+      abort = () => resolve(trace.timeout());
+      signal.addEventListener("abort", abort, { once: true });
+      if (signal.aborted) abort();
+    });
+    let status = 500;
+    try {
+      const response = await Promise.race([expired, poll(event, trace, { signal, deadline: trace.started + SYNC_DEADLINE_MS }).catch(error => {
+        if (signal.aborted || (error instanceof Error && error.name === "TimeoutError")) return trace.timeout();
+        throw error;
+      })]);
+      status = response.status;
+      response.headers.set("x-bp-sync-id", trace.id);
+      return response;
+    } finally {
+      signal.removeEventListener("abort", abort);
+      const stage = trace.stage;
+      trace.enter("finished");
+      const fields = { correlationId: trace.id, serviceId: trace.serviceId, stage, status,
+        instance: hostname(), build: options.build ?? "unknown",
+        payloadBytes: trace.payloadBytes,
+        durationMs: Date.now() - trace.started, budgetMs: SYNC_DEADLINE_MS, cancelled: event.req.signal.aborted, activityFailed: trace.activityFailed,
+        timings: JSON.stringify(trace.timings), queueDepth: trace.queueDepth, active: trace.active, conflicts: trace.conflicts };
+      const logger = eventObservability(event)?.logger;
+      const message = "BP SYNC POLL: request serviceId={serviceId} correlationId={correlationId} stage={stage} status={status} instance={instance} build={build} payloadBytes={payloadBytes} durationMs={durationMs} budgetMs={budgetMs} cancelled={cancelled} activityFailed={activityFailed} timings={timings} queueDepth={queueDepth} active={active} conflicts={conflicts}";
+      if (status >= 400 || fields.activityFailed || fields.durationMs > 1000) logger?.warn(message, fields);
+      else logger?.debug(message, fields);
+    }
   };
 
   app.get(`${SYNC_PATH}/poll`, pollHandler);
@@ -972,6 +1009,7 @@ function ensureApiRouteMounts(app: BetterPortalApp, serviceId: string, manifest:
 function reconcileServiceRouteMounts(
   app: BetterPortalApp, syncedServiceIds: ReadonlySet<string>, manifest: CachedManifest, normalizePaths = true
 ): boolean {
+  if (!syncedServiceIds.size) return false;
   const before = structuredClone(app.routes);
   const manifestOperations = operationIndex(manifest);
   for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
@@ -1214,8 +1252,35 @@ function reconcileDependencyRoutes(config: BetterPortalConfig, app: BetterPortal
   );
 }
 
-// ponytail: one writer per store/config row; expired HTTP requests are skipped before mutation.
-const metadataUpdates = new WeakMap<PlatformConfigStore, Promise<void>>();
+class SyncTrace {
+  readonly started = Date.now();
+  readonly id: string;
+  serviceId = "";
+  stage = "request";
+  activityFailed = false;
+  payloadBytes = 0;
+  queueDepth = 0;
+  active = 0;
+  conflicts = 0;
+  timings: Record<string, number> = {};
+  private since = this.started;
+  constructor(request: Request) {
+    const supplied = request.headers.get("x-bp-sync-id");
+    this.id = supplied && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(supplied) ? supplied : randomUUID();
+  }
+  enter(stage: string) {
+    const now = Date.now();
+    this.timings[this.stage] = (this.timings[this.stage] ?? 0) + now - this.since;
+    this.stage = stage;
+    this.since = now;
+  }
+  busy(reason: string) {
+    return jsonResponse({ error: "Config sync is busy; retry submission", reason, correlationId: this.id }, 503, { "retry-after": "5" });
+  }
+  timeout() { return this.busy(this.stage === "queue" ? "queue_timeout" : "processing_timeout"); }
+}
+
+const metadataQueues = new WeakMap<PlatformConfigStore, Set<() => void>>();
 
 async function updateServiceMetadata(
   store: PlatformConfigStore,
@@ -1223,41 +1288,48 @@ async function updateServiceMetadata(
   manifest: CachedManifest | undefined,
   onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
   prepare?: (config: BetterPortalConfig) => Promise<void>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  trace?: SyncTrace
 ): Promise<string[]> {
-  // Serialize the entire read/mutate/save, not just the write. Otherwise a burst
-  // of local submissions consumes each other's retry budgets on stale snapshots.
-  const update = (metadataUpdates.get(store) ?? Promise.resolve()).then(async () => {
+  signal?.throwIfAborted();
+  let queue = metadataQueues.get(store);
+  if (trace) trace.queueDepth = queue?.size ?? 0;
+  if (trace) trace.active = queue ? 1 : 0;
+  if (queue) {
+    if (queue.size >= 128 && signal) throw new DOMException("Sync queue is full", "TimeoutError");
+    const waiting = queue;
+    await new Promise<void>((resolve, reject) => {
+      const start = () => { signal?.removeEventListener("abort", cancel); resolve(); };
+      const cancel = () => { waiting.delete(start); reject(signal?.reason); };
+      waiting.add(start);
+      signal?.addEventListener("abort", cancel, { once: true });
+    });
+  } else {
+    queue = new Set();
+    metadataQueues.set(store, queue);
+  }
+  try {
+    if (trace) trace.active = 1;
     for (let attempt = 0; ; attempt++) {
       try {
         signal?.throwIfAborted();
-        const serviceIds = await commitServiceMetadata(store, serviceInstanceId, manifest, onManifestUpdated, prepare, signal);
+        const serviceIds = await commitServiceMetadata(store, serviceInstanceId, manifest, onManifestUpdated, prepare, signal, trace);
         if (manifest) for (const id of serviceIds) cacheManifest(id, manifest);
         return serviceIds;
       } catch (error) {
+        if (trace && error instanceof ConfigRevisionConflictError) trace.conflicts++;
         if (!(error instanceof ConfigRevisionConflictError) || attempt >= 4) throw error;
         // Other replicas/admin writes still use optimistic revision checks.
         // Back off with jitter, then re-read and revalidate credentials.
+        trace?.enter("revision_retry");
         await delay(25 * 2 ** attempt * (1 + Math.random()), undefined, { signal });
         store.invalidate();
       }
     }
-  });
-  const settled = update.then(() => {}, () => {}).then(() => {
-    if (metadataUpdates.get(store) === settled) metadataUpdates.delete(store);
-  });
-  metadataUpdates.set(store, settled);
-  if (!signal) return update;
-  let onAbort: () => void = () => {};
-  try {
-    return await new Promise<string[]>((resolve, reject) => {
-      onAbort = () => reject(signal.reason);
-      signal.addEventListener("abort", onAbort, { once: true });
-      if (signal.aborted) onAbort();
-      update.then(resolve, reject);
-    });
   } finally {
-    signal.removeEventListener("abort", onAbort);
+    const next = queue.values().next().value;
+    if (next) { queue.delete(next); next(); }
+    else metadataQueues.delete(store);
   }
 }
 
@@ -1267,17 +1339,24 @@ async function commitServiceMetadata(
   manifest: CachedManifest | undefined,
   onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
   prepare?: (config: BetterPortalConfig) => Promise<void>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  trace?: SyncTrace
 ): Promise<string[]> {
-  const config = await store.loadConfig();
+  trace?.enter("config_load");
+  const budget = trace && signal ? { signal, deadline: trace.started + SYNC_DEADLINE_MS } : undefined;
+  const config = await store.loadConfig({ budget });
+  signal?.throwIfAborted();
+  trace?.enter("metadata");
   const before = toJsonValue(config);
   await prepare?.(config);
   signal?.throwIfAborted();
+  trace?.enter("route_reconciliation");
   const serviceIds = manifest ? applyServiceMetadata(config, serviceInstanceId, manifest, onManifestUpdated) : [];
   signal?.throwIfAborted();
   if (!isDeepStrictEqual(before, toJsonValue(config))) {
     if (manifest) config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt = new Date().toISOString();
-    await store.saveConfig(config);
+    trace?.enter("config_save");
+    await store.saveConfig(config, { budget });
   }
   if (manifest) manifest.fetchedAt = Date.parse(config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt);
   return serviceIds;

@@ -1,5 +1,6 @@
 import { randomBytes, createHash } from "node:crypto";
 import type {
+  ConfigRequestBudget,
   PlatformConfigStore,
   ScopedM2MConfig,
   ScopedServiceConfig,
@@ -355,7 +356,7 @@ export function applyServicePublicKey(
 export abstract class BaseStorage implements PlatformConfigStore {
   protected listeners: Set<() => void> = new Set();
 
-  abstract loadConfig(options?: { readOnly?: boolean }): Promise<BetterPortalConfig>;
+  abstract loadConfig(options?: { readOnly?: boolean; budget?: ConfigRequestBudget }): Promise<BetterPortalConfig>;
   abstract saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void>;
 
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
@@ -692,9 +693,10 @@ export abstract class BaseStorage implements PlatformConfigStore {
   async getScopedConfig(
     serviceId: string,
     scope: "tenant" | "platform",
-    tenantId?: string
+    tenantId?: string,
+    budget?: ConfigRequestBudget
   ): Promise<ScopedServiceConfig> {
-    const config = await this.loadConfig({ readOnly: true });
+    const config = await this.loadConfig({ readOnly: true, budget });
     // Shell services need an unfiltered app view to resolve route URLs and
     // render full nav. Detect by app.shell.serviceId pointing at the caller.
     const sharedActivationIdsForCaller = new Set(
