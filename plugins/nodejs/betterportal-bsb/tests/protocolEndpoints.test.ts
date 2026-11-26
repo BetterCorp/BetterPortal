@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer, request as httpRequest } from "node:http";
 import { fromNodeHandler, getRequestURL } from "h3";
+import * as av from "anyvali";
+import { createStreamHandler } from "@betterportal/framework";
 import { createBetterPortalApp, createBetterPortalNodeHandler } from "@betterportal/framework/lib/runtime/h3.js";
 import { ProtocolEndpointRegistry, type BetterPortalProtocolEndpoint } from "../src/protocolEndpoints.js";
 import { BPService } from "../src/service.js";
@@ -86,6 +88,24 @@ test("registration snapshots the transport policy rather than retaining mutable 
   assert.equal((await app.fetch(new Request("https://service.test/mcp/app", { method: "OPTIONS", headers: {
     origin: "https://client.test", "access-control-request-method": "GET", "access-control-request-headers": "x-unreviewed"
   } }))).status, 403);
+});
+
+test("BPService reserves generated SSE paths for explicit SSE and streaming GET routes", () => {
+  const stream = createStreamHandler({ item: av.string() }, async function* () { yield "row"; });
+  for (const route of [
+    { path: "/feed/:channel", handlers: { GET: () => ({}) }, sse: { handler: async function* () { yield "event"; } } },
+    { path: "/feed/:channel", handlers: { GET: stream } }
+  ]) {
+    const service = Object.create(BPService.prototype) as any;
+    service.registeredRoutes = [route];
+    for (const path of ["/feed/:name/__sse", "/feed/main/__sse"]) {
+      assert.throws(() => service.registerProtocolEndpoint(definition({ path })), /conflicts with generated BP routes/);
+    }
+    service.registerProtocolEndpoint(definition({ path: "/other/__sse" }));
+  }
+  const ordinary = Object.create(BPService.prototype) as any;
+  ordinary.registeredRoutes = [{ path: "/ordinary", handlers: { GET: () => ({}) } }];
+  ordinary.registerProtocolEndpoint(definition({ path: "/ordinary/__sse" }));
 });
 
 test("BP-looking headers do not provide native protocol authority or create a BP caller", async () => {

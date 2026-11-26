@@ -24,6 +24,7 @@ import {
   assertManifestOnlyDefinition,
   authorizeServiceToken,
   isServiceToken,
+  isStreamHandler,
   createJwksVerifier,
   createStaticJwksVerifier,
   describeEmbeddedContextResolution,
@@ -409,7 +410,8 @@ export abstract class BPService<
    */
   protected registerProtocolEndpoint(endpoint: BetterPortalProtocolEndpoint): void {
     this.protocolEndpoints ??= new ProtocolEndpointRegistry();
-    this.protocolEndpoints.register(endpoint, this.registeredRoutes.map(route => route.path));
+    this.protocolEndpoints.register(endpoint, this.registeredRoutes.flatMap(route => [route.path,
+      ...(route.sse || isStreamHandler(route.handlers.GET) ? [`${route.path}/__sse`] : [])]));
   }
 
   private registerShellFragmentRoutes(registry: BetterPortalRegistry): void {
