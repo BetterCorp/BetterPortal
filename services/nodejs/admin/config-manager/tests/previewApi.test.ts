@@ -4,7 +4,7 @@ import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@bett
 import { BaseStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { createPreviewGroup } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { registerPreviewDeploymentApi } from "../src/plugins/service-betterportal-config-manager/previewApi.js";
-import { credentialDiagnostics } from "../src/plugins/service-betterportal-config-manager/credentialDiagnostics.js";
+import { configManagerInstance } from "../src/plugins/service-betterportal-config-manager/credentialDiagnostics.js";
 import { apiRoutePath } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { registerSyncEndpoint } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 
@@ -142,20 +142,19 @@ test("preview logs correlate committed and replayed credentials without exposing
   const payload = await (await call()).json();
   await call();
   const apiKey = payload.credentials[0].environment.BP_SERVICE_API_KEY;
-  const diagnostic = credentialDiagnostics(apiKey);
-  const credentialLogs = logs.filter(entry => entry.fields.keyFingerprint);
+  const credentialLogs = logs.filter(entry => entry.fields.serviceInstanceId);
   assert.equal(credentialLogs.length, 2);
   assert.deepEqual(credentialLogs.map(entry => entry.fields.action), ["created", "replayed"]);
   for (const entry of credentialLogs) {
-    assert.equal(entry.fields.keyFingerprint, diagnostic.keyFingerprint);
+    assert.equal(entry.fields.keyFingerprint, undefined);
     assert.equal(entry.fields.serviceInstanceId, payload.credentials[0].instanceId);
-    assert.equal(entry.fields.configManagerInstance, diagnostic.configManagerInstance);
+    assert.equal(entry.fields.configManagerInstance, configManagerInstance);
   }
   assert.equal(JSON.stringify(logs).includes(apiKey), false);
   assert.equal(JSON.stringify(logs).includes(rejectedKey.slice(0, 16)), false);
 });
 
-test("both sync transports log rejected credential fingerprints without exposing bearer tokens", async () => {
+test("rejected sync polls correlate failures without exposing bearer tokens or fingerprints", async () => {
   const { storage } = fixture();
   const handlers = new Map<string, (event: never) => Promise<Response>>();
   registerSyncEndpoint(Object.fromEntries(["get", "post"].map(method => [method,
@@ -175,7 +174,8 @@ test("both sync transports log rejected credential fingerprints without exposing
     assert.equal(response.status, 403);
     assert.deepEqual(await response.json(), { error: "Invalid API key" });
     assert.equal(logs.length, 1);
-    assert.ok(JSON.stringify(logs).includes(credentialDiagnostics(apiKey).keyFingerprint));
+    assert.ok(JSON.stringify(logs).includes(response.headers.get("x-bp-sync-id")!));
+    assert.doesNotMatch(JSON.stringify(logs), /keyFingerprint/);
     assert.equal(JSON.stringify(logs).includes(apiKey), false);
   }
 });

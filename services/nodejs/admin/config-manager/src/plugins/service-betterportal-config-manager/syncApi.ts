@@ -35,7 +35,7 @@ import { isDeepStrictEqual } from "node:util";
 import { isPageOperation, apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { applyServicePublicKey, ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService, PreviewEnvironmentError } from "./previewEnvironments.js";
-import { credentialDiagnostics } from "./credentialDiagnostics.js";
+import { configManagerInstance } from "./credentialDiagnostics.js";
 
 const SYNC_DEADLINE_MS = 20_000;
 const SYNC_PATH = "/.well-known/bp/sync";
@@ -721,7 +721,7 @@ export function registerSyncEndpoint(
 
     const validated = await store.validateApiKey(apiKey);
     if (!validated) {
-      obs?.logger.warn("BP SYNC: rejected invalid API key fingerprint={keyFingerprint} instance={configManagerInstance}", credentialDiagnostics(apiKey));
+      obs?.logger.warn("BP SYNC: rejected invalid API key instance={configManagerInstance}", { configManagerInstance });
       return jsonResponse({ error: "Invalid API key" }, 403);
     }
 
@@ -846,7 +846,6 @@ export function registerSyncEndpoint(
     const validated = await store.validateApiKey(apiKey, budget);
     signal.throwIfAborted();
     if (!validated) {
-      trace.keyFingerprint = credentialDiagnostics(apiKey).keyFingerprint;
       return jsonResponse({ error: "Invalid API key" }, 403);
     }
 
@@ -968,13 +967,13 @@ export function registerSyncEndpoint(
       signal.removeEventListener("abort", abort);
       const stage = trace.stage;
       trace.enter("finished");
-      const fields = { correlationId: trace.id, serviceId: trace.serviceId, stage, status, keyFingerprint: trace.keyFingerprint,
+      const fields = { correlationId: trace.id, serviceId: trace.serviceId, stage, status,
         instance: hostname(), build: options.build ?? "unknown",
         payloadBytes: trace.payloadBytes,
         durationMs: Date.now() - trace.started, budgetMs: SYNC_DEADLINE_MS, cancelled: event.req.signal.aborted, activityFailed: trace.activityFailed,
         timings: JSON.stringify(trace.timings), queueDepth: trace.queueDepth, active: trace.active, conflicts: trace.conflicts };
       const logger = eventObservability(event)?.logger;
-      const message = "BP SYNC POLL: request serviceId={serviceId} correlationId={correlationId} stage={stage} keyFingerprint={keyFingerprint} status={status} instance={instance} build={build} payloadBytes={payloadBytes} durationMs={durationMs} budgetMs={budgetMs} cancelled={cancelled} activityFailed={activityFailed} timings={timings} queueDepth={queueDepth} active={active} conflicts={conflicts}";
+      const message = "BP SYNC POLL: request serviceId={serviceId} correlationId={correlationId} stage={stage} status={status} instance={instance} build={build} payloadBytes={payloadBytes} durationMs={durationMs} budgetMs={budgetMs} cancelled={cancelled} activityFailed={activityFailed} timings={timings} queueDepth={queueDepth} active={active} conflicts={conflicts}";
       if (status >= 400 || fields.activityFailed || fields.durationMs > 1000) logger?.warn(message, fields);
       else logger?.debug(message, fields);
     }
@@ -1258,7 +1257,6 @@ class SyncTrace {
   readonly id: string;
   serviceId = "";
   stage = "request";
-  keyFingerprint = "";
   activityFailed = false;
   payloadBytes = 0;
   queueDepth = 0;
