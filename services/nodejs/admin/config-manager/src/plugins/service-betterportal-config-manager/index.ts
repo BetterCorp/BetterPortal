@@ -564,7 +564,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     metadata: { backend: "file" | "postgres" }
   ): PlatformConfigStore {
     return {
-      loadConfig: () => store.loadConfig(),
+      loadConfig: store.loadConfig.bind(store),
       ...(store.mutateApp ? { mutateApp: store.mutateApp.bind(store) } : {}),
       ...(store.touchServiceActivity ? { touchServiceActivity: store.touchServiceActivity.bind(store) } : {}),
       saveConfig: async (config, options) => {
@@ -577,8 +577,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           });
         }
       },
-      validateApiKey: (apiKey) => store.validateApiKey(apiKey),
-      getScopedConfig: (serviceId, scope, tenantId) => store.getScopedConfig(serviceId, scope, tenantId),
+      validateApiKey: store.validateApiKey.bind(store),
+      getScopedConfig: store.getScopedConfig.bind(store),
       registerServicePublicKey: (serviceId, scope, tenantId, publicKeyPem, keyId, options) =>
         store.registerServicePublicKey(serviceId, scope, tenantId, publicKeyPem, keyId, options),
       invalidate: () => store.invalidate(),

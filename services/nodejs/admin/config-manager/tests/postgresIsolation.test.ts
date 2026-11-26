@@ -960,7 +960,20 @@ pgTest("concurrent bootstrap recovers while a cancelled writer's PostgreSQL lock
   const store = makeStore();
   await store.initialize();
   const app = new H3();
-  registerSyncEndpoint(app as never, store);
+  const plugin = Object.create(ConfigManagerPlugin.prototype);
+  const decorated = plugin.withChangeBroadcasts(store, {}, { backend: "postgres" });
+  for (const method of ["loadConfig", "getScopedConfig", "validateApiKey"] as const) {
+    const spy = t.mock.method(store, method);
+    // Bind after installing the spy, just as plugin initialization binds the store.
+    const facade = plugin.withChangeBroadcasts(store, {}, { backend: "postgres" });
+    const budget = { signal: AbortSignal.timeout(1000), deadline: Date.now() + 1000 };
+    if (method === "loadConfig") await facade.loadConfig({ budget });
+    else if (method === "getScopedConfig") await facade.getScopedConfig(services[0].id, "tenant", config.tenants[0].id, budget);
+    else await facade.validateApiKey("bootstrap-0", budget);
+    assert.equal(method === "loadConfig" ? spy.mock.calls[0].arguments[0].budget : spy.mock.calls[0].arguments.at(-1), budget);
+    spy.mock.restore();
+  }
+  registerSyncEndpoint(app as never, decorated);
   const submit = (index: number, signal?: AbortSignal) => app.fetch(new Request("https://config.example/.well-known/bp/sync/poll", {
     method: "POST", signal, headers: { authorization: "Bearer bootstrap-" + index, "content-type": "application/json" },
     body: JSON.stringify({ viewIndex: {}, manifestVersion: "1" })
