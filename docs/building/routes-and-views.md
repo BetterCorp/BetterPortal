@@ -562,6 +562,15 @@ Mutations inside a component must target that component instead. For example, a 
 
 A sidebar form that refreshes the route list after saving uses `hx-target="this"`, `hx-swap="none"` and a local mutation-error outlet. Return the validation message to that form on failure; issue a main-page refresh only after a successful save. Keep the sidebar, entered values and existing list visible while the user corrects the input.
 
+For typed validation responses, declare a matching method status renderer, such
+as `POST.422.tsx`. When the request asks for `text/html; mode=fragment`, that
+renderer returns a fragment with the original error status for the local outlet.
+The default `POST.tsx` renderer is not a fallback for an unhandled 4xx response.
+Return only the validation summary or field links, without document wrappers or
+out-of-band updates, and render untrusted messages through escaped JSX children.
+Full-page requests and framework-owned authentication/error pages retain their
+status-page representation; the runtime keeps those pages outside local outlets.
+
 The resolver validates service identity, method and parameter filling separately from UI mount availability. Use `uiPath` for href/history and `absoluteViewPath` for an HTMX HTML request. Parameterized links and auth links use the same function. Assert that required destinations resolve; a null-to-undefined JSX conversion is only an attribute type conversion.
 
 Check the active theme's guidance and layout for page titles, breadcrumbs and primary app navigation. Use browser history and breadcrumb links instead of Back/Up buttons. When the theme supplies page chrome, omit duplicate page titles and breadcrumb rows from service content, and do not repeat a Calls/PBXs/Settings menu. Call-table links, meaningful section headings and other task-specific controls belong in service content. Add page-level headings or navigation only when the theme delegates that responsibility to the view.

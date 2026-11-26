@@ -16,6 +16,8 @@ import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 import { BPRoute } from "../../../../framework/nodejs/src/runtime/element.js";
 import type { ViewRenderContext } from "../../../../framework/nodejs/src/contracts/registry.js";
+import { statusService } from "../../../../framework/nodejs/tests/helpers/statusService.js";
+import { jsx } from "../../../../framework/nodejs/src/jsx-runtime.js";
 
 async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false, extraRoutes: Array<Record<string, unknown>> = [], menuHref = "/tools/dashboard", menuRequestUrl = "https://service.test/dashboard") {
   const browser = await chromium.launch({ headless: true });
@@ -1835,6 +1837,53 @@ for (const loading of [false, true]) for (const failure of ["http", "network"] a
   assert.deepEqual(submitted, ["123.4500", "125.0000"]);
   assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
   assert.deepEqual(errors, []);
+});
+
+for (const fullStatusPage of [false, true]) test(`declared service validation ${fullStatusPage ? "status pages remain outside" : "fragments render in"} local mutation outlets`, async t => {
+  const unsafe = '<img src="invalid" onerror="window.unsafeValidation=true">';
+  const service = statusService({ render: () => fullStatusPage
+    ? '<main id="full-service-error"><img src="invalid" onerror="window.unsafeValidation=true"><div id="sibling" hx-swap-oob="true">Replaced sibling</div>Full error page</main>'
+    : jsx("div", { children: [
+      jsx("ul", { id: "field-errors", children: jsx("li", { children: jsx("a", { href: "#name", children: "Choose a different related record." }) }) }),
+      jsx("p", { id: "escaped-error", children: unsafe }),
+      jsx("div", { id: "sibling", "hx-swap-oob": "true", children: "Replaced sibling" }),
+      jsx("div", { "data-hx-swap-oob": "true", children: "Other OOB" }),
+      jsx("template", { hx: "body", children: "OOB template" }),
+      jsx("hx-oob", { children: "OOB element" })
+    ] }) });
+  let requests = 0;
+  const ctx = { route: () => ({ absoluteViewPath: "https://service.test/save", viewPath: "/save", uiPath: "/tools/save" }) } as unknown as ViewRenderContext;
+  const form = String(BPRoute({ ctx, viewId: "save", as: "form", method: "POST", target: "#record", swap: "outerHTML",
+    children: '<bp-ok><label>Name<input id="name" name="name" required></label><button type="submit">Save</button><div data-bp-mutation-error role="alert" hidden></div></bp-ok>' }));
+  const { page, errors } = await shell(t, async route => {
+    if (new URL(route.request().url()).pathname !== "/save") return html(route, `<p id="sibling">Unchanged sibling</p><section id="record" data-bp-mutation-scope>${form}</section>`);
+    requests++;
+    assert.match(route.request().headers().accept, /mode=fragment/);
+    const request = route.request();
+    const headers = { ...request.headers(), accept: fullStatusPage ? "text/html" : request.headers().accept };
+    const response = await service.app.fetch(new Request(request.url(), { method: request.method(), headers, body: request.postData() }));
+    assert.equal(response.status, 422);
+    assert.match(response.headers.get("content-type")!, fullStatusPage ? /mode=status/ : /mode=fragment/);
+    return route.fulfill({ status: response.status, body: await response.text(), headers: { ...Object.fromEntries(response.headers), "access-control-allow-origin": "*" } });
+  });
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Entered value");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const outlet = page.locator("[data-bp-mutation-error]");
+  await outlet.waitFor({ state: "visible" });
+  if (fullStatusPage) {
+    assert.equal(await page.locator("#full-service-error").count(), 0);
+    assert.equal(await outlet.locator("img, main").count(), 0);
+    assert.doesNotMatch(await outlet.innerText(), /Full error page/);
+  } else {
+    await outlet.getByRole("link", { name: "Choose a different related record." }).waitFor();
+    assert.equal(await outlet.locator("#escaped-error").innerText(), unsafe);
+    assert.equal(await outlet.locator("img, [hx-swap-oob], [data-hx-swap-oob], template[hx], hx-oob").count(), 0);
+  }
+  assert.equal(await page.locator("#sibling").innerText(), "Unchanged sibling");
+  assert.equal(await page.getByRole("textbox", { name: "Name", exact: true }).inputValue(), "Entered value");
+  assert.equal(await page.evaluate(() => (window as unknown as { unsafeValidation?: boolean }).unsafeValidation), undefined);
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  assert.equal(requests, 1); assert.deepEqual(errors, []);
 });
 
 test("Superseded forms sharing a target finish independently and scoped buttons keep route errors", async t => {
