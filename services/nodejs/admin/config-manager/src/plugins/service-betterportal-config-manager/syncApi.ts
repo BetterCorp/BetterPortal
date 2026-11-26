@@ -2,6 +2,7 @@ import { effectiveRouteAuth, ApiAuthRequirementSchema } from "@betterportal/fram
 import type { ServiceRegistryContext } from "./storage/core.js";
 import { createEventStream } from "h3";
 import type {
+  ConfigRequestBudget,
   ConfigSchemaDescriptor,
   ApiContractDescriptor,
   AppAuthConfig,
@@ -46,17 +47,19 @@ async function touchServiceActivity(
   serviceId: string,
   scope: "tenant" | "platform",
   tenantId: string | undefined,
-  field: "lastSeenAt" | "lastSyncAt"
+  field: "lastSeenAt" | "lastSyncAt",
+  budget?: ConfigRequestBudget
 ): Promise<void> {
   if (scope !== "tenant" || !tenantId) return;
-  if (store.touchServiceActivity) return store.touchServiceActivity(serviceId, field);
-  const config = await store.loadConfig();
+  if (store.touchServiceActivity) return store.touchServiceActivity(serviceId, field, budget);
+  const config = await store.loadConfig({ budget });
   const service = config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId);
   if (!service) return;
   const now = Date.now();
   if (field === "lastSeenAt" && service[field] && now - Date.parse(service[field]) < SERVICE_ACTIVITY_INTERVAL_MS) return;
   service[field] = new Date(now).toISOString();
-  await store.saveConfig(config, { notify: false });
+  budget?.signal.throwIfAborted();
+  await store.saveConfig(config, { notify: false, budget });
 }
 
 function validateServicePublicKey(publicKeyPem: string, keyId: string): { publicKeyPem: string; keyId: string } {
@@ -673,22 +676,38 @@ export function registerSyncEndpoint(
   store: PlatformConfigStore,
   options: SyncEndpointOptions = {}
 ): void {
-  const inFlight = new Map<string, Promise<string>>();
+  type Projection = { result: Promise<string>; consumers: number; controller: AbortController };
+  const inFlight = new Map<string, Projection>();
   store.onChange(() => { inFlight.clear(); });
-  const projection = (serviceId: string, scope: "platform" | "tenant", tenantId?: string) => {
+  const projection = async (serviceId: string, scope: "platform" | "tenant", tenantId?: string, signal?: AbortSignal) => {
+    signal?.throwIfAborted();
     const key = JSON.stringify([scope, tenantId, serviceId]);
     let pending = inFlight.get(key);
     if (!pending) {
-      pending = store.getScopedConfig(serviceId, scope, tenantId)
-        .then((config) => JSON.stringify(injectResolvedServicePaths(config)));
+      const controller = new AbortController();
+      // One subscriber timing out must not cancel the same projection for another.
+      const budget = { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(SYNC_DEADLINE_MS)]),
+        deadline: Date.now() + SYNC_DEADLINE_MS };
+      const result = store.getScopedConfig(serviceId, scope, tenantId, budget)
+        .then(config => JSON.stringify(injectResolvedServicePaths(config)));
+      pending = { result, consumers: 0, controller };
       inFlight.set(key, pending);
-      void pending.then(() => {
-        if (inFlight.get(key) === pending) inFlight.delete(key);
-      }, () => {
-        if (inFlight.get(key) === pending) inFlight.delete(key);
-      });
     }
-    return pending;
+    pending.consumers++;
+    let abort: (() => void) | undefined;
+    try {
+      if (!signal) return await pending.result;
+      return await Promise.race([pending.result, new Promise<never>((_, reject) => {
+        abort = () => reject(signal.reason);
+        signal.addEventListener("abort", abort, { once: true });
+      })]);
+    } finally {
+      if (abort) signal?.removeEventListener("abort", abort);
+      if (--pending.consumers === 0) {
+        if (inFlight.get(key) === pending) inFlight.delete(key);
+        pending.controller.abort();
+      }
+    }
   };
   app.get(SYNC_PATH, async (event: BetterPortalEvent) => {
     const obs = eventObservability(event);
@@ -813,7 +832,8 @@ export function registerSyncEndpoint(
     return response;
   });
 
-  const poll = async (event: BetterPortalEvent, trace: SyncTrace, signal: AbortSignal) => {
+  const poll = async (event: BetterPortalEvent, trace: SyncTrace, budget: ConfigRequestBudget) => {
+    const { signal } = budget;
     signal.throwIfAborted();
     trace.enter("authentication");
     const authHeader = event.req.headers.get("authorization");
@@ -823,9 +843,10 @@ export function registerSyncEndpoint(
       return jsonResponse({ error: "Bearer token required" }, 401);
     }
 
-    const validated = await store.validateApiKey(apiKey);
+    const validated = await store.validateApiKey(apiKey, budget);
     signal.throwIfAborted();
     if (!validated) {
+      trace.keyFingerprint = credentialDiagnostics(apiKey).keyFingerprint;
       return jsonResponse({ error: "Invalid API key" }, 403);
     }
 
@@ -836,9 +857,8 @@ export function registerSyncEndpoint(
     const serviceId = validated.serviceId;
     trace.serviceId = serviceId;
     trace.enter("activity");
-    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSeenAt").catch(() => { trace.activityFailed = true; });
+    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSeenAt", budget).catch(() => { trace.activityFailed = true; });
     signal.throwIfAborted();
-    });
 
     // POST: extract manifest push if present and cache.
     if (event.req.method === "POST") {
@@ -894,7 +914,7 @@ export function registerSyncEndpoint(
         trace.enter("queue");
         try {
           await updateServiceMetadata(store, serviceId, cachedManifest, options.onManifestUpdated, async (config) => {
-            const current = await store.validateApiKey(apiKey);
+            const current = await store.validateApiKey(apiKey, budget);
             if (!current || current.serviceId !== serviceId || current.tenantId !== validated.tenantId || current.scope !== validated.scope) {
               throw new SyncSubmissionError("Sync credentials changed during submission; reconnect required", 403);
             }
@@ -917,12 +937,11 @@ export function registerSyncEndpoint(
 
     signal.throwIfAborted();
     trace.enter("projection");
-    const data = await projection(serviceId, validated.scope, validated.tenantId);
+    const data = await projection(serviceId, validated.scope, validated.tenantId, signal);
     signal.throwIfAborted();
     trace.enter("activity");
-    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt").catch(() => { trace.activityFailed = true; });
+    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt", budget).catch(() => { trace.activityFailed = true; });
     signal.throwIfAborted();
-    });
     trace.enter("delivery");
     return new Response(data, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
   };
@@ -938,7 +957,10 @@ export function registerSyncEndpoint(
     });
     let status = 500;
     try {
-      const response = await Promise.race([expired, poll(event, trace, signal)]);
+      const response = await Promise.race([expired, poll(event, trace, { signal, deadline: trace.started + SYNC_DEADLINE_MS }).catch(error => {
+        if (signal.aborted || (error instanceof Error && error.name === "TimeoutError")) return trace.timeout();
+        throw error;
+      })]);
       status = response.status;
       response.headers.set("x-bp-sync-id", trace.id);
       return response;
@@ -946,13 +968,13 @@ export function registerSyncEndpoint(
       signal.removeEventListener("abort", abort);
       const stage = trace.stage;
       trace.enter("finished");
-      const fields = { correlationId: trace.id, serviceId: trace.serviceId, stage, status,
+      const fields = { correlationId: trace.id, serviceId: trace.serviceId, stage, status, keyFingerprint: trace.keyFingerprint,
         instance: hostname(), build: options.build ?? "unknown",
         payloadBytes: trace.payloadBytes,
         durationMs: Date.now() - trace.started, budgetMs: SYNC_DEADLINE_MS, cancelled: event.req.signal.aborted, activityFailed: trace.activityFailed,
         timings: JSON.stringify(trace.timings), queueDepth: trace.queueDepth, active: trace.active, conflicts: trace.conflicts };
       const logger = eventObservability(event)?.logger;
-      const message = "BP SYNC POLL: request serviceId={serviceId} correlationId={correlationId} stage={stage} status={status} instance={instance} build={build} payloadBytes={payloadBytes} durationMs={durationMs} budgetMs={budgetMs} cancelled={cancelled} activityFailed={activityFailed} timings={timings} queueDepth={queueDepth} active={active} conflicts={conflicts}";
+      const message = "BP SYNC POLL: request serviceId={serviceId} correlationId={correlationId} stage={stage} keyFingerprint={keyFingerprint} status={status} instance={instance} build={build} payloadBytes={payloadBytes} durationMs={durationMs} budgetMs={budgetMs} cancelled={cancelled} activityFailed={activityFailed} timings={timings} queueDepth={queueDepth} active={active} conflicts={conflicts}";
       if (status >= 400 || fields.activityFailed || fields.durationMs > 1000) logger?.warn(message, fields);
       else logger?.debug(message, fields);
     }
@@ -1236,6 +1258,7 @@ class SyncTrace {
   readonly id: string;
   serviceId = "";
   stage = "request";
+  keyFingerprint = "";
   activityFailed = false;
   payloadBytes = 0;
   queueDepth = 0;
@@ -1272,7 +1295,8 @@ async function updateServiceMetadata(
 ): Promise<string[]> {
   signal?.throwIfAborted();
   let queue = metadataQueues.get(store);
-  if (trace) { trace.queueDepth = queue?.size ?? 0; trace.active = queue ? 1 : 0; }
+  if (trace) trace.queueDepth = queue?.size ?? 0;
+  if (trace) trace.active = queue ? 1 : 0;
   if (queue) {
     if (queue.size >= 128 && signal) throw new DOMException("Sync queue is full", "TimeoutError");
     const waiting = queue;
@@ -1287,6 +1311,7 @@ async function updateServiceMetadata(
     metadataQueues.set(store, queue);
   }
   try {
+    if (trace) trace.active = 1;
     for (let attempt = 0; ; attempt++) {
       try {
         signal?.throwIfAborted();
@@ -1298,6 +1323,7 @@ async function updateServiceMetadata(
         if (!(error instanceof ConfigRevisionConflictError) || attempt >= 4) throw error;
         // Other replicas/admin writes still use optimistic revision checks.
         // Back off with jitter, then re-read and revalidate credentials.
+        trace?.enter("revision_retry");
         await delay(25 * 2 ** attempt * (1 + Math.random()), undefined, { signal });
         store.invalidate();
       }
@@ -1319,7 +1345,8 @@ async function commitServiceMetadata(
   trace?: SyncTrace
 ): Promise<string[]> {
   trace?.enter("config_load");
-  const config = await store.loadConfig();
+  const budget = trace && signal ? { signal, deadline: trace.started + SYNC_DEADLINE_MS } : undefined;
+  const config = await store.loadConfig({ budget });
   signal?.throwIfAborted();
   trace?.enter("metadata");
   const before = toJsonValue(config);
@@ -1331,7 +1358,7 @@ async function commitServiceMetadata(
   if (!isDeepStrictEqual(before, toJsonValue(config))) {
     if (manifest) config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt = new Date().toISOString();
     trace?.enter("config_save");
-    await store.saveConfig(config, { signal, deadline: trace && trace.started + SYNC_DEADLINE_MS });
+    await store.saveConfig(config, { budget });
   }
   if (manifest) manifest.fetchedAt = Date.parse(config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt);
   return serviceIds;

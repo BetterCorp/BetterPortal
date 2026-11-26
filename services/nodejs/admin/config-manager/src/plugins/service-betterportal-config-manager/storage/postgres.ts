@@ -4,9 +4,9 @@ import { AppData, AppDataConflictError, appSettings } from "./appData.js";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { Pool, type PoolClient } from "pg";
+import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import * as yaml from "yaml";
-import { BetterPortalConfigSchema, PlatformServiceSchema, SharedServiceDefinitionSchema, TenantServiceRegistrationSchema, type BetterPortalConfig, type BetterPortalObservability, type JsonValue } from "@betterportal/framework";
+import { BetterPortalConfigSchema, PlatformServiceSchema, SharedServiceDefinitionSchema, TenantServiceRegistrationSchema, type ConfigRequestBudget, type BetterPortalConfig, type BetterPortalObservability, type JsonValue } from "@betterportal/framework";
 import {
   BaseStorage,
   ConfigRevisionConflictError,
@@ -161,38 +161,82 @@ export class PostgresStorage extends BaseStorage {
     await this.getPool().query("select pg_notify($1, '')", [await this.changeChannel()]);
   }
 
-  async loadConfig(options: { readOnly?: boolean; obs?: BetterPortalObservability } = {}): Promise<BetterPortalConfig> {
+  private async checkout(budget?: ConfigRequestBudget): Promise<PoolClient> {
+    const pool = this.getPool();
+    if (!budget) return pool.connect();
+    budget.signal.throwIfAborted();
+    if (pool.waitingCount >= 128) throw new DOMException("Config pool busy", "TimeoutError");
+    return new Promise((resolve, reject) => {
+      const abort = () => reject(budget.signal.reason);
+      budget.signal.addEventListener("abort", abort, { once: true });
+      pool.connect().then(client => {
+        budget.signal.removeEventListener("abort", abort);
+        if (budget.signal.aborted) client.release();
+        else resolve(client);
+      }, error => {
+        budget.signal.removeEventListener("abort", abort);
+        reject(error);
+      });
+    });
+  }
+
+  private async transaction<T>(begin: string, budget: ConfigRequestBudget | undefined,
+    work: (client: PoolClient) => Promise<T>, obs?: BetterPortalObservability): Promise<T> {
+    const wait = obs?.startSpan("bp.config.pool_wait");
+    const client = await this.checkout(budget).finally(() => wait?.end());
+    let discarded = false;
+    const discard = () => { discarded = true; client.release(true); };
+    budget?.signal.addEventListener("abort", discard, { once: true });
+    try {
+      budget?.signal.throwIfAborted();
+      await client.query(begin);
+      if (budget) {
+        const remaining = budget.deadline - Date.now();
+        if (remaining <= 0) throw new DOMException("Sync deadline exceeded", "TimeoutError");
+        await client.query("select set_config('statement_timeout', $1, true)", [String(remaining)]);
+      }
+      const result = await work(client);
+      budget?.signal.throwIfAborted();
+      await client.query("commit");
+      return result;
+    } catch (error) {
+      if (!discarded) await client.query("rollback").catch(() => undefined);
+      budget?.signal.throwIfAborted();
+      if (budget && (error as { code?: string }).code === "57014") throw new DOMException("Sync deadline exceeded", "TimeoutError");
+      throw error;
+    } finally {
+      budget?.signal.removeEventListener("abort", discard);
+      if (!discarded) client.release();
+    }
+  }
+
+  private query<T extends QueryResultRow>(budget: ConfigRequestBudget | undefined, sql: string, params: unknown[]) {
+    return budget ? this.transaction("begin", budget, client => client.query<T>(sql, params))
+      : this.getPool().query<T>(sql, params);
+  }
+
+  async loadConfig(options: { readOnly?: boolean; obs?: BetterPortalObservability; budget?: ConfigRequestBudget } = {}): Promise<BetterPortalConfig> {
     const span = options.obs?.startSpan("bp.config.load", { "config.read_only": options.readOnly === true });
-    let client: PoolClient | undefined;
     try {
       await this.ensureSchema();
-      const wait = span?.startSpan("bp.config.pool_wait");
-      try { client = await this.getPool().connect(); } finally { wait?.end(); }
-      await client.query("begin isolation level repeatable read read only");
-      const snapshot = await this.readSnapshot(client, true, span, !options.readOnly);
-      await client.query("commit");
-      client.release(); client = undefined;
-      // Page reads never become writable snapshots. Avoid copying the whole platform again.
-      if (options.readOnly) {
-        const activitySpan = span?.startSpan("bp.config.activity");
-        try {
-          const activity = await this.loadServiceActivity();
-          for (const tenant of snapshot.config.tenants) for (const service of tenant.services) Object.assign(service, activity.get(service.id));
-        } finally { activitySpan?.end(); }
-        return snapshot.config;
-      }
-      return await this.cloneSnapshot(snapshot);
+      const snapshot = await this.transaction("begin isolation level repeatable read read only", options.budget,
+        client => this.readSnapshot(client, true, span, !options.readOnly), span);
+      const config = options.readOnly ? snapshot.config : structuredClone(snapshot.config);
+      if (!options.readOnly) this.snapshots.set(config, snapshot);
+      const activitySpan = span?.startSpan("bp.config.activity");
+      const activity = await this.loadServiceActivity(options.budget).finally(() => activitySpan?.end());
+      for (const tenant of config.tenants) for (const service of tenant.services) Object.assign(service, activity.get(service.id));
+      return config;
     } catch (error) {
-      if (client) await client.query("rollback").catch(() => undefined);
       span?.setAttribute("error", true);
       throw error;
-    } finally { client?.release(); span?.end(); }
+    } finally { span?.end(); }
   }
 
   /** Read only the matching credential; revocation is visible without replica cache invalidation. */
-  override async validateApiKey(apiKey: string): ReturnType<BaseStorage["validateApiKey"]> {
+  override async validateApiKey(apiKey: string, budget?: ConfigRequestBudget): ReturnType<BaseStorage["validateApiKey"]> {
     await this.ensureSchema();
-    const result = await this.getPool().query(`select service.kind, service.value from ${this.entitiesTable} service
+    const result = await this.query(budget, `select service.kind, service.value from ${this.entitiesTable} service
       where service.scope_id=$1 and service.kind in ('platformServices','sharedServiceCatalog','tenantServices')
         and service.value->>'apiKeyHash'=$2 and service.value->>'enabled'='true'
         and (service.kind <> 'tenantServices' or exists (
@@ -212,7 +256,7 @@ export class PostgresStorage extends BaseStorage {
     return { scope: "platform", serviceId: service.id, service };
   }
 
-  async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; completeAction?: PendingActionCompletion; signal?: AbortSignal; deadline?: number }): Promise<void> {
+  async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; completeAction?: PendingActionCompletion; budget?: ConfigRequestBudget }): Promise<void> {
     await this.ensureSchema();
     const baseline = this.snapshots.get(config);
     if (!baseline) throw new Error("Config must be loaded from this store before saving; detached whole-platform replacements are not supported");
@@ -227,19 +271,7 @@ export class PostgresStorage extends BaseStorage {
       if (entityReferences(entity, baseline.entities).some(ref => !proposed.has(ref))) proposed.delete(key);
     }
     const changed = changedEntityKeys(baseline.entities, proposed);
-    options?.signal?.throwIfAborted();
-    const client = await this.getPool().connect();
-    let discarded = false;
-    const discard = () => { discarded = true; client.release(true); };
-    options?.signal?.addEventListener("abort", discard, { once: true });
-    try {
-      options?.signal?.throwIfAborted();
-      await client.query("begin");
-      if (options?.deadline !== undefined) {
-        const remaining = options.deadline - Date.now();
-        if (remaining <= 0) throw new DOMException("Sync deadline exceeded", "TimeoutError");
-        await client.query("select set_config('statement_timeout', $1, true)", [String(remaining)]);
-      }
+    const committed = await this.transaction("begin", options?.budget, async client => {
       await client.query("set local betterportal.app_data_writer = '3'");
       if (options?.completeAction) await this.finishAction(client, options.completeAction);
       // Shared dependency locks allow two apps in a tenant to save concurrently.
@@ -350,24 +382,12 @@ export class PostgresStorage extends BaseStorage {
         const result = await client.query<{ revision: string }>(`select nextval('${this.revisionSequence}') as revision`);
         await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision: Number(result.rows[0].revision) });
       }
-      options?.signal?.throwIfAborted();
-      await client.query("commit");
-      // Update the caller's baseline as well as its value: subsequent saves must
-      // not mistake concurrent edits included in this commit for user deletions.
-      Object.assign(config, structuredClone(committed.config));
-      this.snapshots.set(config, committed);
-      this.invalidate();
-    } catch (error) {
-      if (!discarded) await client.query("rollback").catch(() => undefined);
-      options?.signal?.throwIfAborted();
-      if (options?.deadline && (error as { code?: string }).code === "57014") {
-        throw new DOMException("Sync deadline exceeded", "TimeoutError");
-      }
-      throw error;
-    } finally {
-      options?.signal?.removeEventListener("abort", discard);
-      if (!discarded) client.release();
-    }
+      return committed;
+    });
+    // Subsequent saves must inherit the revisions actually committed.
+    Object.assign(config, structuredClone(committed.config));
+    this.snapshots.set(config, committed);
+    this.invalidate();
   }
 
   async mutateApp<T>(appId: string, update: (config: BetterPortalConfig) => Promise<T>): Promise<T> {
@@ -451,22 +471,12 @@ export class PostgresStorage extends BaseStorage {
     } finally { rebuildSpan?.end(); }
   }
 
-  private async cloneSnapshot(snapshot: ConfigSnapshot): Promise<BetterPortalConfig> {
-    const config = structuredClone(snapshot.config);
-    this.snapshots.set(config, snapshot);
-    const activity = await this.loadServiceActivity();
-    for (const tenant of config.tenants) for (const service of tenant.services) {
-      Object.assign(service, activity.get(service.id));
-    }
-    return config;
-  }
-
   async close(): Promise<void> { await this.pool?.end(); }
 
-  async touchServiceActivity(serviceId: string, field: "lastSeenAt" | "lastSyncAt"): Promise<void> {
+  async touchServiceActivity(serviceId: string, field: "lastSeenAt" | "lastSyncAt", budget?: ConfigRequestBudget): Promise<void> {
     await this.ensureSchema();
     const column = field === "lastSeenAt" ? "last_seen_at" : "last_sync_at";
-    await this.getPool().query(
+    await this.query(budget,
       `insert into ${this.activityTable} (scope_id, service_id, ${column}) values ($1, $2, now())
        on conflict (scope_id, service_id) do update set ${column} = excluded.${column}
        where ${this.activityTable}.${column} is null or ${this.activityTable}.${column} < now() - interval '60 seconds'
@@ -477,16 +487,17 @@ export class PostgresStorage extends BaseStorage {
     );
   }
 
-  private loadServiceActivity(): Promise<Map<string, { lastSeenAt?: string; lastSyncAt?: string }>> {
-    if (this.activityLoad && Date.now() - this.activityLoadedAt < 5000) return this.activityLoad;
-    this.activityLoadedAt = Date.now();
-    this.activityLoad = this.getPool().query<{ service_id: string; last_seen_at: Date | null; last_sync_at: Date | null }>(
+  private loadServiceActivity(budget?: ConfigRequestBudget): Promise<Map<string, { lastSeenAt?: string; lastSyncAt?: string }>> {
+    if (!budget && this.activityLoad && Date.now() - this.activityLoadedAt < 5000) return this.activityLoad;
+    if (!budget) this.activityLoadedAt = Date.now();
+    const pending = this.query<{ service_id: string; last_seen_at: Date | null; last_sync_at: Date | null }>(budget,
       `select service_id, last_seen_at, last_sync_at from ${this.activityTable} where scope_id = $1`, [this.rowId]
     ).then(result => new Map(result.rows.map(row => [row.service_id, {
       ...(row.last_seen_at ? { lastSeenAt: row.last_seen_at.toISOString() } : {}),
       ...(row.last_sync_at ? { lastSyncAt: row.last_sync_at.toISOString() } : {})
     }]))).catch(error => { this.activityLoad = undefined; throw error; });
-    return this.activityLoad;
+    if (!budget) this.activityLoad = pending;
+    return pending;
   }
 
   async loadOrCreateIdentity<T extends object>(create: () => T): Promise<T> {
@@ -787,7 +798,7 @@ export class PostgresStorage extends BaseStorage {
   }
 
   private ensureSchema(): Promise<void> {
-    this.schemaReady ??= this.migrate();
+    this.schemaReady ??= this.migrate().catch(error => { this.schemaReady = null; throw error; });
     return this.schemaReady;
   }
 
@@ -795,8 +806,9 @@ export class PostgresStorage extends BaseStorage {
     const client = await this.getPool().connect();
     const lockName = `${this.tableName}:migrations`;
     try {
-      await client.query("select pg_advisory_lock(hashtext($1))", [lockName]);
       await client.query("begin");
+      await client.query("set local lock_timeout = '20s'");
+      await client.query("select pg_advisory_xact_lock(hashtext($1))", [lockName]);
       await client.query(`create table if not exists ${this.migrationsTable} (
         scope_id text not null, version integer not null, applied_at timestamptz not null default now(),
         primary key (scope_id, version))`);
@@ -850,7 +862,6 @@ export class PostgresStorage extends BaseStorage {
       await client.query("rollback").catch(() => undefined);
       throw error;
     } finally {
-      await client.query("select pg_advisory_unlock(hashtext($1))", [lockName]).catch(() => undefined);
       client.release();
     }
   }

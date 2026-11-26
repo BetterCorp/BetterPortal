@@ -1179,39 +1179,6 @@ export abstract class BPService<
     const pollUrl = `${url}/poll`;
     const apiKey = this.resolvedApiKey!;
 
-    const fetchErrorDetails = (error: unknown): Record<string, string> => {
-      const err = error as {
-        name?: string;
-        message?: string;
-        code?: string;
-        errno?: string | number;
-        syscall?: string;
-        address?: string;
-        port?: string | number;
-        cause?: {
-          name?: string;
-          message?: string;
-          code?: string;
-          errno?: string | number;
-          syscall?: string;
-          address?: string;
-          port?: string | number;
-        };
-      };
-      const cause = err.cause;
-      return {
-        name: err.name ?? "",
-        msg: err.message ?? String(error),
-        code: err.code ?? cause?.code ?? "",
-        causeName: cause?.name ?? "",
-        causeMsg: cause?.message ?? "",
-        errno: String(err.errno ?? cause?.errno ?? ""),
-        syscall: err.syscall ?? cause?.syscall ?? "",
-        address: err.address ?? cause?.address ?? "",
-        port: String(err.port ?? cause?.port ?? "")
-      };
-    };
-
     let lastAppliedConfig: string | undefined;
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
       const nextConfig = ScopedServiceConfigSchema.parse(rawConfig) as unknown as ScopedServiceConfig;
@@ -1236,7 +1203,6 @@ export abstract class BPService<
         apps: this.scopedConfig?.apps.length ?? 0,
         managementOrigins: this.scopedConfig?.managementOrigins?.length ?? 0
       });
-      this.logScopedConfigDebug(obs);
       if ((this.scopedConfig?.apps.length ?? 0) === 0) {
         obs.log.warn("Control plane sync returned no apps for this service; tenant/app requests will not resolve until the service is mounted in an app route or fragment.");
       }
@@ -1427,9 +1393,7 @@ export abstract class BPService<
               const parsed: unknown = JSON.parse(data);
               applyScopedConfig(parsed, "stream");
             } catch (error) {
-              obs.log.warn("Control plane config parse failed: {msg}", {
-                msg: error instanceof Error ? error.message : String(error)
-              });
+              obs.log.warn("BP SYNC CLIENT: invalid streamed configuration");
               await reader.cancel().catch(() => {});
               throw error;
             }
@@ -1471,20 +1435,8 @@ export abstract class BPService<
         scheduleReconnect();
       }).catch((err) => {
         if ((err as Error).name !== "AbortError") {
-          const details = fetchErrorDetails(err);
-          obs.log.warn("BP SYNC CLIENT: stream connection error service={serviceId} url={url} name={name} code={code} errno={errno} syscall={syscall} address={address} port={port} msg={msg} cause={causeName}:{causeMsg}", {
-            serviceId: this.manifest.pluginId,
-            url,
-            name: details.name,
-            code: details.code,
-            errno: details.errno,
-            syscall: details.syscall,
-            address: details.address,
-            port: details.port,
-            msg: details.msg,
-            causeName: details.causeName,
-            causeMsg: details.causeMsg
-          });
+
+          obs.log.warn("BP SYNC CLIENT: stream connection failed service={serviceId}", { serviceId: this.manifest.pluginId });
           scheduleReconnect();
         }
       });
@@ -1504,30 +1456,6 @@ export abstract class BPService<
     };
 
     return connect();
-  }
-
-  private logScopedConfigDebug(obs: Observable): void {
-    if (!this.scopedConfig) return;
-
-    obs.log.debug("BP management origins: {origins}", {
-      origins: (this.scopedConfig.managementOrigins ?? []).join(",")
-    });
-
-    for (const tenant of this.scopedConfig.tenants) {
-      obs.log.debug("{tenantName}: {tenantId}", {
-        tenantName: tenant.title,
-        tenantId: tenant.id
-      });
-
-      for (const app of this.scopedConfig.apps.filter((entry) => entry.tenantId === tenant.id)) {
-        obs.log.debug(" -> [{renderer}@{appHostnames}] {appName}: {appId}", {
-          renderer: app.shell?.renderer ?? "unresolved",
-          appHostnames: app.hostnames.join(","),
-          appName: app.title,
-          appId: app.id
-        });
-      }
-    }
   }
 
   // CORS

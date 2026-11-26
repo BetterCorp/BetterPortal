@@ -939,7 +939,7 @@ pgTest("a blocked sync transaction expires without delaying unrelated writes or 
   try {
     const started = Date.now();
     const results = await Promise.allSettled([
-      a.saveConfig(first, { deadline: started + 250, signal: AbortSignal.timeout(250) }),
+      a.saveConfig(first, { budget: { deadline: started + 250, signal: AbortSignal.timeout(250) } }),
       b.saveConfig(second)
     ]);
     t.diagnostic('Concurrent writes completed in ' + (Date.now() - started) + ' ms');
@@ -984,11 +984,11 @@ pgTest("concurrent bootstrap recovers while a cancelled writer's PostgreSQL lock
     controller.abort();
     const expired = await stalled;
     assert.equal(expired.status, 503);
-    assert.equal((await expired.json()).reason, "processing_timeout");
-    assert.ok(expired.headers.get("x-bp-sync-id"));
     const recovered = await Promise.all(others);
     t.diagnostic("Three cold services bootstrapped in " + (Date.now() - started) + " ms while the original lock remained held");
     assert.ok(Date.now() - started < 5000);
+    assert.equal((await expired.json()).reason, "processing_timeout");
+    assert.ok(expired.headers.get("x-bp-sync-id"));
     assert.deepEqual(recovered.map(response => response.status), [200, 200, 200]);
     assert.equal((await store.loadConfig()).manifestCache.length, 3);
   } finally { await blocker.query("rollback"); blocker.release(); }
