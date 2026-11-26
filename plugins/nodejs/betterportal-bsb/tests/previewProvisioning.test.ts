@@ -7,7 +7,7 @@ import { execute } from "../../../../.github/actions/preview-environment/index.m
 
 const id = "org.example.orders";
 const key = `bp_pck_${Buffer.alloc(32, 1).toString("base64url")}`;
-const obs = { trace: {}, log: { info() {}, warn() {} } };
+const obs = { trace: {}, log: { debug() {}, info() {}, warn() {} } };
 
 function published(authorized = true) {
   return { application: "preview", group: "services", profile: "pr-123", version: 1, config: {
