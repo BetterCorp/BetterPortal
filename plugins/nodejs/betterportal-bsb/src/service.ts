@@ -9,7 +9,7 @@ import {
   type Observable
 } from "@bsb/base";
 import * as av from "anyvali";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { resolve, dirname } from "node:path";
 import {
@@ -324,7 +324,7 @@ export abstract class BPService<
   private sseAbortController: AbortController | null = null;
   private syncReconnectTimer?: ReturnType<typeof setTimeout>;
   /** Manifest acceptance is separate from receiving a cached config over SSE. */
-  private manifestSync: { state: "pending" | "retrying" | "synced"; lastAttemptAt?: string; lastSuccessAt?: string } = { state: "pending" };
+  private manifestSync: { state: "pending" | "retrying" | "synced"; lastAttemptAt?: string; lastSuccessAt?: string; outcome?: string; correlationId?: string } = { state: "pending" };
   private readonly seoProbeCache = new Map<string, {
     expiresAt: number;
     data?: RuntimeSitemapRoute[];
@@ -1242,9 +1242,21 @@ export abstract class BPService<
       }
     };
 
+    let failures = 0;
+    let attempt = 0;
+    let retryAfterMs = 0;
+    let started = 0;
+    let status = 0;
+    let outcome = "network_failure";
     const bootstrapFromPoll = async (): Promise<boolean> => {
-      this.manifestSync.lastAttemptAt = new Date().toISOString();
-      obs.log.info("Control plane sync bootstrap polling: {url}", { url: pollUrl });
+      started = Date.now();
+      attempt++;
+      status = 0;
+      retryAfterMs = 0;
+      outcome = "network_failure";
+      this.manifestSync.correlationId = randomUUID();
+      this.manifestSync.lastAttemptAt = new Date(started).toISOString();
+      obs.log.debug("BP SYNC CLIENT: starting bootstrap attempt={attempt} correlationId={correlationId} deadlineMs={deadlineMs}", { attempt, correlationId: this.manifestSync.correlationId, deadlineMs: 30000 });
       // POST manifest with the poll so CP can cache it for resolvedServicePath injection
       // AND surface per-view permission requirements to the admin role editor.
       const viewIndex: Record<string, unknown> = {};
@@ -1310,6 +1322,7 @@ export abstract class BPService<
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]),
         headers: {
           Accept: "application/json",
+          "x-bp-sync-id": this.manifestSync.correlationId,
           "content-type": "application/json",
           Authorization: `Bearer ${apiKey}`
         },
@@ -1332,52 +1345,42 @@ export abstract class BPService<
         })
       });
 
+      status = response.status;
       if (!response.ok) {
-        let body = "";
-        try { body = await response.text(); } catch { /* ignore */ }
-        obs.log.warn("Control plane sync bootstrap failed: {status} {body}", {
-          status: response.status,
-          body
-        });
+        const retry = response.headers.get("retry-after");
+        if (retry) {
+          const ms = /^\d+$/.test(retry) ? Number(retry) * 1000 : Date.parse(retry) - Date.now();
+          if (Number.isFinite(ms)) retryAfterMs = Math.max(0, Math.min(60000, ms));
+        }
+        outcome = status === 401 || status === 403 ? "authentication_error"
+          : status === 429 || status === 503 ? "server_busy" : "http_error";
+        // The correlation ID links to server stage diagnostics. Never log response bodies.
+        await response.body?.cancel();
         return false;
       }
 
+      outcome = "invalid_configuration";
       const config = await response.json();
       if (controller.signal.aborted) return false;
-      obs.log.info("BP SYNC CLIENT: bootstrap poll succeeded service={serviceId} status={status}", {
-        serviceId: this.manifest.pluginId,
-        status: response.status
-      });
       applyScopedConfig(config, "poll");
-      this.manifestSync = { ...this.manifestSync, state: "synced", lastSuccessAt: new Date().toISOString() };
-      return true;
-    };
-
-    const logBootstrapPollError = (error: unknown): void => {
-      const details = fetchErrorDetails(error);
-      obs.log.warn("BP SYNC CLIENT: bootstrap poll error service={serviceId} url={url} name={name} code={code} errno={errno} syscall={syscall} address={address} port={port} msg={msg} cause={causeName}:{causeMsg}", {
-        serviceId: this.manifest.pluginId,
-        url: pollUrl,
-        name: details.name,
-        code: details.code,
-        errno: details.errno,
-        syscall: details.syscall,
-        address: details.address,
-        port: details.port,
-        msg: details.msg,
-        causeName: details.causeName,
-        causeMsg: details.causeMsg
+      if (failures) obs.log.info("BP SYNC CLIENT: bootstrap recovered serviceId={serviceId} correlationId={correlationId} attempt={attempt} elapsedMs={elapsedMs}", {
+        serviceId: this.manifest.pluginId, correlationId: this.manifestSync.correlationId, attempt, elapsedMs: Date.now() - started
       });
+      failures = 0;
+      this.manifestSync = { ...this.manifestSync, outcome: "success", state: "synced", lastSuccessAt: new Date().toISOString() };
+      return true;
     };
 
     const connect = async (): Promise<boolean> => {
       if (controller.signal.aborted) return false;
-      const bootstrap = await bootstrapFromPoll().catch((error) => {
-        logBootstrapPollError(error);
+      const bootstrap = await bootstrapFromPoll().catch((error: unknown) => {
+        if (error instanceof Error && error.name === "TimeoutError") outcome = "timeout";
         return false;
       });
       if (controller.signal.aborted) return false;
       if (!bootstrap) {
+        failures++;
+        this.manifestSync.outcome = outcome;
         this.manifestSync.state = "retrying";
         scheduleReconnect();
         return false;
@@ -1396,12 +1399,8 @@ export abstract class BPService<
         signal: controller.signal
       }).then(async (response) => {
         if (!response.ok || !response.body) {
-          let body = "";
-          try { body = await response.text(); } catch { /* ignore */ }
-          obs.log.warn("Control plane sync failed: {status} {body}", {
-            status: response.status,
-            body
-          });
+          await response.body?.cancel();
+          obs.log.warn("BP SYNC CLIENT: stream rejected status={status}", { status: response.status });
           scheduleReconnect();
           return;
         }
@@ -1495,7 +1494,13 @@ export abstract class BPService<
     const scheduleReconnect = () => {
       if (controller.signal.aborted) return;
       clearTimeout(this.syncReconnectTimer);
-      this.syncReconnectTimer = setTimeout(() => void connect(), 5000);
+      const backoff = Math.min(30000, 4000 * 2 ** Math.min(3, Math.max(0, failures - 1)));
+      const retryDelayMs = Math.max(backoff, retryAfterMs) + Math.floor(Math.random() * 1000);
+      if (failures) obs.log.warn("BP SYNC CLIENT: bootstrap retry serviceId={serviceId} correlationId={correlationId} attempt={attempt} outcome={outcome} elapsedMs={elapsedMs} deadlineMs={deadlineMs} status={status} retryAfterMs={retryAfterMs} retryDelayMs={retryDelayMs}", {
+        serviceId: this.manifest.pluginId, correlationId: this.manifestSync.correlationId ?? "", attempt, outcome,
+        elapsedMs: Date.now() - started, deadlineMs: 30000, status, retryAfterMs, retryDelayMs
+      });
+      this.syncReconnectTimer = setTimeout(() => void connect(), retryDelayMs);
     };
 
     return connect();
@@ -2220,7 +2225,8 @@ export abstract class BPService<
         tenants: this.scopedConfig?.tenants.length ?? 0,
         apps: this.scopedConfig?.apps.length ?? 0
       },
-      manifestSync: this.manifestSync,
+      manifestSync: { ...this.manifestSync, lastSuccessAgeMs: this.manifestSync.lastSuccessAt
+        ? Date.now() - Date.parse(this.manifestSync.lastSuccessAt) : null },
       sync: {
         mode: this.inSetupMode
           ? "setup"

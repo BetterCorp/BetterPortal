@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/zapier",
-  "version": "11.0.16",
+  "version": "11.0.17",
   "description": "Zapier app scaffold for BetterPortal automation discovery.",
   "main": "index.js",
   "author": "BetterCorp",

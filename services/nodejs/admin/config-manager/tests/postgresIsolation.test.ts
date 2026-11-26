@@ -924,3 +924,80 @@ pgTest("config notifications retry failed reads and reconnect with a fresh snaps
   await subscription.close();
   assert.equal((subscription as any).client, undefined);
 });
+
+pgTest("a blocked sync transaction expires without delaying unrelated writes or committing after its deadline", async t => {
+  const { pool, makeStore } = await database(t);
+  const a = makeStore(), b = makeStore();
+  const [first, second] = await Promise.all([a.loadConfig(), b.loadConfig()]);
+  const blocker = await pool.connect();
+  await blocker.query("begin");
+  await blocker.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [
+    JSON.stringify(["bp_platform_config", "default", entityKey("tenants", first.tenants[0].id)])
+  ]);
+  first.tenants[0].title = "Expired edit";
+  second.tenants[1].title = "Independent edit";
+  try {
+    const started = Date.now();
+    const results = await Promise.allSettled([
+      a.saveConfig(first, { deadline: started + 250, signal: AbortSignal.timeout(250) }),
+      b.saveConfig(second)
+    ]);
+    t.diagnostic('Concurrent writes completed in ' + (Date.now() - started) + ' ms');
+    assert.ok(Date.now() - started < 2000, "database work must release the writer within its request budget");
+    assert.equal(results[0].status, "rejected");
+    assert.equal(results[1].status, "fulfilled");
+  } finally { await blocker.query("rollback"); blocker.release(); }
+  const saved = await a.loadConfig();
+  assert.equal(saved.tenants[0].title, "Tenant 0");
+  assert.equal(saved.tenants[1].title, "Independent edit");
+});
+
+pgTest("concurrent bootstrap recovers while a cancelled writer's PostgreSQL lock is still held", async t => {
+  const config = fixture();
+  const services = config.tenants.flatMap(tenant => tenant.services);
+  services.forEach((service, i) => { service.apiKeyHash = hashApiKey("bootstrap-" + i); });
+  const { pool, makeStore } = await database(t, config);
+  const store = makeStore();
+  await store.initialize();
+  const app = new H3();
+  registerSyncEndpoint(app as never, store);
+  const submit = (index: number, signal?: AbortSignal) => app.fetch(new Request("https://config.example/.well-known/bp/sync/poll", {
+    method: "POST", signal, headers: { authorization: "Bearer bootstrap-" + index, "content-type": "application/json" },
+    body: JSON.stringify({ viewIndex: {}, manifestVersion: "1" })
+  }));
+  const blocker = await pool.connect();
+  await blocker.query("begin");
+  const pid = (await blocker.query("select pg_backend_pid() as pid")).rows[0].pid;
+  await blocker.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [
+    JSON.stringify(["bp_platform_config", "default", entityKey("manifestCache", services[0].id)])
+  ]);
+  try {
+    const controller = new AbortController();
+    const stalled = submit(0, controller.signal);
+    const waitUntil = Date.now() + 3000;
+    while (!(await pool.query("select exists(select 1 from pg_stat_activity where $1 = any(pg_blocking_pids(pid))) as blocked", [pid])).rows[0].blocked) {
+      assert.ok(Date.now() < waitUntil, "the first submission must reach the database lock");
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    const started = Date.now();
+    const others = services.slice(1).map((_, i) => submit(i + 1));
+    controller.abort();
+    const expired = await stalled;
+    assert.equal(expired.status, 503);
+    assert.equal((await expired.json()).reason, "processing_timeout");
+    assert.ok(expired.headers.get("x-bp-sync-id"));
+    const recovered = await Promise.all(others);
+    t.diagnostic("Three cold services bootstrapped in " + (Date.now() - started) + " ms while the original lock remained held");
+    assert.ok(Date.now() - started < 5000);
+    assert.deepEqual(recovered.map(response => response.status), [200, 200, 200]);
+    assert.equal((await store.loadConfig()).manifestCache.length, 3);
+  } finally { await blocker.query("rollback"); blocker.release(); }
+  assert.equal((await submit(0)).status, 200);
+  const revision = await pool.query("select last_value from bp_platform_config_entity_revision");
+  const activityVersions = () => pool.query("select service_id, xmin::text from bp_platform_config_activity order by service_id");
+  const activity = await activityVersions();
+  const repeats = await Promise.all(services.map((_, i) => submit(i)));
+  assert.ok(repeats.every(response => response.status === 200));
+  assert.deepEqual((await pool.query("select last_value from bp_platform_config_entity_revision")).rows, revision.rows);
+  assert.deepEqual((await activityVersions()).rows, activity.rows, "unchanged polls must not generate dead activity tuples");
+});

@@ -212,7 +212,7 @@ export class PostgresStorage extends BaseStorage {
     return { scope: "platform", serviceId: service.id, service };
   }
 
-  async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; completeAction?: PendingActionCompletion }): Promise<void> {
+  async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; completeAction?: PendingActionCompletion; signal?: AbortSignal; deadline?: number }): Promise<void> {
     await this.ensureSchema();
     const baseline = this.snapshots.get(config);
     if (!baseline) throw new Error("Config must be loaded from this store before saving; detached whole-platform replacements are not supported");
@@ -227,9 +227,19 @@ export class PostgresStorage extends BaseStorage {
       if (entityReferences(entity, baseline.entities).some(ref => !proposed.has(ref))) proposed.delete(key);
     }
     const changed = changedEntityKeys(baseline.entities, proposed);
+    options?.signal?.throwIfAborted();
     const client = await this.getPool().connect();
+    let discarded = false;
+    const discard = () => { discarded = true; client.release(true); };
+    options?.signal?.addEventListener("abort", discard, { once: true });
     try {
+      options?.signal?.throwIfAborted();
       await client.query("begin");
+      if (options?.deadline !== undefined) {
+        const remaining = options.deadline - Date.now();
+        if (remaining <= 0) throw new DOMException("Sync deadline exceeded", "TimeoutError");
+        await client.query("select set_config('statement_timeout', $1, true)", [String(remaining)]);
+      }
       await client.query("set local betterportal.app_data_writer = '3'");
       if (options?.completeAction) await this.finishAction(client, options.completeAction);
       // Shared dependency locks allow two apps in a tenant to save concurrently.
@@ -311,7 +321,8 @@ export class PostgresStorage extends BaseStorage {
         } else await client.query(`delete from ${this.entitiesTable} where scope_id = $1 and kind = $2 and entity_id = $3`,
           [this.rowId, entity.kind, entity.id]);
       }
-      const validated = (await this.readSnapshot(client)).config;
+      const committed = await this.readSnapshot(client);
+      const validated = committed.config;
       this.validateConfigReferences(validated);
       // Validate uniqueness against the current committed state, under claim locks.
       const claims = new Set<string>();
@@ -339,7 +350,7 @@ export class PostgresStorage extends BaseStorage {
         const result = await client.query<{ revision: string }>(`select nextval('${this.revisionSequence}') as revision`);
         await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision: Number(result.rows[0].revision) });
       }
-      const committed = await this.readSnapshot(client);
+      options?.signal?.throwIfAborted();
       await client.query("commit");
       // Update the caller's baseline as well as its value: subsequent saves must
       // not mistake concurrent edits included in this commit for user deletions.
@@ -347,10 +358,15 @@ export class PostgresStorage extends BaseStorage {
       this.snapshots.set(config, committed);
       this.invalidate();
     } catch (error) {
-      await client.query("rollback").catch(() => undefined);
+      if (!discarded) await client.query("rollback").catch(() => undefined);
+      options?.signal?.throwIfAborted();
+      if (options?.deadline && (error as { code?: string }).code === "57014") {
+        throw new DOMException("Sync deadline exceeded", "TimeoutError");
+      }
       throw error;
     } finally {
-      client.release();
+      options?.signal?.removeEventListener("abort", discard);
+      if (!discarded) client.release();
     }
   }
 
@@ -453,7 +469,10 @@ export class PostgresStorage extends BaseStorage {
     await this.getPool().query(
       `insert into ${this.activityTable} (scope_id, service_id, ${column}) values ($1, $2, now())
        on conflict (scope_id, service_id) do update set ${column} = excluded.${column}
-       ${field === "lastSeenAt" ? `where ${this.activityTable}.${column} is null or ${this.activityTable}.${column} < now() - interval '60 seconds'` : ""}`,
+       where ${this.activityTable}.${column} is null or ${this.activityTable}.${column} < now() - interval '60 seconds'
+         ${field === "lastSyncAt" ? `or exists (select 1 from ${this.entitiesTable} manifest
+           where manifest.scope_id = $1 and manifest.kind = 'manifestCache' and manifest.entity_id = $2
+           and (manifest.value->>'fetchedAt')::timestamptz >= ${this.activityTable}.${column})` : ""}`,
       [this.rowId, serviceId]
     );
   }

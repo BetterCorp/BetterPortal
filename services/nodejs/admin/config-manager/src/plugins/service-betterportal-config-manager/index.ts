@@ -472,6 +472,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       replayEncryptionKey: this.cpState.keyPair.privateKeyPem
     });
     registerSyncEndpoint(this.app, this.storage, {
+      build: this.manifest.version,
       onManifestUpdated: (config, serviceIds, manifest) => {
         for (const serviceId of serviceIds) reconcilePreviewService(config, serviceId, manifest);
         for (const deployment of config.previewEnvironmentDeployments) {
