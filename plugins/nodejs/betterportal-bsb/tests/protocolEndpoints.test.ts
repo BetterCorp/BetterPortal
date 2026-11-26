@@ -3,7 +3,7 @@ import test from "node:test";
 import { createServer, request as httpRequest } from "node:http";
 import { fromNodeHandler, getRequestURL } from "h3";
 import * as av from "anyvali";
-import { createStreamHandler } from "@betterportal/framework";
+import { createStreamHandler, ThemeLlmsDocumentPaths } from "@betterportal/framework";
 import { createBetterPortalApp, createBetterPortalNodeHandler } from "@betterportal/framework/lib/runtime/h3.js";
 import { ProtocolEndpointRegistry, type BetterPortalProtocolEndpoint } from "../src/protocolEndpoints.js";
 import { BPService } from "../src/service.js";
@@ -88,6 +88,13 @@ test("registration snapshots the transport policy rather than retaining mutable 
   assert.equal((await app.fetch(new Request("https://service.test/mcp/app", { method: "OPTIONS", headers: {
     origin: "https://client.test", "access-control-request-method": "GET", "access-control-request-headers": "x-unreviewed"
   } }))).status, 403);
+});
+
+test("protocol registration cannot replace canonical shell AI discovery documents", () => {
+  for (const path of Object.values(ThemeLlmsDocumentPaths)) {
+    assert.throws(() => new ProtocolEndpointRegistry().register(definition({ path }), []), /cannot replace BP native/);
+  }
+  new ProtocolEndpointRegistry().register(definition({ path: "/oauth/llms.txt" }), []);
 });
 
 test("BPService reserves generated SSE paths for explicit SSE and streaming GET routes", () => {

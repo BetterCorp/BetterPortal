@@ -10,6 +10,7 @@ import * as av from "anyvali";
 import {
   InMemoryServiceConfigStore,
   buildThemeAiManifest,
+  ThemeLlmsDocumentPaths,
   resolveThemeLlmsContext,
   renderThemeLlmsApi,
   renderThemeLlmsDev,
@@ -302,10 +303,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private registerRoutes(): void {
     this.app.get("/_themes/bootstrap2/assets/**", (event) => this.handleAsset(event));
-    this.app.get("/llms.txt", (event) => this.handleLlmsTxt(event));
-    this.app.get("/llms-api.txt", (event) => this.handleLlmsApi(event));
-    this.app.get("/llms-dev.txt", (event) => this.handleLlmsDev(event));
-    this.app.get("/llms-ui.txt", (event) => this.handleLlmsUi(event));
+    this.app.get(ThemeLlmsDocumentPaths.overview, (event) => this.handleLlmsTxt(event));
+    this.app.get(ThemeLlmsDocumentPaths.api, (event) => this.handleLlmsApi(event));
+    this.app.get(ThemeLlmsDocumentPaths.development, (event) => this.handleLlmsDev(event));
+    this.app.get(ThemeLlmsDocumentPaths.ui, (event) => this.handleLlmsUi(event));
     this.app.get("/.well-known/bp/ai.json", (event) => this.handleAiManifest(event));
     this.app.get("/.well-known/bp/manifest", (event) => this.handleManifest(event));
     this.app.get("/.well-known/bp/public", (event) => this.handlePublicDiscovery(event));

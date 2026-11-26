@@ -11,6 +11,7 @@ import {
   renderThemeLlmsDrop,
   renderThemeLlmsIndex,
   renderThemeLlmsUi,
+  ThemeLlmsDocumentPaths,
   type ThemeLlmsContext
 } from "../src/runtime/llms.js";
 
@@ -40,6 +41,15 @@ const resource: DeveloperResource = {
   mediaType: "text/markdown; charset=utf-8",
   content: "# UI skill"
 };
+
+test("canonical public AI document paths retain their contract and drive manifest links", () => {
+  assert.deepEqual(ThemeLlmsDocumentPaths, { overview: "/llms.txt", api: "/llms-api.txt", development: "/llms-dev.txt",
+    ui: "/llms-ui.txt", drop: "/llms-drop.txt" });
+  assert.equal(Object.isFrozen(ThemeLlmsDocumentPaths), true);
+  const manifest = buildThemeAiManifest(context, []) as Record<string, unknown>;
+  assert.deepEqual(manifest.documents, Object.fromEntries(Object.entries(ThemeLlmsDocumentPaths)
+    .map(([name, path]) => [name, new URL(path, context.app.url).toString()])));
+});
 
 test("theme LLM documents provide concise task-specific discovery", () => {
   const index = renderThemeLlmsIndex(context);

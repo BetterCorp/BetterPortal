@@ -1,4 +1,5 @@
 import { handleCorsRequest, jsonResponse, type BetterPortalEvent } from "@betterportal/framework/lib/runtime/h3.js";
+import { ThemeLlmsDocumentPaths } from "@betterportal/framework";
 
 export type ProtocolHttpMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -71,7 +72,9 @@ export class ProtocolEndpointRegistry {
     if (PARAMETER.test(parts[0]!) || parts[0] === ".well-known" && (!parts[1] || PARAMETER.test(parts[1]))) throw new Error("Protocol endpoints require a literal namespace");
     if (input.path === "/.well-known/bp" || input.path.startsWith("/.well-known/bp/") || input.path === "/.well-known/jwks.json"
       || ["/login", "/logout", "/refresh", "/register", "/robots.txt", "/sitemap.xml"].includes(input.path)
-      || parts[0] === "sitemaps") throw new Error("Protocol endpoints cannot replace BP native authentication, management or SEO paths");
+      || parts[0] === "sitemaps" || Object.values(ThemeLlmsDocumentPaths).some(path => path === input.path)) {
+      throw new Error("Protocol endpoints cannot replace BP native authentication, management, discovery or SEO paths");
+    }
     if (!input.methods.length || input.methods.length > 6 || input.methods.some(method => !METHODS.has(method))) throw new Error("Unsupported protocol HTTP method");
     if (typeof input.handler !== "function" || !input.cors || input.cors.credentials !== undefined && input.cors.credentials !== false) throw new Error("Protocol endpoint requires an owned handler and non-credentialed CORS");
     const methods = [...new Set(input.methods)];

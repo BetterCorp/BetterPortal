@@ -8,7 +8,7 @@ import { decodeFormBody } from "./formBody.js";
 import type { HttpMethod } from "../contracts/common.js";
 import type { JsonValue } from "../contracts/json.js";
 import type { BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
-import { renderThemeLlmsDrop, type ThemeLlmsContext } from "../runtime/llms.js";
+import { renderThemeLlmsDrop, ThemeLlmsDocumentPaths, type ThemeLlmsContext } from "../runtime/llms.js";
 import type { BetterPortalObservability, ObservabilityAttributes } from "../contracts/observability.js";
 import type { BPRouteReference, BetterPortalRegistry, RegisteredRoute, ViewRenderContext } from "../contracts/registry.js";
 import type {
@@ -2225,7 +2225,7 @@ export function registerBpWellKnownRoutes(
 ): void {
   const resolveLlmsContext = options.llmsContext;
   if (manifest.shell && resolveLlmsContext) {
-    app.get("/llms-drop.txt", (event) => {
+    app.get(ThemeLlmsDocumentPaths.drop, (event) => {
       const context = resolveLlmsContext(event);
       return new Response(
         context ? renderThemeLlmsDrop(context, bpSchema) : "BetterPortal app context is not available yet.\n",
