@@ -24,7 +24,8 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && (startsWith(github.event.workflow_run.head_branch, 'v') || (github.event.workflow_run.name == 'Build' && github.event.workflow_run.head_branch == 'master')))
+    environment: production
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && (startsWith(github.event.workflow_run.head_branch, 'v') || (github.event.workflow_run.name == 'Build' && github.event.workflow_run.head_branch == 'master'))))
     runs-on: ubuntu-latest
     timeout-minutes: 135
     permissions:
@@ -44,7 +45,7 @@ jobs:
       - name: Deploy all services with automatic rollback
         env:
           GH_TOKEN: ${{ github.token }}
-          EASY1_READ_TOKEN: ${{ secrets.EASY1_READ_TOKEN }}
+          EASY1_TOKEN: ${{ secrets.EASY1_TOKEN }}
           EASY1_DEPLOY_WEBHOOKS: ${{ secrets.EASY1_DEPLOY_WEBHOOKS }}
         run: node scripts/deploy/easy1.mjs
       - name: Keep deployment outcome

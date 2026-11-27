@@ -71,7 +71,7 @@ export async function waitForReleasePackages(version, { request = fetch, wait = 
 const swarmService = 'betterportal_config-manager';
 
 async function readManager(token) {
-  if (!token) throw new Error('Missing EASY1_READ_TOKEN for Config Manager readiness checks');
+  if (!token) throw new Error('Missing EASY1_TOKEN for Config Manager readiness checks');
   const get = async path => {
     const response = await fetch('https://easy1.eu2.betterweb.co.za/api/' + path, {
       headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000)
@@ -107,7 +107,7 @@ export function replacementsReady(before, after) {
       && task.image === tasks[0].image);
 }
 
-export async function deployServices(version, hooks, { readReplicas = () => readManager(process.env.EASY1_READ_TOKEN), request = fetch, wait = waitFor, log = console.log } = {}) {
+export async function deployServices(version, hooks, { readReplicas = () => readManager(process.env.EASY1_TOKEN), request = fetch, wait = waitFor, log = console.log } = {}) {
   await wait(async () => {
     const response = await request(releaseUrl, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) });
     return response.ok && (await response.json()).version === version;
@@ -241,7 +241,7 @@ async function main() {
     writeFileSync('easy1-deployment.json', JSON.stringify({ ...result, services: services.map(({ name, replicas }) => ({ name, replicas })) }, null, 2));
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Easy1: ${result.status}; requested ${result.version}; previous ${result.previousVersion}.\n\n`);
   };
-  await readManager(process.env.EASY1_READ_TOKEN); // Check access before moving either release pointer.
+  await readManager(process.env.EASY1_TOKEN); // Check access before moving either release pointer.
   await waitForReleasePackages(target.version);
   await rollout({ current, previous, target, move: movePointers, deploy: version => deployServices(version, hooks), report });
 }
