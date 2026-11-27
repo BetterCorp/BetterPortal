@@ -68,23 +68,58 @@ export async function waitForReleasePackages(version, { request = fetch, wait = 
   log(`All Easy1 npm tarballs are available for ${version}`);
 }
 
-export async function deployServices(version, hooks, { request = fetch, wait = waitFor, log = console.log } = {}) {
+const swarmService = 'betterportal_config-manager';
+
+async function readManager(token) {
+  if (!token) throw new Error('Missing EASY1_TOKEN for Config Manager readiness checks');
+  const get = async path => {
+    const response = await fetch('https://easy1.eu2.betterweb.co.za/api/' + path, {
+      headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000)
+    });
+    if (!response.ok) throw new Error(`Easy1 readiness query returned HTTP ${response.status}`);
+    return response.json();
+  };
+  const [stats, containers] = await Promise.all([get('getDockerTaskStats'), get('getDockerContainers?service=' + swarmService)]);
+  const counts = stats?.[swarmService];
+  if (!Number.isSafeInteger(counts?.desired) || counts.desired < 1 || !Number.isSafeInteger(counts.actual) || !Array.isArray(containers)) {
+    throw new Error('Incomplete Config Manager replica inventory');
+  }
+  const tasks = containers.map(container => {
+    const labels = container.Labels;
+    const id = labels?.['com.docker.swarm.task.id'];
+    const name = labels?.['com.docker.swarm.task.name'];
+    const slot = Number(name?.split('.')[1]);
+    if (!id || !Number.isSafeInteger(slot) || slot < 1 || name !== `${swarmService}.${slot}.${id}`) {
+      throw new Error('Invalid Config Manager task identity');
+    }
+    return { id, slot, image: container.ImageID, healthy: container.State === 'running' && container.Health?.Status === 'healthy' };
+  });
+  return { ...counts, tasks };
+}
+
+export function replacementsReady(before, after) {
+  const old = new Set(before.tasks.map(task => task.id));
+  const { desired, actual, tasks } = after;
+  return desired === before.desired && actual === desired && tasks.length === desired
+    && new Set(tasks.map(task => task.slot)).size === desired
+    && new Set(tasks.map(task => task.id)).size === desired
+    && tasks.every(task => task.slot >= 1 && task.slot <= desired && task.healthy && task.image && !old.has(task.id)
+      && task.image === tasks[0].image);
+}
+
+export async function deployServices(version, hooks, { readReplicas = () => readManager(process.env.EASY1_TOKEN), request = fetch, wait = waitFor, log = console.log } = {}) {
   await wait(async () => {
     const response = await request(releaseUrl, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) });
     return response.ok && (await response.json()).version === version;
   }, { timeoutMs: 600_000 });
-  const deadline = Date.now() + 20 * 60_000;
-  // Trigger all seven even if an earlier trigger failed: rollback also repairs partial deployments.
-  const failed = [];
-  for (const service of services) {
+  const trigger = async service => {
     log(`Deploying ${service.name} to ${version}`);
     try {
       const response = await request(hooks[service.name], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', redirect: 'error', signal: AbortSignal.timeout(60_000) });
-      if (!response.ok) failed.push(service.name);
-    } catch { failed.push(service.name); }
-  }
-  if (failed.length) throw new Error(`Deployment trigger failed for: ${failed.join(', ')}`);
-  for (const service of services) {
+      return response.ok;
+    } catch { return false; }
+  };
+  const verify = async (service, deadline, baseline) => {
     let consecutive = 0;
     await wait(async () => {
       try {
@@ -92,13 +127,28 @@ export async function deployServices(version, hooks, { request = fetch, wait = w
         request(`${service.origin}/.well-known/bp/manifest`, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000) }),
         request(`${service.origin}/.well-known/bp/health`, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000) })
       ]);
-      const ready = manifest.ok && health.ok && (await manifest.json()).version === version && (await health.json()).ok === true;
+      const ready = (!baseline || replacementsReady(baseline, await readReplicas())) && manifest.ok && health.ok && (await manifest.json()).version === version && (await health.json()).ok === true;
       consecutive = ready ? consecutive + 1 : 0;
       return consecutive >= 3;
       } catch { consecutive = 0; return false; }
     }, { timeoutMs: Math.max(1, deadline - Date.now()) });
     log(`${service.name} is healthy on ${version}`);
+  };
+  const manager = services.find(service => service.name === 'config-manager');
+  const dependents = services.filter(service => service !== manager);
+  const stageBudgetMs = 20 * 60_000;
+  const baseline = await readReplicas();
+  if (baseline.tasks.length !== baseline.actual) throw new Error("Incomplete Config Manager baseline");
+  if (!await trigger(manager)) throw new Error('Deployment trigger failed for: config-manager');
+  await verify(manager, Date.now() + stageBudgetMs, baseline);
+
+  const deadline = Date.now() + stageBudgetMs;
+  const failed = [];
+  for (const service of dependents) {
+    if (!await trigger(service)) failed.push(service.name);
   }
+  if (failed.length) throw new Error(`Deployment trigger failed for: ${failed.join(', ')}`);
+  for (const service of dependents) await verify(service, deadline);
 }
 
 /** The previous pointer is written atomically with the active pointer before any service changes. */
@@ -191,6 +241,7 @@ async function main() {
     writeFileSync('easy1-deployment.json', JSON.stringify({ ...result, services: services.map(({ name, replicas }) => ({ name, replicas })) }, null, 2));
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Easy1: ${result.status}; requested ${result.version}; previous ${result.previousVersion}.\n\n`);
   };
+  await readManager(process.env.EASY1_TOKEN); // Check access before moving either release pointer.
   await waitForReleasePackages(target.version);
   await rollout({ current, previous, target, move: movePointers, deploy: version => deployServices(version, hooks), report });
 }

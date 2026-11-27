@@ -1,11 +1,36 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { compareVersions, deployServices, rollout, services, validateHooks, waitFor, waitForReleasePackages } from './easy1.mjs';
+import { compareVersions, replacementsReady, deployServices, rollout, services, validateHooks, waitFor, waitForReleasePackages } from './easy1.mjs';
 
 const current = { sha: 'old', version: '11.0.11' };
 const previous = { sha: 'prior', version: '11.0.8' };
 const target = { sha: 'new', version: '11.0.12' };
 const hooks = Object.fromEntries(services.map(service => [service.name, `https://easy1.eu2.betterweb.co.za/api/deploy/${service.name}`]));
+
+function snapshot(prefix) {
+  return { desired: 4, actual: 4, tasks: [1, 2, 3, 4].map(slot => ({ slot, id: prefix + slot, image: 'same-image', healthy: true })) };
+}
+
+function replicaReader() {
+  let first = true;
+  return async () => {
+    const result = snapshot(first ? 'old' : 'new');
+    first = false;
+    return result;
+  };
+}
+
+test('same-version deploy requires a healthy replacement in every slot', () => {
+  const before = snapshot('old');
+  const after = snapshot('new');
+  assert.equal(replacementsReady(before, after), true);
+  for (const patch of [{ id: 'old2' }, { healthy: false }, { slot: 1 }, { image: 'other' }]) {
+    const incomplete = structuredClone(after);
+    Object.assign(incomplete.tasks[1], patch);
+    assert.equal(replacementsReady(before, incomplete), false);
+  }
+  assert.equal(replacementsReady(before, { ...after, tasks: [...after.tasks, before.tasks[0]] }), false);
+});
 
 test('inventory includes all seven runtime services and fifteen replicas', () => {
   assert.deepEqual(services.map(service => service.name).sort(), ['auth-authress-io', 'auth-default', 'auth-workos', 'bootstrap1', 'config-manager', 'embedded', 'hello-view']);
@@ -54,11 +79,12 @@ test('failed rollback is explicitly reported and never presented as success', as
 test('every hook is attempted after a partial failure without exposing its URL', async () => {
   const triggered = [], messages = [];
   await assert.rejects(deployServices('11.0.12', hooks, {
+    readReplicas: replicaReader(),
     log: message => messages.push(message),
-    wait: async check => assert.equal(await check(), true),
+    wait: async check => { for (let i = 0; i < 3; i++) if (await check()) return; assert.fail("not ready"); },
     request: async (url, init) => {
       if (init.method === 'POST') { triggered.push(url); return new Response('', { status: url === hooks['auth-default'] ? 500 : 200 }); }
-      return Response.json({ version: '11.0.12' });
+      return Response.json(url.endsWith('/health') ? { ok: true } : { version: '11.0.12' });
     }
   }), /auth-default/);
   assert.equal(triggered.length, 7);
@@ -90,15 +116,20 @@ test('deployment readiness waits when npm has published metadata but a tarball i
 
 test('a rollout waits for publication and checks version and health on every service', async () => {
   const checked = new Set(), triggered = [];
+  const manager = services.find(service => service.name === "config-manager");
+  let managerChecks = 0;
   await deployServices('11.0.12', hooks, {
+    readReplicas: replicaReader(),
     log() {},
     wait: async check => { for (let i = 0; i < 5; i++) if (await check()) return; assert.fail('service not ready'); },
     request: async (url, init) => {
       if (init.method === 'POST') {
         assert.equal(init.headers['Content-Type'], 'application/json');
         assert.equal(init.body, '{}');
+        if (url !== hooks[manager.name]) assert.equal(managerChecks, 3);
         triggered.push(url); return new Response('');
       }
+      if (url === manager.origin + "/.well-known/bp/health") managerChecks++;
       checked.add(url);
       return Response.json(url.endsWith('/health') ? { ok: true } : { version: '11.0.12' });
     }
@@ -109,15 +140,18 @@ test('a rollout waits for publication and checks version and health on every ser
 
 test('wrong version and unhealthy service never pass verification', async () => {
   for (const failure of ['version', 'health']) {
+    const triggered = [];
     await assert.rejects(deployServices('11.0.12', hooks, {
+    readReplicas: replicaReader(),
       log() {},
       wait: async check => { for (let i = 0; i < 3; i++) if (await check()) return; throw new Error('not ready'); },
       request: async (url, init) => {
-        if (init.method === 'POST') return new Response('');
+        if (init.method === 'POST') { triggered.push(url); return new Response(''); }
         if (url.includes('raw.githubusercontent')) return Response.json({ version: '11.0.12' });
         return Response.json(url.endsWith('/health') ? { ok: failure !== 'health' } : { version: failure === 'version' ? '11.0.11' : '11.0.12' });
       }
     }), /not ready/);
+    assert.deepEqual(triggered, [hooks["config-manager"]]);
   }
 });
 
